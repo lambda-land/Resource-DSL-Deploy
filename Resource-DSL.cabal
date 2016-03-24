@@ -1,0 +1,41 @@
+name:                Resource-DSL
+version:             0.0.0
+synopsis:            Initial project template from stack.
+description:         Please see README.md
+homepage:            http://github.com/lambda-land/Resource-DSL/resource-dsl
+license:             BSD3
+license-file:        LICENSE
+author:              Eric Walkingshaw
+maintainer:          walkiner@oregonstate.edu
+copyright:           2016 Eric Walkingshaw
+category:            Language
+build-type:          Simple
+-- extra-source-files:
+cabal-version:       >=1.10
+
+library
+  hs-source-dirs:      src
+  exposed-modules:     Lib
+  build-depends:       base >= 4.7 && < 5
+  default-language:    Haskell2010
+
+executable resource-dsl-exe
+  hs-source-dirs:      app
+  main-is:             Main.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , Resource-DSL
+  default-language:    Haskell2010
+
+test-suite resource-dsl-test
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             Spec.hs
+  build-depends:       base
+                     , Resource-DSL
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  default-language:    Haskell2010
+
+source-repository head
+  type:     git
+  location: https://github.com/lambda-land/Resource-DSL/resource-dsl
