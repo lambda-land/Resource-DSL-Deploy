@@ -1,6 +1,6 @@
 module Main where
 
-import Lib
+import Driver
 
 main :: IO ()
-main = someFunc
+main = runDriver
