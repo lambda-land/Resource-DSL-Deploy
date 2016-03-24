@@ -1,7 +1,4 @@
-{-# LANGUAGE
-      DeriveGeneric,
-      GeneralizedNewtypeDeriving
-  #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module DSL.Type where
 
@@ -14,12 +11,7 @@ import GHC.Generics (Generic)
 --
 
 -- | Variable names.
-newtype Var = Var String
-  deriving (Eq,Generic,IsString,Ord,Show)
-
--- | Row variable names.
-newtype RVar = RVar String
-  deriving (Eq,Generic,IsString,Ord,Show)
+type Var = String
 
 -- | Record labels.
 type Label = String
@@ -33,7 +25,7 @@ type Label = String
 type Row a = [(Label, a)]
 
 -- | Type schemas.
-data Schema a = Forall [RVar] (Type a)
+data Schema a = Forall [Var] (Type a)
   deriving (Eq,Generic,Show)
 
 -- | Monomorphic type schema.
@@ -43,8 +35,8 @@ mono = Forall []
 -- | Types.
 data Type a
      = Base a
-     | (Maybe Var, Type a) :-> Type a
-     | TRec (Row (Type a)) (Maybe RVar)
+     | Type a :-> Type a
+     | TRec (Row (Type a)) (Maybe Var)
   deriving (Eq,Generic,Show)
 
 infixr 1 :->
@@ -55,40 +47,40 @@ data Basic = TBool | TInt | TUnit
 
 
 --
--- * Liquid Types
+-- * Refinement Types
 --
 
--- | Liquid types.
-type Liquid = (Basic,Qual)
+-- | Refinement types.
+type Refined = (Basic,Pred)
 
--- | Logical qualifiers.
-data Qual
-     = QThis
-     | QB Bool
-     | QI Int
-     | QRef Var
-     | QNot Qual
-     | QAnd Qual Qual
-     | QOr  Qual Qual
-     | QLte Qual Qual
-     | QEqu Qual Qual
-     | QAdd Qual Qual
+-- | Predicates.
+data Pred
+     = PThis
+     | PB Bool
+     | PI Int
+     | PRef Var
+     | PNot Pred
+     | PAnd Pred Pred
+     | POr  Pred Pred
+     | PLte Pred Pred
+     | PEqu Pred Pred
+     | PAdd Pred Pred
   deriving (Eq,Generic,Show)
 
 -- | Unconstrained basic type.
-basic :: Basic -> Type Liquid
-basic t = Base (t, QB True)
+basic :: Basic -> Type Refined
+basic t = Base (t, PB True)
 
 -- | Unconstrained boolean type.
-tBool :: Type Liquid
+tBool :: Type Refined
 tBool = basic TBool
 
 -- | Unconstrained integer type.
-tInt :: Type Liquid
+tInt :: Type Refined
 tInt = basic TInt
 
 -- | Unconstrained unit type.
-tUnit :: Type Liquid
+tUnit :: Type Refined
 tUnit = basic TUnit
 
 -- | Lookup the type associated with a label in a record type.
