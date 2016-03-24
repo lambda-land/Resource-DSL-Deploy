@@ -2,7 +2,6 @@ name:          Resource-DSL
 version:       0.0.0
 homepage:      http://github.com/lambda-land/Resource-DSL/resource-dsl
 license:       BSD3
-license-file:  LICENSE
 author:        Eric Walkingshaw
 maintainer:    walkiner@oregonstate.edu
 category:      Language
