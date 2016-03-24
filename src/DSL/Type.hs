@@ -22,7 +22,7 @@ mono = Forall []
 -- | Types.
 data Type a
      = Base a
-     | (Var, Type a) :-> Type a
+     | (Maybe Var, Type a) :-> Type a
      | Rec [(Label, Type a)] (Maybe Var)
   deriving (Eq,Generic,Show)
 
