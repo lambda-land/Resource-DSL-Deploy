@@ -1,18 +1,39 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE
+      DeriveGeneric,
+      GeneralizedNewtypeDeriving
+  #-}
 
 module DSL.Type where
 
 import GHC.Generics (Generic)
+import Data.String (IsString)
 
 
--- | Variable names.
-type Var = String
+--
+-- * Names
+--
+
+-- | Dependent variable names.
+newtype DVar = DVar String
+  deriving (Eq,Generic,IsString,Ord,Show)
+
+-- | Row variable names.
+newtype RVar = RVar String
+  deriving (Eq,Generic,IsString,Ord,Show)
 
 -- | Record labels.
 type Label = String
 
+
+--
+-- * Types and Schemas
+--
+
+-- | Rows.
+type Row a = [(Label, a)]
+
 -- | Type schemas.
-data Schema a = Forall [Var] (Type a)
+data Schema a = Forall [RVar] (Type a)
   deriving (Eq,Generic,Show)
 
 -- | Monomorphic type schema.
@@ -22,8 +43,8 @@ mono = Forall []
 -- | Types.
 data Type a
      = Base a
-     | (Maybe Var, Type a) :-> Type a
-     | Rec [(Label, Type a)] (Maybe Var)
+     | (Maybe DVar, Type a) :-> Type a
+     | TRec (Row (Type a)) (Maybe RVar)
   deriving (Eq,Generic,Show)
 
 infixr 1 :->
@@ -31,6 +52,11 @@ infixr 1 :->
 -- | Basic types.
 data Basic = TBool | TInt | TUnit
   deriving (Eq,Generic,Show)
+
+
+--
+-- * Liquid Types
+--
 
 -- | Liquid types.
 type Liquid = (Basic,Qual)
@@ -40,7 +66,7 @@ data Qual
      = QThis
      | QB Bool
      | QI Int
-     | QRef Var
+     | QRef DVar
      | QNot Qual
      | QAnd Qual Qual
      | QOr  Qual Qual
@@ -64,3 +90,8 @@ tInt = basic TInt
 -- | Unconstrained unit type.
 tUnit :: Type Liquid
 tUnit = basic TUnit
+
+-- | Lookup the type associated with a label in a record type.
+selectT :: Label -> Type a -> Maybe (Type a)
+selectT l (TRec r _) = lookup l r
+selectT _ _          = Nothing
