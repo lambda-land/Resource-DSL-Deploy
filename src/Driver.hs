@@ -3,6 +3,7 @@ module Driver where
 import Data.Aeson
 import qualified Data.ByteString.Lazy.Char8 as B
 
+import DSL.Expr
 import DSL.Type
 import DSL.Serialize
 import Example.Stub

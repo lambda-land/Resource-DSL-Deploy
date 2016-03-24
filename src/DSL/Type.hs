@@ -5,16 +5,16 @@
 
 module DSL.Type where
 
-import GHC.Generics (Generic)
 import Data.String (IsString)
+import GHC.Generics (Generic)
 
 
 --
 -- * Names
 --
 
--- | Dependent variable names.
-newtype DVar = DVar String
+-- | Variable names.
+newtype Var = Var String
   deriving (Eq,Generic,IsString,Ord,Show)
 
 -- | Row variable names.
@@ -43,7 +43,7 @@ mono = Forall []
 -- | Types.
 data Type a
      = Base a
-     | (Maybe DVar, Type a) :-> Type a
+     | (Maybe Var, Type a) :-> Type a
      | TRec (Row (Type a)) (Maybe RVar)
   deriving (Eq,Generic,Show)
 
@@ -66,7 +66,7 @@ data Qual
      = QThis
      | QB Bool
      | QI Int
-     | QRef DVar
+     | QRef Var
      | QNot Qual
      | QAnd Qual Qual
      | QOr  Qual Qual

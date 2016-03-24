@@ -27,6 +27,7 @@ library
     sbv
   exposed-modules:
     Driver,
+    DSL.Expr,
     DSL.Type,
     DSL.Serialize,
     Example.Stub
