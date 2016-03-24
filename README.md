@@ -39,10 +39,13 @@ correctly. Here is what should happen:
  * Generates two example input files:
    * `inbox/environment.json` -- describes the initial resource environment
    * `inbox/requirement.json` -- describes the required resource type
+
  * Reads these input files back in and prints out the corresponding Haskell
    values.
+
  * Invokes the SMT solver on a simple predicate and prints out a successful
    satisfiable result.
+
  * Writes an example output file:
    * `outbox/environment.json` -- describes the resulting resource environment
  
@@ -51,7 +54,9 @@ automatic serialization of the corresponding Haskell values. We would like this
 to be something nicer.
 
 The semantic content of the inputs answers the questions:
+
  * What are the resources available in the initial resource environment?
+
  * What are the requirements on the final resource environment? (Note that the
    desired functionality of the application is described in terms of provided
    "resources", e.g. the ability to support a certain number of clients and
