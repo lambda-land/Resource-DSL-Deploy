@@ -30,6 +30,7 @@ library
   exposed-modules:
     Driver,
     DSL.Expr,
+    DSL.Check,
     DSL.Type,
     DSL.Serialize,
     Example.Stub
