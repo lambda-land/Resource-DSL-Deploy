@@ -1,7 +1,10 @@
 module Example.Stub where
 
+import Data.SBV (Boolean(..))
+
 import DSL.Expr
 import DSL.Type
+import DSL.Predicate
 
 
 -- | Load the gzip library.
@@ -14,8 +17,8 @@ gzip = Abs "rec"
 -- | Type of gzip expression.
 gzipT :: Schema Refined
 gzipT = Forall ["m","r"]
-      $ TRec [("Memory", Base (TInt, PEqu PThis (PRef "m")))] (Just "r")
-    :-> TRec [("Memory", Base (TInt, PEqu PThis (PAdd (PRef "m") (PI (-128))))),
+      $ TRec [("Memory", ("x",TInt) ?? IRef "x" @== IRef "m")] (Just "r")
+    :-> TRec [("Memory", ("x",TInt) ?? IRef "x" @== IRef "m" @- ILit (-128)),
               ("GZip", tUnit)] (Just "r")
 
 -- | Initial resource environment.
@@ -25,7 +28,7 @@ initEnv = Rec [("Memory", I 200)]
 -- | Required resulting resource type.
 reqType :: Schema Refined
 reqType = Forall ["r"]
-        $ TRec [("Memory", Base (TInt, PLte (PI 0) PThis)),
+        $ TRec [("Memory", ("x",TInt) ?? ILit 0 @<= IRef "x"),
                 ("GZip", tUnit)] (Just "r")
 
 -- | The final resource environment.
@@ -33,7 +36,7 @@ finalEnv :: Expr
 finalEnv = Rec [("Memory", I 72), ("GZip", Unit)]
 
 -- | The predicate to check. (This is an ad hoc construction.)
-checkMe :: Pred
-checkMe = PEqu (PRef "m1") (PI 200)
-   `PAnd` PEqu (PRef "m2") (PAdd (PRef "m1") (PI (-128)))
-   `PAnd` PLte (PI 0) (PRef "m2")
+checkMe :: BPred
+checkMe = (IRef "m1" @== ILit 200)
+      &&& (IRef "m2" @== IRef "m1" @+ ILit (-128))
+      &&& (ILit 0 @<= IRef "m2")

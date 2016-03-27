@@ -6,10 +6,11 @@ import qualified Data.ByteString.Lazy.Char8 as B
 import Data.SBV (sat)
 import System.Directory (createDirectoryIfMissing)
 
-import DSL.Check
 import DSL.Expr
 import DSL.Type
 import DSL.Serialize
+import DSL.Predicate
+import DSL.SAT (toSymbolic)
 import Example.Stub
 
 -- | Write out example json input files.
@@ -43,6 +44,6 @@ runDriver = do
   (env,req) <- readInputs
   putStrLn $ "Environment: " ++ show env
   putStrLn $ "Requirement: " ++ show req
-  result <- sat (symPred [] ["m1","m2"] checkMe)
+  result <- sat (toSymbolic checkMe)
   putStrLn (show result)
   writeOutput

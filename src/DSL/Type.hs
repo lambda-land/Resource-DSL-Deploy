@@ -2,24 +2,18 @@
 
 module DSL.Type where
 
-import Data.String (IsString)
 import GHC.Generics (Generic)
 
-
---
--- * Names
---
-
--- | Variable names.
-type Var = String
-
--- | Record labels.
-type Label = String
+import DSL.Env
+import DSL.Predicate
 
 
 --
 -- * Types and Schemas
 --
+
+-- | Record labels.
+type Label = String
 
 -- | Rows.
 type Row a = [(Label, a)]
@@ -41,8 +35,8 @@ data Type a
 
 infixr 1 :->
 
--- | Basic types.
-data Basic = TBool | TInt | TUnit
+-- | Simple base types.
+data Simple = TBool | TInt | TUnit
   deriving (Eq,Generic,Show)
 
 
@@ -50,38 +44,33 @@ data Basic = TBool | TInt | TUnit
 -- * Refinement Types
 --
 
--- | Refinement types.
-type Refined = (Basic,Pred)
-
--- | Predicates.
-data Pred
-     = PThis
-     | PB Bool
-     | PI Int
-     | PRef Var
-     | PNot Pred
-     | PAnd Pred Pred
-     | POr  Pred Pred
-     | PLte Pred Pred
-     | PEqu Pred Pred
-     | PAdd Pred Pred
+-- | Refined base types.
+data Refined
+     = Simple Simple
+     | Refined Simple Var BPred
   deriving (Eq,Generic,Show)
 
--- | Unconstrained basic type.
-basic :: Basic -> Type Refined
-basic t = Base (t, PB True)
+-- | Smart constructor for unconstrained simple types.
+simple :: Simple -> Type Refined
+simple = Base . Simple
+
+-- | Smart constructor for refined types.
+(??) :: (Var,Simple) -> BPred -> Type Refined
+(??) (v,t) p = Base (Refined t v p)
+
+infix 0 ??
 
 -- | Unconstrained boolean type.
 tBool :: Type Refined
-tBool = basic TBool
+tBool = simple TBool
 
 -- | Unconstrained integer type.
 tInt :: Type Refined
-tInt = basic TInt
+tInt = simple TInt
 
 -- | Unconstrained unit type.
 tUnit :: Type Refined
-tUnit = basic TUnit
+tUnit = simple TUnit
 
 -- | Lookup the type associated with a label in a record type.
 selectT :: Label -> Type a -> Maybe (Type a)

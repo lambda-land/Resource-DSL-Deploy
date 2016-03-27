@@ -5,6 +5,7 @@ module DSL.Expr where
 import Data.String (IsString)
 import GHC.Generics (Generic)
 
+import DSL.Env
 import DSL.Type
 
 
