@@ -19,7 +19,7 @@ gzipT :: Schema Refined
 gzipT = Forall ["m","r"]
       $ polyRec "r" [("Memory", ("x",TInt) ?? IRef "x" @== IRef "m")]
     :-> polyRec "r" [("Memory", ("x",TInt) ?? IRef "x" @== IRef "m" @- ILit (-128)),
-                     ("GZip", tUnit)]
+                     ("GZip", Bang tUnit)]
 
 -- | Initial resource environment.
 initEnv :: Expr Refined
@@ -29,11 +29,11 @@ initEnv = rec [("Memory", I 200)]
 reqType :: Schema Refined
 reqType = Forall ["r"]
         $ polyRec "r" [("Memory", ("x",TInt) ?? ILit 0 @<= IRef "x"),
-                       ("GZip", tUnit)]
+                       ("GZip", Bang tUnit)]
 
 -- | The final resource environment.
 finalEnv :: Expr Refined
-finalEnv = rec [("Memory", I 72), ("GZip", Unit)]
+finalEnv = rec [("Memory", I 72), ("GZip", Free Unit)]
 
 -- | The predicate to check. (This is an ad hoc construction.)
 checkMe :: BPred
