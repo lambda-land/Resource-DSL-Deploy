@@ -45,3 +45,15 @@ rec = Rec . row
 -- | Record update.
 update :: Label -> Expr a -> Expr a -> Expr a
 update l e r = Ext l e (Res l r)
+
+-- | Is this term in normal form?
+isNormal :: Expr a -> Bool
+isNormal Unit        = True
+isNormal (B _)       = True
+isNormal (I _)       = True
+isNormal (Ref _)     = True
+isNormal (Use _)     = True
+isNormal (Abs x _ _) = True   -- don't isNormalize under abstraction
+isNormal (Free e)    = isNormal e
+isNormal (Rec r)     = all isNormal r
+isNormal _           = False
