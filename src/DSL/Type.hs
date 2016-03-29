@@ -28,6 +28,7 @@ data Schema a = Forall [Var] (Type a)
 -- | Types.
 data Type a
      = Base a                           -- ^ base (simple or refined) type
+     | Bang (Type a)                    -- ^ reusable type (affine logic: "of course")
      | Type a :-> Type a                -- ^ function type
      | TRec (Row (Type a)) (Maybe Var)  -- ^ record type (row type + optional row variable)
   deriving (Eq,Generic,Show)

@@ -11,12 +11,18 @@ import DSL.Type
 
 -- | Expressions.
 data Expr
+     -- literals
      = Unit                 -- ^ unit value
      | B Bool               -- ^ boolean literal
      | I Int                -- ^ integer literal
+     -- lambda calculus
      | Ref Var              -- ^ variable reference
      | Abs Var Expr         -- ^ lambda abstraction
      | App Expr Expr        -- ^ application
+     -- reuse
+     | Free Expr            -- ^ mark reusable term
+     | Reuse Expr Var Expr  -- ^ use reusable term
+     -- records
      | Rec (Row Expr)       -- ^ record values
      | Sel Label Expr       -- ^ record selection
      | Res Label Expr       -- ^ record restriction
