@@ -28,12 +28,13 @@ library
     sbv
   exposed-modules:
     Driver,
+    DSL.Check,
     DSL.Env,
     DSL.Expr,
-    DSL.Type,
     DSL.Predicate,
     DSL.SAT,
     DSL.Serialize,
+    DSL.Type,
     Example.Stub
 
 executable resource-dsl
