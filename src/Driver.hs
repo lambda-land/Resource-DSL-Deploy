@@ -21,7 +21,7 @@ writeInputs = do
   B.writeFile "inbox/requirement.json" (encodePretty reqType)
 
 -- | Read inputs back in.
-readInputs :: IO (Expr, Schema Refined)
+readInputs :: IO (Expr Refined, Schema Refined)
 readInputs = do
   Just env <- fmap decode (B.readFile "inbox/environment.json")
   Just req <- fmap decode (B.readFile "inbox/requirement.json")

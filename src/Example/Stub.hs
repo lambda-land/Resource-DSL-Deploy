@@ -8,8 +8,8 @@ import DSL.Predicate
 
 
 -- | Load the gzip library.
-gzip :: Expr
-gzip = Abs "rec"
+gzip :: Expr Refined
+gzip = Abs "rec" gzipT
      $ Ext "GZip" Unit
      $ update "Memory" (app2 (Ref "-") (Sel "Memory" (Ref "rec")) (I 128))
      $ Ref "rec"
@@ -22,7 +22,7 @@ gzipT = Forall ["m","r"]
                      ("GZip", tUnit)]
 
 -- | Initial resource environment.
-initEnv :: Expr
+initEnv :: Expr Refined
 initEnv = rec [("Memory", I 200)]
 
 -- | Required resulting resource type.
@@ -32,7 +32,7 @@ reqType = Forall ["r"]
                        ("GZip", tUnit)]
 
 -- | The final resource environment.
-finalEnv :: Expr
+finalEnv :: Expr Refined
 finalEnv = rec [("Memory", I 72), ("GZip", Unit)]
 
 -- | The predicate to check. (This is an ad hoc construction.)

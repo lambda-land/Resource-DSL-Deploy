@@ -9,34 +9,39 @@ import DSL.Env
 import DSL.Type
 
 
+--
+-- * Expression Syntax
+--
+
 -- | Expressions.
-data Expr
+data Expr a
      -- literals
-     = Unit                 -- ^ unit value
-     | B Bool               -- ^ boolean literal
-     | I Int                -- ^ integer literal
-     -- lambda calculus
-     | Ref Var              -- ^ variable reference
-     | Abs Var Expr         -- ^ lambda abstraction
-     | App Expr Expr        -- ^ application
+     = Unit                         -- ^ unit value
+     | B Bool                       -- ^ boolean literal
+     | I Int                        -- ^ integer literal
+     -- simply typed lambda calculus
+     | Ref Var                      -- ^ non-linear variable reference
+     | Use Var                      -- ^ linear variable reference
+     | Abs Var (Schema a) (Expr a)  -- ^ lambda abstraction
+     | App (Expr a) (Expr a)        -- ^ application
      -- reuse
-     | Free Expr            -- ^ mark reusable term
-     | Reuse Expr Var Expr  -- ^ use reusable term
+     | Free (Expr a)                -- ^ mark reusable term
+     | Reuse (Expr a) Var (Expr a)  -- ^ use reusable term
      -- records
-     | Rec (Row Expr)       -- ^ record values
-     | Sel Label Expr       -- ^ record selection
-     | Res Label Expr       -- ^ record restriction
-     | Ext Label Expr Expr  -- ^ record extension
+     | Rec (Row (Expr a))           -- ^ record values
+     | Sel Label (Expr a)           -- ^ record selection
+     | Res Label (Expr a)           -- ^ record restriction
+     | Ext Label (Expr a) (Expr a)  -- ^ record extension
   deriving (Eq,Generic,Show)
 
 -- | Binary function application.
-app2 :: Expr -> Expr -> Expr -> Expr
+app2 :: Expr a -> Expr a -> Expr a -> Expr a
 app2 f x y = App (App f x) y
 
 -- | Build record from association list.
-rec :: [(Label,Expr)] -> Expr
+rec :: [(Label, Expr a)] -> Expr a
 rec = Rec . row
 
 -- | Record update.
-update :: Label -> Expr -> Expr -> Expr
+update :: Label -> Expr a -> Expr a -> Expr a
 update l e r = Ext l e (Res l r)

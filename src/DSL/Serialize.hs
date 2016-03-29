@@ -7,7 +7,6 @@ import DSL.Predicate
 import DSL.Type
 
 
-instance ToJSON Expr
 instance ToJSON BPred
 instance ToJSON IPred
 instance ToJSON Simple
@@ -17,8 +16,8 @@ instance ToJSON OpIB
 instance ToJSON OpII
 instance ToJSON a => ToJSON (Schema a)
 instance ToJSON a => ToJSON (Type a)
+instance ToJSON a => ToJSON (Expr a)
 
-instance FromJSON Expr
 instance FromJSON BPred
 instance FromJSON IPred
 instance FromJSON Simple
@@ -28,3 +27,4 @@ instance FromJSON OpIB
 instance FromJSON OpII
 instance FromJSON a => FromJSON (Schema a)
 instance FromJSON a => FromJSON (Type a)
+instance FromJSON a => FromJSON (Expr a)
