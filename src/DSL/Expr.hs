@@ -27,6 +27,10 @@ data Expr
 app2 :: Expr -> Expr -> Expr -> Expr
 app2 f x y = App (App f x) y
 
+-- | Build record from association list.
+rec :: [(Label,Expr)] -> Expr
+rec = Rec . row
+
 -- | Record update.
 update :: Label -> Expr -> Expr -> Expr
 update l e r = Ext l e (Res l r)

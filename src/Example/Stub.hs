@@ -17,23 +17,23 @@ gzip = Abs "rec"
 -- | Type of gzip expression.
 gzipT :: Schema Refined
 gzipT = Forall ["m","r"]
-      $ TRec [("Memory", ("x",TInt) ?? IRef "x" @== IRef "m")] (Just "r")
-    :-> TRec [("Memory", ("x",TInt) ?? IRef "x" @== IRef "m" @- ILit (-128)),
-              ("GZip", tUnit)] (Just "r")
+      $ polyRec "r" [("Memory", ("x",TInt) ?? IRef "x" @== IRef "m")]
+    :-> polyRec "r" [("Memory", ("x",TInt) ?? IRef "x" @== IRef "m" @- ILit (-128)),
+                     ("GZip", tUnit)]
 
 -- | Initial resource environment.
 initEnv :: Expr
-initEnv = Rec [("Memory", I 200)]
+initEnv = rec [("Memory", I 200)]
 
 -- | Required resulting resource type.
 reqType :: Schema Refined
 reqType = Forall ["r"]
-        $ TRec [("Memory", ("x",TInt) ?? ILit 0 @<= IRef "x"),
-                ("GZip", tUnit)] (Just "r")
+        $ polyRec "r" [("Memory", ("x",TInt) ?? ILit 0 @<= IRef "x"),
+                       ("GZip", tUnit)]
 
 -- | The final resource environment.
 finalEnv :: Expr
-finalEnv = Rec [("Memory", I 72), ("GZip", Unit)]
+finalEnv = rec [("Memory", I 72), ("GZip", Unit)]
 
 -- | The predicate to check. (This is an ad hoc construction.)
 checkMe :: BPred

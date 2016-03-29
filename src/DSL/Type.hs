@@ -4,6 +4,9 @@ module DSL.Type where
 
 import GHC.Generics (Generic)
 
+import Data.Map (Map)
+import qualified Data.Map as Map
+
 import DSL.Env
 import DSL.Predicate
 
@@ -16,21 +19,17 @@ import DSL.Predicate
 type Label = String
 
 -- | Rows.
-type Row a = [(Label, a)]
+type Row a = Map Label a
 
 -- | Type schemas.
 data Schema a = Forall [Var] (Type a)
   deriving (Eq,Generic,Show)
 
--- | Monomorphic type schema.
-mono :: Type a -> Schema a
-mono = Forall []
-
 -- | Types.
 data Type a
-     = Base a
-     | Type a :-> Type a
-     | TRec (Row (Type a)) (Maybe Var)
+     = Base a                           -- ^ base (simple or refined) type
+     | Type a :-> Type a                -- ^ function type
+     | TRec (Row (Type a)) (Maybe Var)  -- ^ record type (row type + optional row variable)
   deriving (Eq,Generic,Show)
 
 infixr 1 :->
@@ -38,6 +37,22 @@ infixr 1 :->
 -- | Simple base types.
 data Simple = TBool | TInt | TUnit
   deriving (Eq,Generic,Show)
+
+-- | Monomorphic type schema.
+mono :: Type a -> Schema a
+mono = Forall []
+
+-- | Smart constructor for rows.
+row :: [(Label,a)] -> Row a
+row = Map.fromList
+
+-- | Smart constructor for monomorphic record types.
+monoRec :: [(Label, Type a)] -> Type a
+monoRec r = TRec (row r) Nothing
+
+-- | Smart constructor for row-polymorphic record types.
+polyRec :: Var -> [(Label, Type a)] -> Type a
+polyRec v r = TRec (row r) (Just v)
 
 
 --
@@ -74,5 +89,5 @@ tUnit = simple TUnit
 
 -- | Lookup the type associated with a label in a record type.
 selectT :: Label -> Type a -> Maybe (Type a)
-selectT l (TRec r _) = lookup l r
+selectT l (TRec r _) = Map.lookup l r
 selectT _ _          = Nothing
