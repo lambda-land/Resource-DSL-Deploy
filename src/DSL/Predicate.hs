@@ -105,6 +105,29 @@ infixl 6 @+, @-
 infixl 7 @*, @/
 
 
+-- ** Substitution
+
+-- | Substitute a boolean variable in a boolean predicate.
+substB :: Var -> Bool -> BPred -> BPred
+substB v b e@(BRef w)   = if w == v then BLit b else e
+substB v b (BNot e)     = BNot (substB v b e)
+substB v b (OpBB o l r) = OpBB o (substB v b l) (substB v b r)
+substB _ _ e            = e
+
+-- | Substitute an integer variable in a boolean predicate.
+substI :: Var -> Int -> BPred -> BPred
+substI _ _ e@(BLit _)   = e
+substI _ _ e@(BRef _)   = e
+substI v i (BNot e)     = BNot (substI v i e)
+substI v i (OpBB o l r) = OpBB o (substI v i l) (substI v i r)
+substI v i (OpIB o l r) = OpIB o (substI' l) (substI' r)
+  where
+    substI' e@(ILit _)   = e
+    substI' e@(IRef w)   = if w == v then ILit i else e
+    substI' (INeg e)     = INeg (substI' e)
+    substI' (OpII o l r) = OpII o (substI' l) (substI' r)
+
+
 -- ** Evaluation to plain and symbolic values
 
 -- | Comparison and division operator dictionary to support working with both
