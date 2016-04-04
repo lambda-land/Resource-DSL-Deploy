@@ -31,10 +31,10 @@ data Expr t
      -- reuse
      | Free (Expr t)                     -- ^ mark reusable term
      | Reuse (Expr t) Var (Expr t)       -- ^ use reusable term
+     | Waste (Expr t) (Expr t)           -- ^ consume a term
      -- records
      | Rec (Row (Expr t))                -- ^ record values
      | Sel Label (Expr t)                -- ^ record selection
-     | Res Label (Expr t)                -- ^ record restriction
      | Ext Label (Expr t) (Expr t)       -- ^ record extension
   deriving (Eq,Generic,Show)
 
@@ -46,9 +46,13 @@ app2 f x y = App (App f x) y
 rec :: [(Label, Expr t)] -> Expr t
 rec = Rec . row
 
--- | Record update.
-update :: Label -> Expr t -> Expr t -> Expr t
-update l e r = Ext l e (Res l r)
+-- | Delete record entry.
+recDelete :: Label -> Expr t -> Expr t
+recDelete l e = Both (Sel l e) ("v","r") (Waste (Use "v") (Use "r"))
+
+-- | Update record entry.
+recUpdate :: Label -> Expr t -> Expr t -> Expr t
+recUpdate l v e = Ext l v (recDelete l e)
 
 -- | Is this term in normal form?
 isNormal :: Expr t -> Bool

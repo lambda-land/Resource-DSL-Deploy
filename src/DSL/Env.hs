@@ -3,8 +3,8 @@ module DSL.Env where
 import Control.Monad.Reader
 import Control.Monad.State
 
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
+import Data.Map (Map)
+import qualified Data.Map as Map
 
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -45,6 +45,10 @@ symEnv f s = fmap (Map.fromList . zip vs) (mapM f vs)
 --    * Either String: for error reporting
 type EnvM b = ReaderT (Env b) (StateT (Env b) (Either String))
 
+-- | Run an action in an initially empty environment.
+runEnv :: EnvM b a -> Either String a
+runEnv x = evalStateT (runReaderT x Map.empty) Map.empty
+
 -- | Lookup a non-linear assumption.
 lookRef :: Var -> EnvM b b
 lookRef v = do
@@ -64,8 +68,8 @@ lookUse v = do
 -- | Push a linear assumption onto the environment, then run a computation
 --   and check to see whether the assumption was consumed. If so, return the 
 --   result. Otherwise, fail.
-runWith :: Var -> b -> EnvM b a -> EnvM b a
-runWith v b ma = do
+addLinear :: Var -> b -> EnvM b a -> EnvM b a
+addLinear v b ma = do
     old <- gets (Map.lookup v)
     modify (Map.insert v b)
     result <- ma
@@ -75,3 +79,7 @@ runWith v b ma = do
       Just t -> modify (Map.insert v b)
       _      -> return ()
     return result
+
+-- | Push a non-linear assumption onto the environment, then run a computation.
+addLocal :: Var -> b -> EnvM b a -> EnvM b a
+addLocal x b = local (Map.insert x b)

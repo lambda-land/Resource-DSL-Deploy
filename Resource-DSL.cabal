@@ -34,6 +34,7 @@ library
     DSL.Predicate,
     DSL.Row,
     DSL.SAT,
+    DSL.Semantics,
     DSL.Serialize,
     DSL.Type,
     Example.Stub

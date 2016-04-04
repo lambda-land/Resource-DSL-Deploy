@@ -9,6 +9,7 @@ import System.Directory (createDirectoryIfMissing)
 import DSL.Expr
 import DSL.Type
 import DSL.Serialize
+import DSL.Semantics
 import DSL.Predicate
 import DSL.SAT (toSymbolic)
 import Example.Stub
@@ -42,8 +43,12 @@ runDriver :: IO ()
 runDriver = do
   writeInputs
   (env,req) <- readInputs
-  putStrLn $ "Environment: " ++ show env
-  putStrLn $ "Requirement: " ++ show req
-  result <- sat (toSymbolic checkMe)
-  putStrLn (show result)
+  putStrLn $ "Initial environment: " ++ show env
+  putStrLn $ "Mission requirement: " ++ show req
+  dummy <- sat (toSymbolic checkMe)
+  putStrLn (show dummy)
+  result <- runEvalIO (App gzip initEnv)
+  putStrLn $ if result == finalEnv
+    then "Result environment: " ++ show result
+    else "Unexpected result: " ++ show result
   writeOutput

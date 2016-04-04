@@ -9,10 +9,11 @@ import DSL.Predicate
 
 -- | Load the gzip library.
 gzip :: Expr Refined
-gzip = Abs "rec" gzipT
-     $ Ext "GZip" Unit
-     $ update "Memory" (app2 (Ref "-") (Sel "Memory" (Ref "rec")) (I 128))
-     $ Ref "rec"
+gzip = Abs "r1" gzipT
+     $ Ext "GZip" (Free Unit)
+     $ Both (Sel "Memory" (Use "r1")) ("m","r2")
+     $ Ext "Memory" (Waste (Use "m") (I 72)) (Use "r2")
+--   $ Ext "Memory" (app2 (Ref "-") (Use "m") (I 128)) (Use "r2")  -- TODO: implement built-ins
 
 -- | Type of gzip expression.
 gzipT :: Schema Refined
