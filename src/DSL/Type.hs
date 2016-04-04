@@ -22,6 +22,7 @@ data Type t
      = Base t                           -- ^ base (simple or refined) type
      | Bang (Type t)                    -- ^ reusable type (linear logic: "of course")
      | Type t :-> Type t                -- ^ function type
+     | Type t :*: Type t                -- ^ product type
      | TRec (Row (Type t)) (Maybe Var)  -- ^ record type (row type + optional row variable)
   deriving (Eq,Generic,Show)
 

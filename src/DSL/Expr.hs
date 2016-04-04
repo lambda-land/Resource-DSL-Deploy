@@ -17,22 +17,25 @@ import DSL.Type
 -- | Expressions.
 data Expr t
      -- literals
-     = Unit                         -- ^ unit value
-     | B Bool                       -- ^ boolean literal
-     | I Int                        -- ^ integer literal
+     = Unit                              -- ^ unit value
+     | B Bool                            -- ^ boolean literal
+     | I Int                             -- ^ integer literal
      -- simply typed lambda calculus
-     | Ref Var                      -- ^ non-linear variable reference
-     | Use Var                      -- ^ linear variable reference
-     | Abs Var (Schema t) (Expr t)  -- ^ lambda abstraction
-     | App (Expr t) (Expr t)        -- ^ application
+     | Ref Var                           -- ^ non-linear variable reference
+     | Use Var                           -- ^ linear variable reference
+     | Abs Var (Schema t) (Expr t)       -- ^ lambda abstraction
+     | App (Expr t) (Expr t)             -- ^ application
+     -- products
+     | Pair (Expr t) (Expr t)            -- ^ construct product type
+     | Both (Expr t) (Var,Var) (Expr t)  -- ^ consume product type
      -- reuse
-     | Free (Expr t)                -- ^ mark reusable term
-     | Reuse (Expr t) Var (Expr t)  -- ^ use reusable term
+     | Free (Expr t)                     -- ^ mark reusable term
+     | Reuse (Expr t) Var (Expr t)       -- ^ use reusable term
      -- records
-     | Rec (Row (Expr t))           -- ^ record values
-     | Sel Label (Expr t)           -- ^ record selection
-     | Res Label (Expr t)           -- ^ record restriction
-     | Ext Label (Expr t) (Expr t)  -- ^ record extension
+     | Rec (Row (Expr t))                -- ^ record values
+     | Sel Label (Expr t)                -- ^ record selection
+     | Res Label (Expr t)                -- ^ record restriction
+     | Ext Label (Expr t) (Expr t)       -- ^ record extension
   deriving (Eq,Generic,Show)
 
 -- | Binary function application.
@@ -54,7 +57,8 @@ isNormal (B _)       = True
 isNormal (I _)       = True
 isNormal (Ref _)     = True
 isNormal (Use _)     = True
-isNormal (Abs x _ _) = True   -- don't isNormalize under abstraction
+isNormal (Abs x _ _) = True   -- don't normalize under abstraction
 isNormal (Free e)    = isNormal e
+isNormal (Pair l r)  = isNormal l && isNormal r
 isNormal (Rec r)     = all isNormal r
 isNormal _           = False
