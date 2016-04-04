@@ -6,6 +6,7 @@ import Data.String (IsString)
 import GHC.Generics (Generic)
 
 import DSL.Env
+import DSL.Row
 import DSL.Type
 
 

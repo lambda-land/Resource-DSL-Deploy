@@ -32,6 +32,7 @@ library
     DSL.Env,
     DSL.Expr,
     DSL.Predicate,
+    DSL.Row,
     DSL.SAT,
     DSL.Serialize,
     DSL.Type,

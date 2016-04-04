@@ -4,22 +4,14 @@ module DSL.Type where
 
 import GHC.Generics (Generic)
 
-import Data.Map (Map)
-import qualified Data.Map as Map
-
 import DSL.Env
 import DSL.Predicate
+import DSL.Row
 
 
 --
 -- * Types and Schemas
 --
-
--- | Record labels.
-type Label = String
-
--- | Rows.
-type Row a = Map Label a
 
 -- | Type schemas.
 data Schema t = Forall [Var] (Type t)
@@ -42,10 +34,6 @@ data Simple = TBool | TInt | TUnit
 -- | Monomorphic type schema.
 mono :: Type t -> Schema t
 mono = Forall []
-
--- | Smart constructor for rows.
-row :: [(Label,a)] -> Row a
-row = Map.fromList
 
 -- | Smart constructor for monomorphic record types.
 monoRec :: [(Label, Type t)] -> Type t
@@ -90,5 +78,5 @@ tUnit = simple TUnit
 
 -- | Lookup the type associated with a label in a record type.
 selectT :: Label -> Type t -> Maybe (Type t)
-selectT l (TRec r _) = Map.lookup l r
+selectT l (TRec r _) = rowLookup l r
 selectT _ _          = Nothing
