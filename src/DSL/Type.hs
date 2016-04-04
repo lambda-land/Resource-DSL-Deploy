@@ -75,8 +75,3 @@ tInt = simple TInt
 -- | Unconstrained unit type.
 tUnit :: Type Refined
 tUnit = simple TUnit
-
--- | Lookup the type associated with a label in a record type.
-selectT :: Label -> Type t -> Maybe (Type t)
-selectT l (TRec r _) = rowLookup l r
-selectT _ _          = Nothing

@@ -15,6 +15,7 @@ type Row a = Map Label a
 row :: [(Label,a)] -> Row a
 row = Map.fromList
 
--- | Lookup the value associated with a label.
-rowLookup :: Label -> Row a -> Maybe a
-rowLookup = Map.lookup
+-- | Lookup the value associated with a label and remove it from the row.
+rowExtract :: Label -> Row a -> Maybe (a, Row a)
+rowExtract l r = ma >>= \a -> Just (a,r')
+  where (ma,r') = Map.updateLookupWithKey (\_ _ -> Nothing) l r
