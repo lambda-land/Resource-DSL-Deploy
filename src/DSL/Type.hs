@@ -22,15 +22,15 @@ type Label = String
 type Row a = Map Label a
 
 -- | Type schemas.
-data Schema a = Forall [Var] (Type a)
+data Schema t = Forall [Var] (Type t)
   deriving (Eq,Generic,Show)
 
 -- | Types.
-data Type a
-     = Base a                           -- ^ base (simple or refined) type
-     | Bang (Type a)                    -- ^ reusable type (linear logic: "of course")
-     | Type a :-> Type a                -- ^ function type
-     | TRec (Row (Type a)) (Maybe Var)  -- ^ record type (row type + optional row variable)
+data Type t
+     = Base t                           -- ^ base (simple or refined) type
+     | Bang (Type t)                    -- ^ reusable type (linear logic: "of course")
+     | Type t :-> Type t                -- ^ function type
+     | TRec (Row (Type t)) (Maybe Var)  -- ^ record type (row type + optional row variable)
   deriving (Eq,Generic,Show)
 
 infixr 1 :->
@@ -40,7 +40,7 @@ data Simple = TBool | TInt | TUnit
   deriving (Eq,Generic,Show)
 
 -- | Monomorphic type schema.
-mono :: Type a -> Schema a
+mono :: Type t -> Schema t
 mono = Forall []
 
 -- | Smart constructor for rows.
@@ -48,11 +48,11 @@ row :: [(Label,a)] -> Row a
 row = Map.fromList
 
 -- | Smart constructor for monomorphic record types.
-monoRec :: [(Label, Type a)] -> Type a
+monoRec :: [(Label, Type t)] -> Type t
 monoRec r = TRec (row r) Nothing
 
 -- | Smart constructor for row-polymorphic record types.
-polyRec :: Var -> [(Label, Type a)] -> Type a
+polyRec :: Var -> [(Label, Type t)] -> Type t
 polyRec v r = TRec (row r) (Just v)
 
 
@@ -89,6 +89,6 @@ tUnit :: Type Refined
 tUnit = simple TUnit
 
 -- | Lookup the type associated with a label in a record type.
-selectT :: Label -> Type a -> Maybe (Type a)
+selectT :: Label -> Type t -> Maybe (Type t)
 selectT l (TRec r _) = Map.lookup l r
 selectT _ _          = Nothing
