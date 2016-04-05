@@ -29,7 +29,7 @@ evalExpr (App l r) = do
     l' <- evalExpr l
     r' <- evalExpr r
     case l' of
-      Abs x _ e -> addLinear x r' (evalExpr e)
+      Fun x _ e -> addLinear x r' (evalExpr e)
       _ -> fail (expectMsg "abstraction" l' ++ afterMsg l)
   -- pairs
 evalExpr (Pair l r) = liftM2 Pair (evalExpr l) (evalExpr r)

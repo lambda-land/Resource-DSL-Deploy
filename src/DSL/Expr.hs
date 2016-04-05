@@ -23,7 +23,7 @@ data Expr t
      -- simply typed lambda calculus
      | Ref Var                           -- ^ non-linear variable reference
      | Use Var                           -- ^ linear variable reference
-     | Abs Var (Schema t) (Expr t)       -- ^ lambda abstraction
+     | Fun Var (Schema t) (Expr t)       -- ^ lambda abstraction
      | App (Expr t) (Expr t)             -- ^ application
      -- products
      | Pair (Expr t) (Expr t)            -- ^ construct product type
@@ -61,7 +61,7 @@ isNormal (B _)       = True
 isNormal (I _)       = True
 isNormal (Ref _)     = True
 isNormal (Use _)     = True
-isNormal (Abs x _ _) = True   -- don't normalize under abstraction
+isNormal (Fun x _ _) = True   -- don't normalize under abstraction
 isNormal (Free e)    = isNormal e
 isNormal (Pair l r)  = isNormal l && isNormal r
 isNormal (Rec r)     = all isNormal r
