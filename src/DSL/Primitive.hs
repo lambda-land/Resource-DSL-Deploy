@@ -5,7 +5,8 @@
   #-}
 
 module DSL.Primitive 
-  ( B_B(..), opB_B
+  ( PrimOp(..)
+  , B_B(..), opB_B
   , I_I(..), opI_I
   , BB_B(..), opBB_B
   , II_B(..), opII_B
@@ -26,6 +27,15 @@ import GHC.Generics (Generic)
 --
 -- * Primitive operators
 --
+
+-- | All boolean operators, organized by type.
+data PrimOp
+     = B_B  B_B
+     | I_I  I_I
+     | BB_B BB_B
+     | II_I II_I
+     | II_B II_B
+  deriving (Eq,Generic,Show)
 
 -- | Unary boolean operators.
 data B_B = Not

@@ -30,7 +30,8 @@ evalExpr (App l r) = do
     r' <- evalExpr r
     case l' of
       Fun x _ e -> addLinear x r' (evalExpr e)
-      _ -> fail (expectMsg "abstraction" l' ++ afterMsg l)
+      -- TODO: handle primitives
+      _ -> fail (expectMsg "abstraction or primitive" l' ++ afterMsg l)
   -- pairs
 evalExpr (Pair l r) = liftM2 Pair (evalExpr l) (evalExpr r)
 evalExpr (Both e (x,y) body) = do

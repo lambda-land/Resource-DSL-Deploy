@@ -6,6 +6,7 @@ import Data.String (IsString)
 import GHC.Generics (Generic)
 
 import DSL.Env
+import DSL.Primitive
 import DSL.Row
 import DSL.Type
 
@@ -16,10 +17,11 @@ import DSL.Type
 
 -- | Expressions.
 data Expr t
-     -- literals
+     -- literals and primitives
      = Unit                              -- ^ unit value
      | B Bool                            -- ^ boolean literal
      | I Int                             -- ^ integer literal
+     | P PrimOp                          -- ^ primitive function
      -- simply typed lambda calculus
      | Ref Var                           -- ^ non-linear variable reference
      | Use Var                           -- ^ linear variable reference
