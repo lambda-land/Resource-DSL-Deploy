@@ -12,6 +12,7 @@ instance ToJSON BPred
 instance ToJSON IPred
 instance ToJSON Simple
 instance ToJSON Refined
+instance ToJSON B_B
 instance ToJSON I_I
 instance ToJSON BB_B
 instance ToJSON II_B
@@ -24,6 +25,7 @@ instance FromJSON BPred
 instance FromJSON IPred
 instance FromJSON Simple
 instance FromJSON Refined
+instance FromJSON B_B
 instance FromJSON I_I
 instance FromJSON BB_B
 instance FromJSON II_B

@@ -29,7 +29,7 @@ import DSL.SAT
 data BPred
      = BLit Bool
      | BRef Var
-     | BNot BPred
+     | OpB  B_B  BPred
      | OpBB BB_B BPred BPred
      | OpIB II_B IPred IPred
   deriving (Eq,Generic,Show)
@@ -45,7 +45,7 @@ data IPred
 -- | The set of boolean variables referenced in a boolean predicate.
 boolVars :: BPred -> Set Var
 boolVars (BRef v)     = Set.singleton v
-boolVars (BNot e)     = boolVars e
+boolVars (OpB _ e)    = boolVars e
 boolVars (OpBB _ l r) = boolVars l `Set.union` boolVars r
 boolVars _            = Set.empty
 
@@ -53,7 +53,7 @@ boolVars _            = Set.empty
 intVars :: BPred -> Set Var
 intVars (BLit _)     = Set.empty
 intVars (BRef _)     = Set.empty
-intVars (BNot e)     = intVars e
+intVars (OpB _ e)    = intVars e
 intVars (OpBB _ l r) = intVars l `Set.union` intVars r
 intVars (OpIB _ l r) = intVars' l `Set.union` intVars' r
   where
@@ -69,7 +69,7 @@ intVars (OpIB _ l r) = intVars' l `Set.union` intVars' r
 instance Boolean BPred where
   true  = BLit True
   false = BLit False
-  bnot  = BNot
+  bnot  = OpB Not
   (&&&) = OpBB And
   (|||) = OpBB Or
   (<+>) = OpBB XOr
@@ -102,7 +102,7 @@ instance Prim BPred IPred where
 -- | Substitute a boolean variable in a boolean predicate.
 substB :: Var -> Bool -> BPred -> BPred
 substB v b e@(BRef w)   = if w == v then BLit b else e
-substB v b (BNot e)     = BNot (substB v b e)
+substB v b (OpB o e)    = OpB o (substB v b e)
 substB v b (OpBB o l r) = OpBB o (substB v b l) (substB v b r)
 substB _ _ e            = e
 
@@ -110,7 +110,7 @@ substB _ _ e            = e
 substI :: Var -> Int -> BPred -> BPred
 substI _ _ e@(BLit _)   = e
 substI _ _ e@(BRef _)   = e
-substI v i (BNot e)     = BNot (substI v i e)
+substI v i (OpB o e)    = OpB o (substI v i e)
 substI v i (OpBB o l r) = OpBB o (substI v i l) (substI v i r)
 substI v i (OpIB o l r) = OpIB o (substI' l) (substI' r)
   where
@@ -128,7 +128,7 @@ substI v i (OpIB o l r) = OpIB o (substI' l) (substI' r)
 evalBPred :: Prim b i => Env b -> Env i -> BPred -> b
 evalBPred _  _  (BLit b)     = fromBool b
 evalBPred mb _  (BRef v)     = envLookup v mb
-evalBPred mb mi (BNot e)     = bnot (evalBPred mb mi e)
+evalBPred mb mi (OpB o e)    = opB_B o (evalBPred mb mi e)
 evalBPred mb mi (OpBB o l r) = (opBB_B o `on` evalBPred mb mi) l r
 evalBPred mb mi (OpIB o l r) = (opII_B o `on` evalIPred mi) l r
 

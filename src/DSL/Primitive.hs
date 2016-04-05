@@ -5,7 +5,8 @@
   #-}
 
 module DSL.Primitive 
-  ( I_I(..), opI_I
+  ( B_B(..), opB_B
+  , I_I(..), opI_I
   , BB_B(..), opBB_B
   , II_B(..), opII_B
   , II_I(..), opII_I
@@ -26,6 +27,10 @@ import GHC.Generics (Generic)
 -- * Primitive operators
 --
 
+-- | Unary boolean operators.
+data B_B = Not
+  deriving (Eq,Generic,Show)
+
 -- | Unary integer operators.
 data I_I = Abs | Neg | Sign
   deriving (Eq,Generic,Show)
@@ -42,20 +47,24 @@ data II_B = LT | LTE | Equ | GTE | GT
 data II_I = Add | Sub | Mul | Div | Mod
   deriving (Eq,Generic,Show)
 
--- | Lookup a unary integer operator.
+-- | Lookup unary boolean operator.
+opB_B :: Boolean b => B_B -> b -> b
+opB_B Not = bnot
+
+-- | Lookup unary integer operator.
 opI_I :: Num i => I_I -> i -> i
 opI_I Abs  = abs
 opI_I Neg  = negate
 opI_I Sign = signum
 
--- | Lookup a binary boolean operator.
+-- | Lookup binary boolean operator.
 opBB_B :: Boolean b => BB_B -> b -> b -> b
 opBB_B And = (&&&)
 opBB_B Or  = (|||)
 opBB_B XOr = (<+>)
 opBB_B Imp = (==>)
 
--- | Lookup a binary integer comparison operator.
+-- | Lookup binary integer comparison operator.
 opII_B :: Prim b i => II_B -> i -> i -> b
 opII_B LT  = (.<)
 opII_B LTE = (.<=)
