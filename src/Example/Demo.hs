@@ -1,4 +1,4 @@
-module Example.Stub where
+module Example.Demo where
 
 import DSL.Expr
 import DSL.Type

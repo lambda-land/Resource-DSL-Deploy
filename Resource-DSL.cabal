@@ -38,7 +38,9 @@ library
     DSL.Semantics,
     DSL.Serialize,
     DSL.Type,
-    Example.Stub
+    Example.Demo,
+    Example.DemoDriver,
+    Example.Location
 
 executable resource-dsl
   hs-source-dirs:   app
