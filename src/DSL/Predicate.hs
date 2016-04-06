@@ -74,6 +74,7 @@ instance Boolean BPred where
   (|||) = OpBB Or
   (<+>) = OpBB XOr
   (==>) = OpBB Imp
+  (<=>) = OpBB Eqv
 
 -- Use Num type class for integer arithmetic.
 instance Num IPred where

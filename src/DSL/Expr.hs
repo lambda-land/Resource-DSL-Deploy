@@ -92,6 +92,7 @@ instance Boolean (Expr t) where
   (|||) = P2 (BB_B Or)
   (<+>) = P2 (BB_B XOr)
   (==>) = P2 (BB_B Imp)
+  (<=>) = P2 (BB_B Eqv)
 
 -- Use Num type class for integer arithmetic.
 instance Num (Expr t) where

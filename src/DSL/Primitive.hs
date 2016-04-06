@@ -50,7 +50,7 @@ data I_I = Abs | Neg | Sign
   deriving (Eq,Generic,Show)
 
 -- | Binary boolean operators.
-data BB_B = And | Or | XOr | Imp
+data BB_B = And | Or | XOr | Imp | Eqv
   deriving (Eq,Generic,Show)
 
 -- | Binary integer comparison operators.
@@ -77,6 +77,7 @@ opBB_B And = (&&&)
 opBB_B Or  = (|||)
 opBB_B XOr = (<+>)
 opBB_B Imp = (==>)
+opBB_B Eqv = (<=>)
 
 -- | Lookup binary integer comparison operator.
 opII_B :: Prim b i => II_B -> i -> i -> b
