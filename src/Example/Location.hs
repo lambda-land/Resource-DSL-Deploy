@@ -1,5 +1,7 @@
 module Example.Location where
 
+import Data.List (intercalate,subsequences)
+
 import DSL.Expr
 import DSL.Type
 import DSL.Predicate
@@ -13,6 +15,16 @@ import DSL.Row
 
 
 -- ** DFUs
+
+-- | A list of all the location DFUs with associated names.
+locationDFUs :: [(String, Expr Refined)]
+locationDFUs =
+    [ ("gps-android", gpsAndroid)
+    , ("gps-bluetooth", gpsBluetooth)
+    , ("gps-usb", gpsUsb)
+    , ("gps-saasm", gpsSaasm)
+    , ("dead-reckoning", deadReck)
+    ]
 
 -- | Use built-in android GPS API.
 gpsAndroid :: Expr Refined
@@ -54,11 +66,8 @@ deadReck = Fun "r" deadReckT
     $ recCheck "Has-UI"
     $ Use "r"
 
-untyped :: Schema Refined
-untyped = Forall [] tUnit
 
-
--- ** Types (eventually, these can be inferred)
+-- ** DFU types (eventually, these can be inferred)
 
 -- | Creates a record entry for a reusable atomic resource.
 has :: Label -> (Label, Type Refined)
@@ -93,3 +102,28 @@ deadReckT :: Schema Refined
 deadReckT = Forall ["r"]
     $ polyRec "r" [has "Has-UI"]
   :-> polyRec "r" [has "Has-UI", has "Location"]
+
+
+-- ** Environments, requirements, application model
+
+-- | Generate an initial resource environment with the corresponding
+--   capabilities.
+initEnv :: [Label] -> Expr Refined
+initEnv = rec . map (\l -> (l, Free Unit))
+
+-- | Generate all possible initial resource environments for a given list
+--   of capabilities; pair each one with a corresponding name.
+initEnvs :: [Label] -> [(String, Expr Refined)]
+initEnvs = map (\ls -> (intercalate "+" ls, initEnv ls)) . tail . subsequences
+
+-- | All possible initial environments for the location scenario.
+allEnvs :: [(String, Expr Refined)]
+allEnvs = initEnvs ["GPS-SAT", "GPS-Dev", "Ext-BT", "Ext-USB", "Has-UI"]
+
+-- | Indicates that a function is untyped (temporary solution).
+untyped :: Schema Refined
+untyped = Forall [] tUnit
+
+-- | Trivial application model.
+appModel :: Expr Refined
+appModel = Fun "dfu" untyped (Fun "env" untyped (App (Use "dfu") (Use "env")))
