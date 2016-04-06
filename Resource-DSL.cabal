@@ -40,7 +40,8 @@ library
     DSL.Type,
     Example.Demo,
     Example.DemoDriver,
-    Example.Location
+    Example.Location,
+    Example.LocationDriver
 
 executable resource-dsl
   hs-source-dirs:   app

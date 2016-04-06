@@ -108,7 +108,7 @@ deadReckT = Forall ["r"]
 
 -- | All relevant initial environments for the location scenario.
 locationEnvs :: [(String, Expr Refined)]
-locationEnvs = initEnvs ["GPS-SAT", "GPS-Dev", "Ext-BT", "Ext-USB", "Has-UI"]
+locationEnvs = initEnvs ["GPS-Sat", "GPS-Dev", "Ext-BT", "Ext-USB", "Has-UI"]
 
 -- | Generate an initial resource environment with the corresponding
 --   capabilities.
@@ -124,15 +124,15 @@ initEnvs = map (\ls -> (intercalate "+" ls, initEnv ls)) . tail . subsequences
 -- ** Mission requirements
 
 -- | Require location.
-hasLocation :: Type Refined
-hasLocation = polyRec "r" [("Location", Bang tUnit)]
+hasLocation :: Schema Refined
+hasLocation = Forall ["r"] $ polyRec "r" [("Location", Bang tUnit)]
 
 -- | Require SAASM location.
-hasSaasm :: Type Refined
-hasSaasm = polyRec "r" [("SAASM-Location", Bang tUnit)]
+hasSaasm :: Schema Refined
+hasSaasm = Forall ["r"] $ polyRec "r" [("SAASM-Location", Bang tUnit)]
 
 -- | All relevant mission requirements for the location scenario.
-locationReqs :: [(String, Type Refined)]
+locationReqs :: [(String, Schema Refined)]
 locationReqs = [("location", hasLocation), ("saasm", hasSaasm)]
 
 
