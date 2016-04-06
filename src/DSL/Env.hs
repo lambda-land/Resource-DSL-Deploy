@@ -74,7 +74,8 @@ addLinear v b ma = do
     modify (Map.insert v b)
     result <- ma
     unused <- gets (Map.member v)
-    when unused (fail ("unused linear variable: " ++ v))
+    -- TODO: not reducing under abstractions breaks this check!
+    -- when unused (fail ("unused linear variable: " ++ v))
     case old of
       Just t -> modify (Map.insert v b)
       _      -> return ()
