@@ -79,6 +79,10 @@ recDelete l e = Both (Sel l e) ("v","r") (Waste (Use "v") (Use "r"))
 recUpdate :: Label -> Expr t -> Expr t -> Expr t
 recUpdate l v e = Ext l v (recDelete l e)
 
+-- | Check whether an entry is in a record.
+recCheck :: Label -> Expr t -> Expr t
+recCheck l e = Both (Sel l e) ("v","r") (Ext l (Use "v") (Use "r"))
+
 -- Use SBV's Boolean type class for boolean predicates.
 instance Boolean (Expr t) where
   true  = B True
