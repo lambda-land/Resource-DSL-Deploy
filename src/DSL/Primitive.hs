@@ -5,7 +5,7 @@
   #-}
 
 module DSL.Primitive 
-  ( PrimOp(..)
+  ( Op1(..), Op2(..)
   , B_B(..), opB_B
   , I_I(..), opI_I
   , BB_B(..), opBB_B
@@ -28,11 +28,15 @@ import GHC.Generics (Generic)
 -- * Primitive operators
 --
 
--- | All boolean operators, organized by type.
-data PrimOp
+-- | Primitive unary operators organized by type.
+data Op1
      = B_B  B_B
      | I_I  I_I
-     | BB_B BB_B
+  deriving (Eq,Generic,Show)
+
+-- | Primitive binary operators organized by type.
+data Op2
+     = BB_B BB_B
      | II_I II_I
      | II_B II_B
   deriving (Eq,Generic,Show)
@@ -85,7 +89,7 @@ opII_B GT  = (.>)
 -- | Lookup binary integer operator.
 opII_I :: PrimI i => II_I -> i -> i -> i
 opII_I Add = (+)
-opII_I Sub = subtract
+opII_I Sub = (-)
 opII_I Mul = (*)
 opII_I Div = (./)
 opII_I Mod = (.%)

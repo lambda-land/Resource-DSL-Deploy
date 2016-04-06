@@ -81,14 +81,16 @@ instance Num IPred where
   abs    = OpI Abs
   negate = OpI Neg
   signum = OpI Sign
-  (+) = OpII Add
-  (-) = OpII Sub
-  (*) = OpII Mul
+  (+)    = OpII Add
+  (-)    = OpII Sub
+  (*)    = OpII Mul
   
+-- Other integer arithmetic primitives.
 instance PrimI IPred where
-  (./)  = OpII Div
-  (.%)  = OpII Mod
+  (./) = OpII Div
+  (.%) = OpII Mod
 
+-- Integer comparison primitives.
 instance Prim BPred IPred where
   (.<)  = OpIB LT
   (.<=) = OpIB LTE

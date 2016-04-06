@@ -4,8 +4,9 @@ module DSL.Semantics where
 import Control.Monad
 
 import DSL.Env
-import DSL.Row
 import DSL.Expr
+import DSL.Primitive
+import DSL.Row
 
 -- 
 -- * Evaluation
@@ -30,8 +31,13 @@ evalExpr (App l r) = do
     r' <- evalExpr r
     case l' of
       Fun x _ e -> addLinear x r' (evalExpr e)
-      -- TODO: handle primitives
-      _ -> fail (expectMsg "abstraction or primitive" l' ++ afterMsg l)
+      _ -> fail (expectMsg "abstraction" l' ++ afterMsg l)
+  -- primitives
+evalExpr ctx@(P1 (B_B o) e) = fmap (B . opB_B o) (evalBool e ctx)
+evalExpr ctx@(P1 (I_I o) e) = fmap (I . opI_I o) (evalInt e ctx)
+evalExpr ctx@(P2 (BB_B o) l r) = fmap B (liftM2 (opBB_B o) (evalBool l ctx) (evalBool r ctx))
+evalExpr ctx@(P2 (II_I o) l r) = fmap I (liftM2 (opII_I o) (evalInt l ctx) (evalInt r ctx))
+evalExpr ctx@(P2 (II_B o) l r) = fmap B (liftM2 (opII_B o) (evalInt l ctx) (evalInt r ctx))
   -- pairs
 evalExpr (Pair l r) = liftM2 Pair (evalExpr l) (evalExpr r)
 evalExpr (Both e (x,y) body) = do
@@ -68,10 +74,30 @@ evalExpr (Ext l v e) = do
 evalExpr e = unless (isNormal e) (fail msg) >> return e
   where msg = expectMsg "normalized value" e
 
+-- | Evaluate an expression to a boolean to apply to a primitive operation.
+evalBool :: Show t => Expr t -> Expr t -> EnvM (Expr t) Bool
+evalBool e ctx = do
+    e' <- evalExpr e
+    case e' of
+      B b -> return b
+      _ -> fail (expectMsg "boolean" e' ++ afterMsg e ++ inCtxMsg ctx)
+
+-- | Evaluate an expression to an integer to apply to a primitive operation.
+evalInt :: Show t => Expr t -> Expr t -> EnvM (Expr t) Int
+evalInt e ctx = do
+    e' <- evalExpr e
+    case e' of
+      I i -> return i
+      _ -> fail (expectMsg "integer" e' ++ afterMsg e ++ inCtxMsg ctx)
+
 -- | Error message helper.
 expectMsg :: Show t => String -> Expr t -> String
 expectMsg s e = "evalExpr: expected " ++ s ++ ", got:\n" ++ show e
 
 -- | Error message helper.
 afterMsg :: Show t => Expr t -> String
-afterMsg e = "after reducing:\n" ++ show e
+afterMsg e = "\nafter reducing:\n" ++ show e
+
+-- | Error message helper.
+inCtxMsg :: Show t => Expr t -> String
+inCtxMsg e = "\nin the context of:\n" ++ show e

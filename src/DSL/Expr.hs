@@ -1,6 +1,11 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE
+      DeriveGeneric,
+      MultiParamTypeClasses
+  #-}
 
 module DSL.Expr where
+
+import Prelude hiding (LT,GT)
 
 import Data.String (IsString)
 import GHC.Generics (Generic)
@@ -21,7 +26,9 @@ data Expr t
      = Unit                              -- ^ unit value
      | B Bool                            -- ^ boolean literal
      | I Int                             -- ^ integer literal
-     | P PrimOp                          -- ^ primitive function
+     -- primitive functions
+     | P1 Op1 (Expr t)                   -- ^ primitive unary function
+     | P2 Op2 (Expr t) (Expr t)          -- ^ primitive binary function
      -- simply typed lambda calculus
      | Ref Var                           -- ^ non-linear variable reference
      | Use Var                           -- ^ linear variable reference
@@ -40,6 +47,22 @@ data Expr t
      | Ext Label (Expr t) (Expr t)       -- ^ record extension
   deriving (Eq,Generic,Show)
 
+-- | Is this term in normal form?
+isNormal :: Expr t -> Bool
+isNormal Unit        = True
+isNormal (B _)       = True
+isNormal (I _)       = True
+isNormal (Ref _)     = True
+isNormal (Use _)     = True
+isNormal (Fun x _ _) = True   -- don't normalize under abstraction
+isNormal (Free e)    = isNormal e
+isNormal (Pair l r)  = isNormal l && isNormal r
+isNormal (Rec r)     = all isNormal r
+isNormal _           = False
+
+
+-- ** Syntactic sugar
+
 -- | Binary function application.
 app2 :: Expr t -> Expr t -> Expr t -> Expr t
 app2 f x y = App (App f x) y
@@ -56,15 +79,35 @@ recDelete l e = Both (Sel l e) ("v","r") (Waste (Use "v") (Use "r"))
 recUpdate :: Label -> Expr t -> Expr t -> Expr t
 recUpdate l v e = Ext l v (recDelete l e)
 
--- | Is this term in normal form?
-isNormal :: Expr t -> Bool
-isNormal Unit        = True
-isNormal (B _)       = True
-isNormal (I _)       = True
-isNormal (Ref _)     = True
-isNormal (Use _)     = True
-isNormal (Fun x _ _) = True   -- don't normalize under abstraction
-isNormal (Free e)    = isNormal e
-isNormal (Pair l r)  = isNormal l && isNormal r
-isNormal (Rec r)     = all isNormal r
-isNormal _           = False
+-- Use SBV's Boolean type class for boolean predicates.
+instance Boolean (Expr t) where
+  true  = B True
+  false = B False
+  bnot  = P1 (B_B Not)
+  (&&&) = P2 (BB_B And)
+  (|||) = P2 (BB_B Or)
+  (<+>) = P2 (BB_B XOr)
+  (==>) = P2 (BB_B Imp)
+
+-- Use Num type class for integer arithmetic.
+instance Num (Expr t) where
+  fromInteger = I . fromInteger
+  abs    = P1 (I_I Abs)
+  negate = P1 (I_I Neg)
+  signum = P1 (I_I Sign)
+  (+)    = P2 (II_I Add)
+  (-)    = P2 (II_I Sub)
+  (*)    = P2 (II_I Mul)
+  
+-- Other integer arithmetic primitives.
+instance PrimI (Expr t) where
+  (./) = P2 (II_I Div)
+  (.%) = P2 (II_I Mod)
+
+-- Integer comparison primitives.
+instance Prim (Expr t) (Expr t) where
+  (.<)  = P2 (II_B LT)
+  (.<=) = P2 (II_B LTE)
+  (.==) = P2 (II_B Equ)
+  (.>=) = P2 (II_B GTE)
+  (.>)  = P2 (II_B GT)
