@@ -2,11 +2,13 @@
 module DSL.Check where
 
 import Control.Monad.State
-import qualified Data.Map.Strict as Map
+import qualified Data.Map as Map
 
 import DSL.Env
 import DSL.Expr
 import DSL.Predicate
+import DSL.Primitive
+import DSL.Row
 import DSL.SAT
 import DSL.Type
 
@@ -17,6 +19,27 @@ import DSL.Type
 
 -- | A monad to support the typing relation.
 type TypeM = EnvM (Schema Refined)
+
+-- | Check whether a value has a given base type.
+checkBase :: Expr Refined -> Type Refined -> Bool
+checkBase Unit  (Base (Simple TUnit))      = True
+checkBase (B _) (Base (Simple TBool))      = True
+checkBase (I _) (Base (Simple TInt))       = True
+checkBase (B b) (Base (Refined TBool v p)) = sat ((BRef v <=> BLit b) &&& p)
+checkBase (I i) (Base (Refined TBool v p)) = sat ((IRef v .== ILit i) &&& p)
+checkBase (Free e) (Bang t) = checkBase e t
+checkBase _ _ = False
+  
+-- | Check whether a value in a row has a given base type.
+checkLabel :: Label -> Type Refined -> Row (Expr Refined) -> Bool
+checkLabel l t = maybe False (flip checkBase t) . Map.lookup l
+
+-- | Check whether a record value has a given record type. Temporary solution
+--   to enable checking outputs against mission requirements.
+checkRec :: Expr Refined -> Schema Refined -> Bool
+checkRec (Rec val) (Forall _ (TRec typ _)) =
+    Map.foldrWithKey (\l t b -> b && checkLabel l t val) True typ
+checkRec _ _ = False
 
 -- | Check whether two types are compatible.
 check :: (Eq t, Show t) => String -> Type t -> Type t -> TypeM ()
