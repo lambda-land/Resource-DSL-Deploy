@@ -104,7 +104,11 @@ deadReckT = Forall ["r"]
   :-> polyRec "r" [has "Has-UI", has "Location"]
 
 
--- ** Environments, requirements, application model
+-- ** Initial environments
+
+-- | All relevant initial environments for the location scenario.
+locationEnvs :: [(String, Expr Refined)]
+locationEnvs = initEnvs ["GPS-SAT", "GPS-Dev", "Ext-BT", "Ext-USB", "Has-UI"]
 
 -- | Generate an initial resource environment with the corresponding
 --   capabilities.
@@ -116,14 +120,28 @@ initEnv = rec . map (\l -> (l, Free Unit))
 initEnvs :: [Label] -> [(String, Expr Refined)]
 initEnvs = map (\ls -> (intercalate "+" ls, initEnv ls)) . tail . subsequences
 
--- | All possible initial environments for the location scenario.
-allEnvs :: [(String, Expr Refined)]
-allEnvs = initEnvs ["GPS-SAT", "GPS-Dev", "Ext-BT", "Ext-USB", "Has-UI"]
 
--- | Indicates that a function is untyped (temporary solution).
-untyped :: Schema Refined
-untyped = Forall [] tUnit
+-- ** Mission requirements
+
+-- | Require location.
+hasLocation :: Type Refined
+hasLocation = polyRec "r" [("Location", Bang tUnit)]
+
+-- | Require SAASM location.
+hasSaasm :: Type Refined
+hasSaasm = polyRec "r" [("SAASM-Location", Bang tUnit)]
+
+-- | All relevant mission requirements for the location scenario.
+locationReqs :: [(String, Type Refined)]
+locationReqs = [("location", hasLocation), ("saasm", hasSaasm)]
+
+
+-- ** Application model
 
 -- | Trivial application model.
 appModel :: Expr Refined
 appModel = Fun "dfu" untyped (Fun "env" untyped (App (Use "dfu") (Use "env")))
+
+-- | Indicates that a function is untyped (temporary solution).
+untyped :: Schema Refined
+untyped = Forall [] tUnit
