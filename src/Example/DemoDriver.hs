@@ -1,10 +1,6 @@
 module Example.DemoDriver where
 
-import Data.Aeson (decode)
-import Data.Aeson.Encode.Pretty (encodePretty)
-import qualified Data.ByteString.Lazy.Char8 as B
 import Data.SBV (sat)
-import System.Directory (createDirectoryIfMissing)
 
 import DSL.Expr
 import DSL.Type
@@ -17,22 +13,19 @@ import Example.Demo
 -- | Write out example json input files.
 writeInputs :: IO ()
 writeInputs = do
-  createDirectoryIfMissing False "inbox"
-  B.writeFile "inbox/environment.json" (encodePretty initEnv)
-  B.writeFile "inbox/requirement.json" (encodePretty reqType)
+  writeJSON "inbox" "environment" initEnv
+  writeJSON "inbox" "requirement" reqType
 
 -- | Read inputs back in.
 readInputs :: IO (Expr Refined, Schema Refined)
 readInputs = do
-  Just env <- fmap decode (B.readFile "inbox/environment.json")
-  Just req <- fmap decode (B.readFile "inbox/requirement.json")
+  env <- readJSON "inbox" "environment"
+  req <- readJSON "inbox" "requirement"
   return (env,req)
 
 -- | Write out example json output file.
 writeOutput :: IO ()
-writeOutput = do
-  createDirectoryIfMissing False "outbox"
-  B.writeFile "outbox/environment.json" (encodePretty finalEnv)
+writeOutput = writeJSON "outbox" "environment" finalEnv
 
 -- | Run the demo driver:
 --    * writes out some example input files
