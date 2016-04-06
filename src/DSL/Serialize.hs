@@ -27,8 +27,11 @@ writeJSON dir file x = do
 -- | Read a JSON file from the given directory with the given name.
 readJSON :: FromJSON a => FilePath -> FilePath -> IO a
 readJSON dir file = do
-  Just x <- fmap decode (B.readFile (jsonFile dir file))
-  return x
+  mx <- fmap decode (B.readFile (jsonFile dir file))
+  case mx of
+    Just x  -> return x
+    Nothing -> fail ("Error decoding JSON file: " ++ jsonFile dir file)
+              
 
 
 -- ** Auto-generated instances
