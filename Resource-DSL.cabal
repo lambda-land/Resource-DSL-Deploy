@@ -62,4 +62,5 @@ test-suite test
     Resource-DSL,
     base,
     tasty,
-    tasty-hunit
+    tasty-hunit,
+    tasty-th
