@@ -24,14 +24,79 @@ Theorem Prover][Z3], which must be installed separately.
    > stack build     # installs dependencies and builds the project
    ```
 
-## Run the DSL
+## Running the DSL interpreter
 
 The `stack build` command will produce a binary somewhere in Stack's working
-directory. You can execute it with the following command:
+directory. You can execute it with variations on the following command:
 
 ```bash
 > stack exec resource-dsl
 ```
+
+### Checking location providers
+
+The interpreter has built-in support for checking location provider scenarios.
+That is, given a DFU, an initial environment, and the mission requirements,
+does the DFU work in the environment, and does the resulting environment
+satisfy the mission requirements?
+
+There are two interfaces for performing location provider checks.
+
+
+**Option 1: Pass inputs as JSON files via the `inbox` directory.**
+
+Usage:
+```bash
+> stack exec resource-dsl location inbox
+```
+
+JSON files placed in the `inbox` should be named:
+  * `inbox/location-req.json`
+  * `inbox/location-dfu.json`
+  * `inbox/location-env.json`
+
+
+**Option 2: Lookup inputs from names passed on the command line.**
+
+Usage:
+```bash
+> stack exec resource-dsl location [req-name] [dfu-name] [env-name]
+```
+
+When specifying the names of each of the inputs, use the names of the files in
+the directories `location/req`, `location/dfu`, and `location/env`, minus the
+`.json` extension.
+
+Some specific examples:
+
+```bash
+> stack exec resource-dsl location location gps-android GPS-Sat+GPS-DEV
+> stack exec resource-dsl location saasm gps-saasm GPS-Sat+Ext-USB+Has-UI
+> stack exec resource-dsl location location gps-usb GPS-Sat+Has-UI
+```
+
+The files in these directories (which are re-generated each time you run the
+location provider check) are also example inputs that can be passed via the
+`inbox` (Option 1), after renaming the files.
+
+
+**Exit codes:** The location provider check generates some textual output.
+However, the core response (OK, errors, unsatisfied) is indicated by the exit
+code returned by the process.
+
+The exit codes are defined as follows:
+ 
+ * 0: OK -- the DFU loads successfully and satisfies the requirements
+ * 1: Miscellaneous Error -- see output for details (e.g. bad arguments, JSON
+      decoding error, bug in interpreter)
+ * 2: DFU cannot be loaded in the given environment.
+ * 3: DFU successfully loads but does not satisfy the requirements.
+
+
+### Run the demo
+
+A simple demo can be executed by simply executing the interpreter with no
+arguments.
 
 Currently, this invokes a simple demo that ensures everything is installed
 correctly. Here is what should happen:
@@ -46,7 +111,7 @@ correctly. Here is what should happen:
    * `outbox/environment.json` -- describes the resulting resource environment
 
 
-## Inputs and Outputs
+## Inputs and outputs
  
 The structure of the JSON files is very preliminary. Currently, it is just an
 automatic serialization of the corresponding Haskell values. We would like this
@@ -59,8 +124,8 @@ The semantic content of the inputs answers the questions:
    "resources", e.g. the ability to support a certain number of clients and
    handle a certain number of requests.)
 
-The current output is just the (manually written) result of executing the DSL
-program, but can be tailored depending on the downstream needs.
+The current output is the environment produced by executing the DSL program,
+this can be tailored depending on the downstream needs.
 
 
 [Stack]: http://docs.haskellstack.org/en/stable/README/

@@ -55,7 +55,7 @@ locationDriver = do
     then putStrLn ("OK (requirements satisfied):\n" ++ show result)
          >> exitSuccess
     else putStrLn ("BAD (requirements not satisfied):\n" ++ show result)
-         >> exitWith (ExitFailure 2)
+         >> exitWith (ExitFailure 3)
 
 usage :: IO ()
 usage = do
