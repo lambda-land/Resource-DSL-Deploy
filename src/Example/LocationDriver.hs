@@ -37,7 +37,7 @@ readInputs = do
       dfu <- readJSON "location/dfu" d
       env <- readJSON "location/env" e
       return (req,dfu,env)
-    _ -> usage >> exitWith (ExitFailure 2)
+    _ -> usage >> exitWith (ExitFailure 1)
 
 -- | Write out example json output file.
 writeOutput :: Expr Refined -> IO ()
@@ -55,7 +55,7 @@ locationDriver = do
     then putStrLn ("OK (requirements satisfied):\n" ++ show result)
          >> exitSuccess
     else putStrLn ("BAD (requirements not satisfied):\n" ++ show result)
-         >> exitWith (ExitFailure 1)
+         >> exitWith (ExitFailure 2)
 
 usage :: IO ()
 usage = do

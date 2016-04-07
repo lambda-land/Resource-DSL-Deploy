@@ -1,5 +1,6 @@
 module DSL.Env where
 
+import Control.Monad.Except (throwError)
 import Control.Monad.Reader
 import Control.Monad.State
 
@@ -55,7 +56,7 @@ lookRef v = do
     m <- ask
     case Map.lookup v m of
       Just t -> return t
-      _      -> fail ("unbound non-linear variable: " ++ v)
+      _      -> throwError ("unbound non-linear variable: " ++ v)
 
 -- | Lookup and consume a linear assumption.
 lookUse :: Var -> EnvM b b
@@ -63,7 +64,7 @@ lookUse v = do
     m <- get
     case Map.lookup v m of
       Just t -> put (Map.delete v m) >> return t
-      _      -> fail ("unavailable linear variable: " ++ v)
+      _      -> throwError ("unavailable linear variable: " ++ v)
 
 -- | Push a linear assumption onto the environment, then run a computation
 --   and check to see whether the assumption was consumed. If so, return the 
@@ -75,7 +76,7 @@ addLinear v b ma = do
     result <- ma
     unused <- gets (Map.member v)
     -- TODO: not reducing under abstractions breaks this check!
-    -- when unused (fail ("unused linear variable: " ++ v))
+    -- when unused (throwError ("unused linear variable: " ++ v))
     case old of
       Just t -> modify (Map.insert v b)
       _      -> return ()
