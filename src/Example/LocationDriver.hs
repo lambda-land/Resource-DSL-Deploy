@@ -73,6 +73,6 @@ usage = do
   putStrLn "the directories location/(req|dfu|env), minus the .json extension."
   putStrLn "" 
   putStrLn "Some specific examples:"
-  putStrLn "  > stack exec resource-dsl location location gps-android GPS-Sat+GPS-DEV"
+  putStrLn "  > stack exec resource-dsl location location gps-android GPS-Sat+GPS-Dev"
   putStrLn "  > stack exec resource-dsl location saasm gps-saasm GPS-Sat+Ext-USB+Has-UI"
   putStrLn "  > stack exec resource-dsl location location gps-usb GPS-Sat+Has-UI"

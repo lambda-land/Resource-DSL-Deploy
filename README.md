@@ -70,7 +70,7 @@ the directories `location/req`, `location/dfu`, and `location/env`, minus the
 Some specific examples:
 
 ```bash
-> stack exec resource-dsl location location gps-android GPS-Sat+GPS-DEV
+> stack exec resource-dsl location location gps-android GPS-Sat+GPS-Dev
 > stack exec resource-dsl location saasm gps-saasm GPS-Sat+Ext-USB+Has-UI
 > stack exec resource-dsl location location gps-usb GPS-Sat+Has-UI
 ```
