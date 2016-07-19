@@ -10,7 +10,7 @@ import Prelude hiding (LT,GT)
 import Data.String (IsString)
 import GHC.Generics (Generic)
 
-import DSL.Env
+import DSL.Environment
 import DSL.Primitive
 import DSL.Predicate
 

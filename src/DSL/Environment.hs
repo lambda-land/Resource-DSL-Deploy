@@ -1,4 +1,4 @@
-module DSL.Env where
+module DSL.Environment where
 
 import Control.Monad.Except (throwError)
 import Control.Monad.Reader

@@ -29,7 +29,7 @@ library
     scientific
   exposed-modules:
     Driver,
-    DSL.Env,
+    DSL.Environment,
     DSL.Predicate,
     DSL.Primitive,
     DSL.SAT,
