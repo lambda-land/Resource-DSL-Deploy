@@ -26,31 +26,31 @@ import DSL.SAT
 -- ** Abstract syntax
 
 -- | Boolean predicates with variable references.
-data BPred
+data Pred
      = BLit Bool
      | BRef Var
-     | OpB  B_B  BPred
-     | OpBB BB_B BPred BPred
-     | OpIB II_B IPred IPred
+     | OpB  B_B  Pred
+     | OpBB BB_B Pred Pred
+     | OpIB II_B IExpr IExpr
   deriving (Eq,Generic,Show)
 
--- | Predicates on integers with variable references.
-data IPred
+-- | Integer expressions with variable references.
+data IExpr
      = ILit Int
      | IRef Var
-     | OpI  I_I  IPred
-     | OpII II_I IPred IPred
+     | OpI  I_I  IExpr
+     | OpII II_I IExpr IExpr
   deriving (Eq,Generic,Show)
 
 -- | The set of boolean variables referenced in a boolean predicate.
-boolVars :: BPred -> Set Var
+boolVars :: Pred -> Set Var
 boolVars (BRef v)     = Set.singleton v
 boolVars (OpB _ e)    = boolVars e
 boolVars (OpBB _ l r) = boolVars l `Set.union` boolVars r
 boolVars _            = Set.empty
 
 -- | The set of integer variables referenced in a boolean predicate.
-intVars :: BPred -> Set Var
+intVars :: Pred -> Set Var
 intVars (BLit _)     = Set.empty
 intVars (BRef _)     = Set.empty
 intVars (OpB _ e)    = intVars e
@@ -66,7 +66,7 @@ intVars (OpIB _ l r) = intVars' l `Set.union` intVars' r
 -- ** Syntactic sugar
 
 -- Use SBV's Boolean type class for boolean predicates.
-instance Boolean BPred where
+instance Boolean Pred where
   true  = BLit True
   false = BLit False
   bnot  = OpB Not
@@ -77,7 +77,7 @@ instance Boolean BPred where
   (<=>) = OpBB Eqv
 
 -- Use Num type class for integer arithmetic.
-instance Num IPred where
+instance Num IExpr where
   fromInteger = ILit . fromInteger
   abs    = OpI Abs
   negate = OpI Neg
@@ -87,12 +87,12 @@ instance Num IPred where
   (*)    = OpII Mul
   
 -- Other integer arithmetic primitives.
-instance PrimI IPred where
+instance PrimI IExpr where
   (./) = OpII Div
   (.%) = OpII Mod
 
 -- Integer comparison primitives.
-instance Prim BPred IPred where
+instance Prim Pred IExpr where
   (.<)  = OpIB LT
   (.<=) = OpIB LTE
   (.==) = OpIB Equ
@@ -103,14 +103,14 @@ instance Prim BPred IPred where
 -- ** Substitution
 
 -- | Substitute a boolean variable in a boolean predicate.
-substB :: Var -> Bool -> BPred -> BPred
+substB :: Var -> Bool -> Pred -> Pred
 substB v b e@(BRef w)   = if w == v then BLit b else e
 substB v b (OpB o e)    = OpB o (substB v b e)
 substB v b (OpBB o l r) = OpBB o (substB v b l) (substB v b r)
 substB _ _ e            = e
 
 -- | Substitute an integer variable in a boolean predicate.
-substI :: Var -> Int -> BPred -> BPred
+substI :: Var -> Int -> Pred -> Pred
 substI _ _ e@(BLit _)   = e
 substI _ _ e@(BRef _)   = e
 substI v i (OpB o e)    = OpB o (substI v i e)
@@ -128,31 +128,31 @@ substI v i (OpIB o l r) = OpIB o (substI' l) (substI' r)
 -- | Evaluate a boolean predicate to either a ground or symbolic boolean,
 --   given a corresponding dictionary of comparison operators and
 --   environments binding all of the variables.
-evalBPred :: Prim b i => Env b -> Env i -> BPred -> b
-evalBPred _  _  (BLit b)     = fromBool b
-evalBPred mb _  (BRef v)     = envLookup' v mb
-evalBPred mb mi (OpB o e)    = opB_B o (evalBPred mb mi e)
-evalBPred mb mi (OpBB o l r) = (opBB_B o `on` evalBPred mb mi) l r
-evalBPred mb mi (OpIB o l r) = (opII_B o `on` evalIPred mi) l r
+evalPred :: Prim b i => Env b -> Env i -> Pred -> b
+evalPred _  _  (BLit b)     = fromBool b
+evalPred mb _  (BRef v)     = envLookup' v mb
+evalPred mb mi (OpB o e)    = opB_B o (evalPred mb mi e)
+evalPred mb mi (OpBB o l r) = (opBB_B o `on` evalPred mb mi) l r
+evalPred mb mi (OpIB o l r) = (opII_B o `on` evalIExpr mi) l r
 
--- | Evaluate an integer predicate to either a ground or symbolic integer,
+-- | Evaluate an integer expression to either a ground or symbolic integer,
 --   given an environment binding all of the variables.
-evalIPred :: PrimI i => Env i -> IPred -> i
-evalIPred _ (ILit i)     = fromIntegral i
-evalIPred m (IRef v)     = envLookup' v m
-evalIPred m (OpI o e)    = opI_I o (evalIPred m e)
-evalIPred m (OpII o l r) = (opII_I o `on` evalIPred m) l r
+evalIExpr :: PrimI i => Env i -> IExpr -> i
+evalIExpr _ (ILit i)     = fromIntegral i
+evalIExpr m (IRef v)     = envLookup' v m
+evalIExpr m (OpI o e)    = opI_I o (evalIExpr m e)
+evalIExpr m (OpII o l r) = (opII_I o `on` evalIExpr m) l r
 
 -- | Evaluate a boolean predicate to a ground boolean.
-predToBool :: Env Bool -> Env Int -> BPred -> Bool
-predToBool = evalBPred
+predToBool :: Env Bool -> Env Int -> Pred -> Bool
+predToBool = evalPred
 
 -- | Evaluate a boolean predicate to a symbolic boolean.
-predToSBool :: Env SBool -> Env SInt32 -> BPred -> SBool
-predToSBool = evalBPred
+predToSBool :: Env SBool -> Env SInt32 -> Pred -> SBool
+predToSBool = evalPred
 
 -- Enable satisfiability checking of predicates.
-instance SAT BPred where
+instance SAT Pred where
   toSymbolic e = do
     mb <- symEnv sBool (boolVars e)
     mi <- symEnv sInt32 (intVars e)
