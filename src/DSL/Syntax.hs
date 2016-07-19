@@ -39,8 +39,7 @@ data Stmt
 
 -- | Resource commands.
 data Cmd
-     = Chk                   -- ^ check whether a unit resource is present
-     | Sat Var Pred          -- ^ check whether a resource satisfies the given predicate
+     = Chk Var Pred          -- ^ check whether a resource satisfies a predicate
      | Use Var Expr          -- ^ modify an existing resource
      | New Expr              -- ^ provide a new resource
   deriving (Eq,Generic,Show)
@@ -59,7 +58,6 @@ data Val
      = VLit PVal
      | VChc Pred Val Val
   deriving (Eq,Show)
-
 
 
 -- ** Syntactic sugar

@@ -47,18 +47,19 @@ data PVal
 
 -- | Primitive unary operators organized by type.
 data Op1
-     = B_B  B_B
-     | I_I  I_I
+     = IsU        -- ^ is this a unit value?
+     | B_B B_B    -- ^ unary boolean operation
+     | I_I I_I    -- ^ unary integer operation
   deriving (Eq,Generic,Show)
 
 -- | Primitive binary operators organized by type.
 data Op2
-     = BB_B BB_B
-     | II_I II_I
-     | II_B II_B
+     = BB_B BB_B  -- ^ binary boolean operator
+     | II_I II_I  -- ^ binary integer operator
+     | II_B II_B  -- ^ integer comparison operator
   deriving (Eq,Generic,Show)
 
--- | Unary boolean operators.
+-- | Boolean negation.
 data B_B = Not
   deriving (Eq,Generic,Show)
 
