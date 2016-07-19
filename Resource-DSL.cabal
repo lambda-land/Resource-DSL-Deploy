@@ -1,0 +1,59 @@
+name:          Resource-DSL
+version:       0.0.0
+homepage:      http://github.com/lambda-land/Resource-DSL/resource-dsl
+license:       BSD3
+author:        Eric Walkingshaw
+maintainer:    walkiner@oregonstate.edu
+category:      Language
+build-type:    Simple
+cabal-version: >= 1.22
+
+source-repository head
+  type:     git
+  location: https://github.com/lambda-land/Resource-DSL-Deploy
+  branch:   master
+
+-- NOTE: sbv also requires z3 executable on PATH!
+library
+  hs-source-dirs:   src
+  default-language: Haskell2010
+  build-depends:
+    base,
+    aeson,
+    aeson-pretty,
+    bytestring,
+    containers,
+    directory,
+    mtl,
+    sbv,
+    scientific
+  exposed-modules:
+    Driver,
+    DSL.Env,
+    DSL.Predicate,
+    DSL.Primitive,
+    DSL.SAT,
+    DSL.Serialize
+
+executable resource-dsl
+  hs-source-dirs:   app
+  default-language: Haskell2010
+  main-is:          Main.hs
+  ghc-options:      -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+    Resource-DSL,
+    base
+
+test-suite test
+  hs-source-dirs:   test
+  default-language: Haskell2010
+  type:             exitcode-stdio-1.0
+  main-is:          Tests.hs
+  ghc-options:      -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+    Resource-DSL,
+    base,
+    tasty,
+    tasty-hunit,
+    tasty-th
+  other-modules:

@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/schema#",
+  "title": "Immortals: DSL Exchange Format",
+
+  "definitions": {
+
+    "baseType": {
+      "type": "string",
+      "enum": [ "bool", "int", "unit" ]
+    },
+
+    "baseValue": {
+      "anyOf": [
+        { "type": "boolean" },
+        { "type": "integer" },
+        { "type": "null" }
+      ]
+    },
+    
+    "refinedType": {
+      "type": "object",
+      "properties": {
+        "baseType": { "$ref": "#/definitions/baseType" },
+        "constraint": { "type": "string" }
+      },
+      "required": [ "baseType", "constraint" ]
+    },
+    
+    "environmentType": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "resourceID": { "type": "string" },
+          "resourceName": { "type": "string" },
+          "resourceType": {
+            "anyOf": [
+              { "$ref": "#/definitions/baseType" },
+              { "$ref": "#/definitions/refinedType" },
+              { "$ref": "#/definitions/environmentType" }
+            ]
+          }
+        },
+        "required": [ "resourceName", "resourceType" ]
+      }
+    },
+    
+    "environmentValue": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "resourceID": { "type": "string" },
+          "resourceName": { "type": "string" },
+          "resourceValue": {
+            "anyOf": [
+              { "$ref": "#/definitions/baseValue" },
+              { "$ref": "#/definitions/environmentValue" }
+            ]
+          }
+        },
+        "required": [ "resourceName", "resourceValue" ]
+      }
+    },
+    
+    "parameterType": {
+      "type": "object",
+      "properties": {
+        "parameterName": { "type": "string" },
+        "parameterType": { "$ref": "#/definitions/baseType" }
+      },
+      "required": [ "parameterName", "parameterType" ]
+    },
+    
+    "parameterValue": {
+      "type": "object",
+      "properties": {
+        "parameterName": { "type": "string" },
+        "parameterValue": { "$ref": "#/definitions/baseValue" }
+      },
+      "required": [ "parameterName", "parameterValue" ]
+    },
+
+    "dfuType": {
+      "type": "object",
+      "properties": {
+        "dfuID": { "type": "string" },
+        "dfuName": { "type": "string" },
+        "dfuParameters": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/parameterType" }
+        },
+        "dfuBefore": { "$ref": "#/definitions/environmentType" },
+        "dfuAfter": { "$ref": "#/definitions/environmentType" }
+      },
+      "required": [ "dfuBefore", "dfuAfter" ]
+    }
+
+  },
+
+  "type": "object",
+  "properties": {
+    "configuration": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/parameterValue" }
+    },
+    "initialEnvironment": { "$ref": "#/definitions/environmentValue" },
+    "missionRequirements": { "$ref": "#/definitions/environmentType" }
+  }
+
+}
