@@ -32,35 +32,55 @@ data Desc = Desc [Param] Block
 
 -- | Statements in a resource description.
 data Stmt
-     = Cmd Name Cmd          -- ^ apply a command to a resource
-     | In  Path Block        -- ^ do work in a sub-environment
-     | If  Pred Block Block  -- ^ conditional statement
+     = Do Cmd Name Expr     -- ^ apply a command to a resource
+     | In Path Block        -- ^ do work in a sub-environment
+     | If Pred Block Block  -- ^ conditional statement
   deriving (Eq,Generic,Show)
 
--- | Resource commands.
-data Cmd
-     = Chk Var Pred          -- ^ check whether a resource satisfies a predicate
-     | Use Var Expr          -- ^ modify an existing resource
-     | New Expr              -- ^ provide a new resource
+-- | Resource commands:
+--    * check whether a resource satisfies a given predicate
+--    * modify an existing resource
+--    * provide a new resource
+data Cmd = Check | Modify | Provide
   deriving (Eq,Generic,Show)
 
 -- | Expressions.
 data Expr
-     = Lit PVal              -- ^ literals
-     | Ref Var               -- ^ variable reference
-     | P1  Op1 Expr          -- ^ primitive unary function
-     | P2  Op2 Expr Expr     -- ^ primitive binary function
-     | Chc Pred Expr Expr    -- ^ choice
+     = Lit PVal            -- ^ literals
+     | Ref Var             -- ^ variable reference
+     | P1  Op1 Expr        -- ^ primitive unary function
+     | P2  Op2 Expr Expr   -- ^ primitive binary function
+     | Chc Pred Expr Expr  -- ^ choice
   deriving (Eq,Generic,Show)
 
 -- | Values.
 data Val
      = VLit PVal
      | VChc Pred Val Val
-  deriving (Eq,Show)
+  deriving (Eq,Generic,Show)
 
 
 -- ** Syntactic sugar
+
+-- | A reference to the current resource.
+this :: Expr
+this = Ref "this"
+
+-- | Check whether a resource satisfies a given predicate.
+check :: Name -> Expr -> Stmt
+check = Do Check
+
+-- | Modify an existing resource.
+modify :: Name -> Expr -> Stmt
+modify = Do Modify
+
+-- | Provide a new resource.
+provide :: Name -> Expr -> Stmt
+provide = Do Provide
+
+-- | Require that a unit valued resource is present.
+require :: Name -> Stmt
+require r = check r (P1 IsU this)
 
 -- Use SBV's Boolean type class for boolean predicates.
 instance Boolean Expr where
