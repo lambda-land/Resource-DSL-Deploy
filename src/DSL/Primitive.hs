@@ -25,6 +25,18 @@ import GHC.Generics (Generic)
 
 
 --
+-- * Primitive values
+--
+
+-- | Primitive values.
+data PVal
+     = Unit
+     | B Bool
+     | I Int
+  deriving (Eq,Generic,Show)
+
+
+--
 -- * Primitive operators
 --
 

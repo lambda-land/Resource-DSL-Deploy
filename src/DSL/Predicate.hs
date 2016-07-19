@@ -25,9 +25,6 @@ import DSL.SAT
 
 -- ** Abstract syntax
 
--- | Variables.
-type Var = Name
-
 -- | Boolean predicates with variable references.
 data BPred
      = BLit Bool
