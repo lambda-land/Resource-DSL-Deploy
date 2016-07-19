@@ -5,7 +5,8 @@
   #-}
 
 module DSL.Primitive 
-  ( Op1(..), Op2(..)
+  ( PType(..), PVal(..)
+  , Op1(..), Op2(..)
   , B_B(..), opB_B
   , I_I(..), opI_I
   , BB_B(..), opBB_B
@@ -25,8 +26,12 @@ import GHC.Generics (Generic)
 
 
 --
--- * Primitive values
+-- * Base types and values.
 --
+
+-- | Primitive base types.
+data PType = TUnit | TBool | TInt
+  deriving (Eq,Generic,Show)
 
 -- | Primitive values.
 data PVal
