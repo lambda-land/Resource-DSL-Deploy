@@ -33,7 +33,8 @@ library
     DSL.Predicate,
     DSL.Primitive,
     DSL.SAT,
-    DSL.Serialize
+    DSL.Serialize,
+    DSL.Syntax
 
 executable resource-dsl
   hs-source-dirs:   app
