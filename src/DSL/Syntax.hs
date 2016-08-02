@@ -62,12 +62,6 @@ data Expr
      | Chc Pred Expr Expr  -- ^ choice constructor
   deriving (Eq,Generic,Show)
 
--- | Values.
-data Val
-     = VLit PVal
-     | VChc Pred Val Val
-  deriving (Eq,Generic,Show)
-
 
 -- ** Syntactic sugar
 
