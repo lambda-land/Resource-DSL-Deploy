@@ -46,12 +46,20 @@ data Cmd = Check | Modify | Provide
 
 -- | Expressions.
 data Expr
+     -- naming
      = This                -- ^ reference to the current resource
      | Ref Var             -- ^ variable reference
-     | Lit PVal            -- ^ literals
+     | Let Var Expr Expr   -- ^ local variable declaration
+     -- primitives
+     | Lit PVal            -- ^ primitive literals
      | P1  Op1 Expr        -- ^ primitive unary function
      | P2  Op2 Expr Expr   -- ^ primitive binary function
-     | Chc Pred Expr Expr  -- ^ choice
+     -- pairs
+     | Tup Expr Expr       -- ^ pair constructor
+     | Fst Expr            -- ^ first item from pair
+     | Snd Expr            -- ^ second item from pair
+     -- variation
+     | Chc Pred Expr Expr  -- ^ choice constructor
   deriving (Eq,Generic,Show)
 
 -- | Values.
