@@ -130,7 +130,7 @@ substI v i (OpIB o l r) = OpIB o (substI' l) (substI' r)
 --   environments binding all of the variables.
 evalPred :: Prim b i => Env b -> Env i -> Pred -> b
 evalPred _  _  (BLit b)     = fromBool b
-evalPred mb _  (BRef v)     = envLookup' v mb
+evalPred mb _  (BRef v)     = assumeFound (envLookup v mb)
 evalPred mb mi (OpB o e)    = opB_B o (evalPred mb mi e)
 evalPred mb mi (OpBB o l r) = (opBB_B o `on` evalPred mb mi) l r
 evalPred mb mi (OpIB o l r) = (opII_B o `on` evalIExpr mi) l r
@@ -139,7 +139,7 @@ evalPred mb mi (OpIB o l r) = (opII_B o `on` evalIExpr mi) l r
 --   given an environment binding all of the variables.
 evalIExpr :: PrimI i => Env i -> IExpr -> i
 evalIExpr _ (ILit i)     = fromIntegral i
-evalIExpr m (IRef v)     = envLookup' v m
+evalIExpr m (IRef v)     = assumeFound (envLookup v m)
 evalIExpr m (OpI o e)    = opI_I o (evalIExpr m e)
 evalIExpr m (OpII o l r) = (opII_I o `on` evalIExpr m) l r
 

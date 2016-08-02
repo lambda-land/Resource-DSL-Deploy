@@ -52,18 +52,18 @@ envExtend :: Name -> a -> Env a -> Env a
 envExtend = Map.insert
 
 -- | Lookup a binding in an environment.
-envLookup :: Name -> Env a -> Maybe a
-envLookup = Map.lookup
+envLookup :: Name -> Env a -> Either String a
+envLookup x m = maybe notFound Right (Map.lookup x m)
+  where notFound = Left ("envLookup: name is not in environment: " ++ x)
 
--- | Lookup a binding in an environment or fail dynamically if it's not there.
-envLookup' :: Name -> Env a -> a
-envLookup' v m | Just a <- envLookup v m = a
-               | otherwise = error $ "Name is not in environment: " ++ v
+-- | Name not in environment error.
+notFound :: Name -> Either String a
+notFound x = Left ("Name is not in environment: " ++ x)
 
--- | Lookup the value associated with a name and remove it from the environment.
-envExtract :: Name -> Env a -> Maybe (a, Env a)
-envExtract v r = ma >>= \a -> Just (a,r')
-  where (ma,r') = Map.updateLookupWithKey (\_ _ -> Nothing) v r
+-- | Assume a binding is found, failing dynamically otherwise.
+assumeFound :: Either String a -> a
+assumeFound (Right a)  = a
+assumeFound (Left msg) = error msg
 
 
 --
@@ -77,15 +77,17 @@ type Path = [Name]
 newtype HEnv a = HEnv (Env (Either (HEnv a) a))
 
 -- | Lookup an entry in a hierarchical environment using a path.
-henvLookup :: Path -> HEnv a -> Maybe (Either (HEnv a) a)
-henvLookup []    _        = Nothing
-henvLookup [n]   (HEnv m) = envLookup n m
-henvLookup (n:p) (HEnv m) = case envLookup n m of
-  Just (Left h) -> henvLookup p h
-  _             -> Nothing
+henvLookup :: Path -> HEnv a -> Either String (Either (HEnv a) a)
+henvLookup []    h        = Right (Left h)
+henvLookup [x]   (HEnv m) = envLookup x m
+henvLookup (x:p) (HEnv m) = case envLookup x m of
+  Right (Right _) -> Left ("henvLookup: unexpected base value: " ++ x)
+  Right (Left h)  -> henvLookup p h
+  Left msg        -> Left msg
 
 -- | Lookup a base value in a hierarchical environment using a path.
-henvLookupBase :: Path -> HEnv a -> Maybe a
+henvLookupBase :: Path -> HEnv a -> Either String a
 henvLookupBase p m = case henvLookup p m of
-  Just (Right a) -> Just a
-  _              -> Nothing
+  Right (Right a) -> Right a
+  Right (Left _)  -> Left ("henvLookupBase: entry at path is not a base value: " ++ show p)
+  Left msg        -> Left msg
