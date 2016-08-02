@@ -1,8 +1,8 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module DSL.Environment where
 
-import Control.Monad.Except (throwError)
-import Control.Monad.Reader
-import Control.Monad.State
+import Control.Monad.Except (MonadError,throwError)
 
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -52,13 +52,9 @@ envExtend :: Name -> a -> Env a -> Env a
 envExtend = Map.insert
 
 -- | Lookup a binding in an environment.
-envLookup :: Name -> Env a -> Either String a
-envLookup x m = maybe notFound Right (Map.lookup x m)
-  where notFound = Left ("envLookup: name is not in environment: " ++ x)
-
--- | Name not in environment error.
-notFound :: Name -> Either String a
-notFound x = Left ("Name is not in environment: " ++ x)
+envLookup :: MonadError String m => Name -> Env a -> m a
+envLookup x m = maybe notFound return (Map.lookup x m)
+  where notFound = throwError ("envLookup: name is not in environment: " ++ x)
 
 -- | Assume a binding is found, failing dynamically otherwise.
 assumeFound :: Either String a -> a
@@ -77,17 +73,19 @@ type Path = [Name]
 newtype HEnv a = HEnv (Env (Either (HEnv a) a))
 
 -- | Lookup an entry in a hierarchical environment using a path.
-henvLookup :: Path -> HEnv a -> Either String (Either (HEnv a) a)
-henvLookup []    h        = Right (Left h)
+henvLookup :: MonadError String m => Path -> HEnv a -> m (Either (HEnv a) a)
+henvLookup []    h        = return (Left h)
 henvLookup [x]   (HEnv m) = envLookup x m
-henvLookup (x:p) (HEnv m) = case envLookup x m of
-  Right (Right _) -> Left ("henvLookup: unexpected base value: " ++ x)
-  Right (Left h)  -> henvLookup p h
-  Left msg        -> Left msg
+henvLookup (x:p) (HEnv m) = do
+  r <- envLookup x m
+  case r of
+    Right _ -> throwError ("henvLookup: unexpected base value: " ++ x)
+    Left h  -> henvLookup p h
 
 -- | Lookup a base value in a hierarchical environment using a path.
 henvLookupBase :: Path -> HEnv a -> Either String a
-henvLookupBase p m = case henvLookup p m of
-  Right (Right a) -> Right a
-  Right (Left _)  -> Left ("henvLookupBase: entry at path is not a base value: " ++ show p)
-  Left msg        -> Left msg
+henvLookupBase p m = do
+  r <- henvLookup p m
+  case r of
+    Right a -> return a
+    Left _  -> throwError ("henvLookupBase: entry at path is not a base value: " ++ show p)

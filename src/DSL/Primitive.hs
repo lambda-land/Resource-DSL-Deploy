@@ -1,5 +1,6 @@
 {-# LANGUAGE
       DeriveGeneric,
+      FlexibleContexts,
       FlexibleInstances,
       MultiParamTypeClasses
   #-}
@@ -7,6 +8,7 @@
 module DSL.Primitive 
   ( PType(..), PVal(..)
   , Op1(..), Op2(..)
+  , primOp1, primOp2
   , B_B(..), opB_B
   , I_I(..), opI_I
   , BB_B(..), opBB_B
@@ -17,6 +19,8 @@ module DSL.Primitive
   ) where
 
 import Prelude hiding (LT,GT)
+
+import Control.Monad.Except (MonadError,throwError)
 
 import Data.Bits
 import Data.SBV (Boolean(..),SBool,SInteger,SInt8,SInt16,SInt32,SInt64)
@@ -80,20 +84,20 @@ data II_I = Add | Sub | Mul | Div | Mod
   deriving (Eq,Generic,Show)
 
 -- | Evaluate a primitive unary operator.
-primOp1 :: Op1 -> PVal -> Either String PVal
-primOp1 IsU     Unit  = Right Unit
-primOp1 (B_B o) (B b) = Right (B (opB_B o b))
-primOp1 (I_I o) (I i) = Right (I (opI_I o i))
-primOp1 o e = Left $ "primOp1: type error applying operator "
-                     ++ show o ++ " to " ++ show e
+primOp1 :: MonadError String m => Op1 -> PVal -> m PVal
+primOp1 IsU     Unit  = return Unit
+primOp1 (B_B o) (B b) = return (B (opB_B o b))
+primOp1 (I_I o) (I i) = return (I (opI_I o i))
+primOp1 o e = throwError $ "primOp1: type error applying operator "
+                           ++ show o ++ " to " ++ show e
 
 -- | Evaluate a primitive binary operator.
-primOp2 :: Op2 -> PVal -> PVal -> Either String PVal
-primOp2 (BB_B o) (B l) (B r) = Right (B (opBB_B o l r))
-primOp2 (II_I o) (I l) (I r) = Right (I (opII_I o l r))
-primOp2 (II_B o) (I l) (I r) = Right (B (opII_B o l r))
-primOp2 o l r = Left $ "primOp2: type error applying operator "
-                       ++ show o ++ " to " ++ show l ++ " and " ++ show r
+primOp2 :: MonadError String m => Op2 -> PVal -> PVal -> m PVal
+primOp2 (BB_B o) (B l) (B r) = return (B (opBB_B o l r))
+primOp2 (II_I o) (I l) (I r) = return (I (opII_I o l r))
+primOp2 (II_B o) (I l) (I r) = return (B (opII_B o l r))
+primOp2 o l r = throwError $ "primOp2: type error applying operator "
+                             ++ show o ++ " to " ++ show l ++ " and " ++ show r
 
 -- | Lookup unary boolean operator.
 opB_B :: Boolean b => B_B -> b -> b
