@@ -26,7 +26,7 @@ import GHC.Generics (Generic)
 
 
 --
--- * Base types and values.
+-- * Base types and values
 --
 
 -- | Primitive base types.
@@ -47,7 +47,7 @@ data PVal
 
 -- | Primitive unary operators organized by type.
 data Op1
-     = IsU        -- ^ is this a unit value?
+     = IsU        -- ^ noop that matches a unit value
      | B_B B_B    -- ^ unary boolean operation
      | I_I I_I    -- ^ unary integer operation
   deriving (Eq,Generic,Show)
@@ -78,6 +78,22 @@ data II_B = LT | LTE | Equ | GTE | GT
 -- | Binary integer arithmetic operators.
 data II_I = Add | Sub | Mul | Div | Mod
   deriving (Eq,Generic,Show)
+
+-- | Evaluate a primitive unary operator.
+primOp1 :: Op1 -> PVal -> Either String PVal
+primOp1 IsU     Unit  = Right Unit
+primOp1 (B_B o) (B b) = Right (B (opB_B o b))
+primOp1 (I_I o) (I i) = Right (I (opI_I o i))
+primOp1 o e = Left $ "primOp1: type error applying operator "
+                     ++ show o ++ " to " ++ show e
+
+-- | Evaluate a primitive binary operator.
+primOp2 :: Op2 -> PVal -> PVal -> Either String PVal
+primOp2 (BB_B o) (B l) (B r) = Right (B (opBB_B o l r))
+primOp2 (II_I o) (I l) (I r) = Right (I (opII_I o l r))
+primOp2 (II_B o) (I l) (I r) = Right (B (opII_B o l r))
+primOp2 o l r = Left $ "primOp2: type error applying operator "
+                       ++ show o ++ " to " ++ show l ++ " and " ++ show r
 
 -- | Lookup unary boolean operator.
 opB_B :: Boolean b => B_B -> b -> b
