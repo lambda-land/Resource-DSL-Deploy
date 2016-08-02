@@ -65,10 +65,6 @@ data Expr
 
 -- ** Syntactic sugar
 
--- | A reference to the current resource.
-this :: Expr
-this = Ref "this"
-
 -- | Check whether a resource satisfies a given predicate.
 check :: Name -> Expr -> Stmt
 check = Do Check
