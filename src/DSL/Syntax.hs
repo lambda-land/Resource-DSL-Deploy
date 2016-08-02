@@ -46,8 +46,9 @@ data Cmd = Check | Modify | Provide
 
 -- | Expressions.
 data Expr
-     = Lit PVal            -- ^ literals
+     = This                -- ^ reference to the current resource
      | Ref Var             -- ^ variable reference
+     | Lit PVal            -- ^ literals
      | P1  Op1 Expr        -- ^ primitive unary function
      | P2  Op2 Expr Expr   -- ^ primitive binary function
      | Chc Pred Expr Expr  -- ^ choice
