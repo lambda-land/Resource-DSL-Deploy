@@ -79,7 +79,7 @@ provide = Do Provide
 
 -- | Require that a unit valued resource is present.
 require :: Name -> Stmt
-require r = check r (P1 IsU this)
+require r = check r (P1 IsU This)
 
 -- Use SBV's Boolean type class for boolean predicates.
 instance Boolean Expr where
