@@ -46,20 +46,28 @@ data Cmd = Check | Modify | Provide
 
 -- | Expressions.
 data Expr
-     -- naming
-     = This                -- ^ reference to the current resource
-     | Ref Var             -- ^ variable reference
-     | Let Var Expr Expr   -- ^ local variable declaration
      -- primitives
-     | Lit PVal            -- ^ primitive literals
+     = Lit PVal            -- ^ primitive literal
      | P1  Op1 Expr        -- ^ primitive unary function
      | P2  Op2 Expr Expr   -- ^ primitive binary function
+     -- lambda calculus
+     | Ref Var             -- ^ variable reference
+     | Fun Var Expr        -- ^ function abstraction
+     | App Expr Expr       -- ^ function application
      -- pairs
-     | Tup Expr Expr       -- ^ pair constructor
-     | Fst Expr            -- ^ first item from pair
-     | Snd Expr            -- ^ second item from pair
+     | Pair Expr Expr      -- ^ pair constructor
+     | Fst  Expr           -- ^ first item from pair
+     | Snd  Expr           -- ^ second item from pair
      -- variation
      | Chc Pred Expr Expr  -- ^ choice constructor
+  deriving (Eq,Generic,Show)
+
+-- | Values.
+data Value
+     = Prim  PVal                  -- ^ basic primitive value
+     | Close Var Expr (Env Value)  -- ^ closure
+     | PairV Value Value           -- ^ pair value
+     | ChcV  Pred Value Value      -- ^ choice value
   deriving (Eq,Generic,Show)
 
 
@@ -79,7 +87,7 @@ provide = Do Provide
 
 -- | Require that a unit valued resource is present.
 require :: Name -> Stmt
-require r = check r (P1 IsU This)
+require r = check r (Fun "this" (P1 IsU (Ref "this")))
 
 -- Use SBV's Boolean type class for boolean predicates.
 instance Boolean Expr where
