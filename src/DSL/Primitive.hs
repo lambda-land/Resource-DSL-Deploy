@@ -51,7 +51,7 @@ data PVal
 
 -- | Primitive unary operators organized by type.
 data Op1
-     = IsU        -- ^ noop that matches a unit value
+     = U_U        -- ^ noop that matches a unit value
      | B_B B_B    -- ^ unary boolean operation
      | I_I I_I    -- ^ unary integer operation
   deriving (Eq,Generic,Show)
@@ -85,7 +85,7 @@ data II_I = Add | Sub | Mul | Div | Mod
 
 -- | Evaluate a primitive unary operator.
 primOp1 :: MonadError String m => Op1 -> PVal -> m PVal
-primOp1 IsU     Unit  = return Unit
+primOp1 U_U     Unit  = return Unit
 primOp1 (B_B o) (B b) = return (B (opB_B o b))
 primOp1 (I_I o) (I i) = return (I (opI_I o i))
 primOp1 o e = throwError $ "primOp1: type error applying operator "
