@@ -1,6 +1,11 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE
+      DeriveGeneric,
+      FlexibleContexts
+  #-}
 
 module DSL.Environment where
+
+import GHC.Generics (Generic)
 
 import Control.Monad.Except (MonadError,throwError)
 
@@ -71,6 +76,7 @@ type Path = [Name]
 
 -- | A hierarchical environment.
 newtype HEnv a = HEnv (Env (Either (HEnv a) a))
+  deriving (Eq,Generic,Show)
 
 -- | Lookup an entry in a hierarchical environment using a path.
 henvLookup :: MonadError String m => Path -> HEnv a -> m (Either (HEnv a) a)
@@ -89,3 +95,6 @@ henvLookupBase p m = do
   case r of
     Right a -> return a
     Left _  -> throwError ("henvLookupBase: entry at path is not a base value: " ++ show p)
+
+instance Functor HEnv where
+  fmap f (HEnv m) = HEnv (fmap (either (Left . fmap f) (Right . f)) m)
