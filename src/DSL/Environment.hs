@@ -36,6 +36,10 @@ type Var = Name
 -- | Environments map names to values.
 type Env a = Map Name a
 
+-- | Empty enivornment.
+envEmpty :: Env a
+envEmpty = Map.empty
+
 -- | Smart constructor for environments.
 env :: [(Name,a)] -> Env a
 env = Map.fromList
@@ -78,6 +82,13 @@ type Path = [Name]
 newtype HEnv a = HEnv (Env (Either (HEnv a) a))
   deriving (Eq,Generic,Show)
 
+-- | Empty hierarchical enivornment.
+henvEmpty :: HEnv a
+henvEmpty = HEnv envEmpty
+
+
+-- ** Operations
+
 -- | Lookup an entry in a hierarchical environment using a path.
 henvLookup :: MonadError String m => Path -> HEnv a -> m (Either (HEnv a) a)
 henvLookup []    h        = return (Left h)
@@ -88,8 +99,32 @@ henvLookup (x:p) (HEnv m) = do
     Right _ -> throwError ("henvLookup: unexpected base value: " ++ x)
     Left h  -> henvLookup p h
 
+-- | Alter an entry in a hierarchical environment. Similar to Map.alter.
+henvAlter :: MonadError String m
+          => Path -> (Maybe (Either (HEnv a) a) -> m (Maybe (Either (HEnv a) a)))
+          -> HEnv a -> m (HEnv a)
+henvAlter []    _ _        = throwError "henvAlter: empty path"
+henvAlter [x]   f (HEnv m) = do
+  out <- f (Map.lookup x m)
+  case out of
+    Nothing  -> return $ HEnv (Map.delete x m)
+    Just new -> return $ HEnv (Map.insert x new m)
+henvAlter (x:p) f (HEnv m) = do
+  r <- envLookup x m
+  case r of
+    Right _ -> throwError ("henvLookup: unexpected base value: " ++ x)
+    Left  h -> do h' <- henvAlter p f h
+                  return $ HEnv (Map.insert x (Left h') m)
+
+-- | Extend a hierarchical environment with a new binding.
+henvExtend :: MonadError String m => Path -> a -> HEnv a -> m (HEnv a)
+henvExtend p a = henvAlter p ext
+  where
+    ext Nothing  = return $ Just (Right a)
+    ext (Just e) = throwError ("envExtend: already an entry at: " ++ show p)
+
 -- | Lookup a base value in a hierarchical environment using a path.
-henvLookupBase :: Path -> HEnv a -> Either String a
+henvLookupBase :: MonadError String m => Path -> HEnv a -> m a
 henvLookupBase p m = do
   r <- henvLookup p m
   case r of
