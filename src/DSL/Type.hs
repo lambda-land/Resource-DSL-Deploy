@@ -8,6 +8,7 @@ module DSL.Type where
 import GHC.Generics (Generic)
 
 import Control.Monad.Except (MonadError,throwError)
+import Control.Monad.Writer (MonadWriter,tell)
 
 import DSL.Environment
 import DSL.Predicate
@@ -23,7 +24,7 @@ import DSL.Primitive
   -- deriving (Eq,Generic,Show)
 
 -- | Optionally refined primitive types.
-data Refinement
+data Refine
      = Simple  PType
      | Refined PType Var Pred
   deriving (Eq,Generic,Show)
@@ -35,55 +36,71 @@ data Type t
      | Type t :*: Type t   -- ^ product type
   deriving (Eq,Generic,Show)
 
--- | An action to perform on the resource environment.
-data Action
-     = Check  Refinement
-     | Create Refinement
-     | Delete Refinement
-     | Modify Refinement Refinement
+-- | An effect on a particular resource.
+data Effect
+     = Noop
+     | Check  Refine
+     | Create Refine
+     | Delete Refine
+     | Modify Refine Refine
   deriving (Eq,Generic,Show)
 
--- | Resource type.
-data RType = RT [(Var,PType)] (HEnv Action)
-  deriving (Eq,Generic,Show) 
+-- | A named parameter of primitive type.
+type Param = (Var,PType)
 
-data TypeError
+-- | Resource type.
+data RType = RT {
+    rtParams :: [Param],     -- ^ parameters
+    rtEffect :: HEnv Effect  -- ^ effects on resources
+} deriving (Eq,Generic,Show) 
+
+-- | An error produced by composing resource effects.
+data EffectError
      = PTypeMisMatch
      | DeleteUse
      | UseCreate
   deriving (Eq,Generic,Show)
 
 -- | The primitive type associated with a refinement.
-ptype :: Refinement -> PType
+ptype :: Refine -> PType
 ptype (Simple t)      = t
 ptype (Refined t _ _) = t
 
--- | Compose two refinements.
-composeRefinement :: MonadError TypeError m => Refinement -> Refinement -> m Refinement
-composeRefinement   (Simple t)      r@(Simple u)      | t == u = return r
-composeRefinement   (Simple t)      r@(Refined u v p) | t == u = return r
-composeRefinement r@(Refined t v p)   (Simple u)      | t == u = return r
-composeRefinement   (Refined t v p)   (Refined u w q) | t == u = return (Refined u w p')
-  where p' | v == w    = p &&& q
-           | otherwise = renameVar v w p &&& q
-composeRefinement r1 r2 = throwError PTypeMisMatch
+-- | Compose two refinements by combining the corresponding predicates with
+--   the given function. Raises an error if the primitive types differ.
+composeRefine :: MonadError EffectError m
+                  => (Pred -> Pred -> Pred) -> Refine -> Refine -> m Refine
+composeRefine _   (Simple t)      r@(Simple u)      | t == u = return r
+composeRefine _   (Simple t)      r@(Refined u v p) | t == u = return r
+composeRefine _ r@(Refined t v p)   (Simple u)      | t == u = return r
+composeRefine f   (Refined t v p)   (Refined u w q) | t == u = return (Refined u w p')
+  where p' | v == w    = f p q
+           | otherwise = renameVar v w (f p q)
+composeRefine _ _ _ = throwError PTypeMisMatch
 
--- | Compose two resource environment actions.
-composeAction :: MonadError TypeError m => Action -> Action -> m Action
+-- | Conjunction of two refinements.
+checkBoth :: MonadError EffectError m => Refine -> Refine -> m Refine
+checkBoth = composeRefine (&&&)
 
-composeAction (Check r1)     (Check r2)     = fmap Check (composeRefinement r1 r2)
-composeAction (Check r1)     (Delete r2)    = fmap Delete (composeRefinement r1 r2)
-composeAction (Check r1)     (Modify r2 r3) = fmap (flip Modify r3) (composeRefinement r1 r2)
+-- | Check that an output refinement is compatible with the next input refinement.
+checkSide :: (MonadError EffectError m, MonadWriter [Refine] m)
+              => Refine -> Refine -> m ()
+checkSide r1 r2 = do r <- composeRefine (==>) r1 r2; tell [r]
 
-composeAction (Create r1)    (Check r2)     = fmap Create (composeRefinement r1 r2)
-composeAction (Create r1)    (Delete r2)    = undefined -- check r1 r2
-composeAction (Create r1)    (Modify r2 r3) = undefined -- check r2 r2 >> Create r3
-
-composeAction (Delete r1)    (Create r2)    = return (Modify r1 r2)
-
-composeAction (Modify r1 r2) (Check r3)     = fmap (Modify r1) (composeRefinement r2 r3)
-composeAction (Modify r1 r2) (Delete r3)    = undefined -- check r2 r3 >> Delete r1
-composeAction (Modify r1 r2) (Modify r3 r4) = undefined -- check r2 r3 >> Modify r1 r4
-
-composeAction (Delete _)     _              = throwError DeleteUse
-composeAction _              (Create _)     = throwError UseCreate
+-- | Compose two resource effects.
+composeEffect :: (MonadError EffectError m, MonadWriter [Refine] m)
+              => Effect -> Effect -> m Effect
+composeEffect Noop           e              = return e
+composeEffect e              Noop           = return e
+composeEffect (Check r1)     (Check r2)     = fmap Check (checkBoth r1 r2)
+composeEffect (Check r1)     (Delete r2)    = fmap Delete (checkBoth r1 r2)
+composeEffect (Check r1)     (Modify r2 r3) = fmap (flip Modify r3) (checkBoth r1 r2)
+composeEffect (Create r1)    (Check r2)     = fmap Create (checkBoth r1 r2)
+composeEffect (Create r1)    (Delete r2)    = checkSide r1 r2 >> return Noop
+composeEffect (Create r1)    (Modify r2 r3) = checkSide r1 r2 >> return (Create r3)
+composeEffect (Delete r1)    (Create r2)    = return (Modify r1 r2)
+composeEffect (Modify r1 r2) (Check r3)     = fmap (Modify r1) (checkBoth r2 r3)
+composeEffect (Modify r1 r2) (Delete r3)    = checkSide r2 r3 >> return (Delete r1)
+composeEffect (Modify r1 r2) (Modify r3 r4) = checkSide r2 r3 >> return (Modify r1 r4)
+composeEffect (Delete _)     _              = throwError DeleteUse
+composeEffect _              (Create _)     = throwError UseCreate
