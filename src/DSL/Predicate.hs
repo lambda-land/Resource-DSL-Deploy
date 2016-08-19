@@ -62,6 +62,19 @@ intVars (OpIB _ l r) = intVars' l `Set.union` intVars' r
     intVars' (OpI _ e)    = intVars' e
     intVars' (OpII _ l r) = intVars' l `Set.union` intVars' r
 
+-- | Rename a variable in a predicate.
+renameVar :: Var -> Var -> Pred -> Pred
+renameVar _   _   p@(BLit _)   = p
+renameVar old new p@(BRef v)   = if v == old then BRef new else p
+renameVar old new (OpB o e)    = OpB o (renameVar old new e)
+renameVar old new (OpBB o l r) = OpBB o (renameVar old new l) (renameVar old new r)
+renameVar old new (OpIB o l r) = OpIB o (renameVar' l) (renameVar' r)
+  where
+    renameVar' p@(ILit _)   = p
+    renameVar' p@(IRef v)   = if v == old then IRef new else p
+    renameVar' (OpI o e)    = OpI o (renameVar' e)
+    renameVar' (OpII o l r) = OpII o (renameVar' l) (renameVar' r)
+
 
 -- ** Syntactic sugar
 
