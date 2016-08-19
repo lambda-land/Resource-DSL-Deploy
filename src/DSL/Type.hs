@@ -87,7 +87,9 @@ checkSide :: (MonadError EffectError m, MonadWriter [Refine] m)
               => Refine -> Refine -> m ()
 checkSide r1 r2 = do r <- composeRefine (==>) r1 r2; tell [r]
 
--- | Compose two resource effects.
+-- | Compose two resource effects. The Writer monad tracks side conditions
+--   that must be checked in addition to the refinements in the resulting
+--   effect.
 composeEffect :: (MonadError EffectError m, MonadWriter [Refine] m)
               => Effect -> Effect -> m Effect
 composeEffect Noop           e              = return e
