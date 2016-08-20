@@ -95,20 +95,39 @@ queryPath f (k:ks) h = lookupNode k h >>= queryPath f ks
 
 -- ** Modification
 
--- | Update an entry in the map.
-updateEntry :: (Ord k, MonadError String m)
-            => (Entry k v -> Maybe (Entry k v)) -> k -> HMap k v -> m (HMap k v)
-updateEntry = undefined
+-- | Update the entry associated with a key in the map.
+--   If the key is not present, return the map unchanged.
+adjustEntry :: Ord k => (Entry k v -> Entry k v) -> k -> HMap k v -> HMap k v
+adjustEntry f k (HMap m) = HMap (Map.adjust f k m)
 
--- | Insert an entry into the map.
-insertEntry :: (Ord k, MonadError String m)
-            => k -> Entry k v -> HMap k v -> m (HMap k v)
-insertEntry k e = updateEntry (\_ -> Just e) k
+-- | Delete the entry associated with a key in the map.
+--   If the key is not present, return the map unchanged.
+deleteEntry :: Ord k => k -> HMap k v -> HMap k v
+deleteEntry k (HMap m) = HMap (Map.delete k m)
 
--- | Delete an entry in the map.
-deleteEntry :: (Ord k, MonadError String m)
-            => k -> HMap k v -> m (HMap k v)
-deleteEntry = updateEntry (\_ -> Nothing)
+-- | Insert a new key and entry into the map.
+--   If the key is already in the map, the entry is replaced.
+insertEntry :: Ord k => k -> Entry k v -> HMap k v -> HMap k v
+insertEntry k e (HMap m) = HMap (Map.insert k e m)
+
+-- | Recursive union of two hierarchical maps. Leaves are merged with the
+--   given function. Throws an error if forced to merge a node and leaf.
+unionWith :: (Ord k, MonadError String m)
+          => (v -> v -> m v) -> HMap k v -> HMap k v -> m (HMap k v)
+unionWith f (HMap m1) (HMap m2) = do 
+    let todo = Map.keys (Map.intersection m1 m2)
+    let rest = Map.difference m1 m2 `Map.union` Map.difference m2 m1
+    m <- foldM merge Map.empty todo
+    return (HMap (m `Map.union` rest))
+  where
+    merge m k = case (m1 Map.! k, m2 Map.! k) of
+      (Left h1, Left h2) -> do
+        h <- unionWith f h1 h2
+        return (Map.insert k (Left h) m)
+      (Right v1, Right v2) -> do
+        v <- f v1 v2
+        return (Map.insert k (Right v) m)
+      _ -> throwError "unionWith: attempting to merge node and leaf"
 
 
 -- ** Traversal
