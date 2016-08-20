@@ -88,7 +88,7 @@ lookupLeaf k h = lookupEntry k h >>= assumeLeaf
 -- | Apply a query at the end of a path of keys.
 queryPath :: (Ord k, MonadError String m)
             => (k -> HMap k v -> m a) -> [k] -> HMap k v -> m a
-queryPath _ []     _ = throwError "queryAtPath: empty path"
+queryPath _ []     _ = throwError "queryPath: empty path"
 queryPath f [k]    h = f k h
 queryPath f (k:ks) h = lookupNode k h >>= queryPath f ks
 
@@ -109,6 +109,29 @@ deleteEntry k (HMap m) = HMap (Map.delete k m)
 --   If the key is already in the map, the entry is replaced.
 insertEntry :: Ord k => k -> Entry k v -> HMap k v -> HMap k v
 insertEntry k e (HMap m) = HMap (Map.insert k e m)
+
+-- | Insert a new key and node into the map.
+--   If the key is already in the map, the entry is replaced.
+insertNode :: Ord k => k -> HMap k v -> HMap k v -> HMap k v
+insertNode k = insertEntry k . Left
+
+-- | Insert a new key and leaf into the map.
+--   If the key is already in the map, the entry is replaced.
+insertLeaf :: Ord k => k -> v -> HMap k v -> HMap k v
+insertLeaf k = insertEntry k . Right
+
+-- | Apply a modification at the end of a path of keys.
+modifyPath :: (Ord k, MonadError String m)
+            => (k -> HMap k v -> m (HMap k v)) -> [k] -> HMap k v -> m (HMap k v)
+modifyPath _ []     _ = throwError "modifyPath: empty path"
+modifyPath f [k]    h = f k h
+modifyPath f (k:ks) h = do
+  old <- lookupNode k h
+  new <- modifyPath f ks old
+  return (insertNode k new h)
+
+
+-- ** Combine
 
 -- | Recursive union of two hierarchical maps. Leaves are merged with the
 --   given function. Throws an error if forced to merge a node and leaf.
