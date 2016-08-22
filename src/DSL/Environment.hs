@@ -9,6 +9,9 @@ import GHC.Generics (Generic)
 
 import Control.Monad.Except (MonadError,throwError)
 
+import Data.HMap (HMap)
+import qualified Data.HMap as HMap
+
 import Data.Map (Map)
 import qualified Data.Map as Map
 
@@ -79,57 +82,19 @@ assumeFound (Left msg) = error msg
 type Path = [Name]
 
 -- | A hierarchical environment.
-newtype HEnv a = HEnv (Env (Either (HEnv a) a))
-  deriving (Eq,Generic,Show)
+type HEnv a = HMap Name a
 
 -- | Empty hierarchical enivornment.
 henvEmpty :: HEnv a
-henvEmpty = HEnv envEmpty
+henvEmpty = HMap.empty
 
 
 -- ** Operations
 
--- | Lookup an entry in a hierarchical environment using a path.
-henvLookup :: MonadError String m => Path -> HEnv a -> m (Either (HEnv a) a)
-henvLookup []    h        = return (Left h)
-henvLookup [x]   (HEnv m) = envLookup x m
-henvLookup (x:p) (HEnv m) = do
-  r <- envLookup x m
-  case r of
-    Right _ -> throwError ("henvLookup: unexpected base value: " ++ x)
-    Left h  -> henvLookup p h
-
--- | Alter an entry in a hierarchical environment. Similar to Map.alter.
-henvAlter :: MonadError String m
-          => Path -> (Maybe (Either (HEnv a) a) -> m (Maybe (Either (HEnv a) a)))
-          -> HEnv a -> m (HEnv a)
-henvAlter []    _ _        = throwError "henvAlter: empty path"
-henvAlter [x]   f (HEnv m) = do
-  out <- f (Map.lookup x m)
-  case out of
-    Nothing  -> return $ HEnv (Map.delete x m)
-    Just new -> return $ HEnv (Map.insert x new m)
-henvAlter (x:p) f (HEnv m) = do
-  r <- envLookup x m
-  case r of
-    Right _ -> throwError ("henvLookup: unexpected base value: " ++ x)
-    Left  h -> do h' <- henvAlter p f h
-                  return $ HEnv (Map.insert x (Left h') m)
+-- | Lookup a value in a hierarchical environment using a path.
+henvLookup :: MonadError String m => Path -> HEnv a -> m a
+henvLookup = HMap.queryPath HMap.lookupLeaf
 
 -- | Extend a hierarchical environment with a new binding.
 henvExtend :: MonadError String m => Path -> a -> HEnv a -> m (HEnv a)
-henvExtend p a = henvAlter p ext
-  where
-    ext Nothing  = return $ Just (Right a)
-    ext (Just e) = throwError ("envExtend: already an entry at: " ++ show p)
-
--- | Lookup a base value in a hierarchical environment using a path.
-henvLookupBase :: MonadError String m => Path -> HEnv a -> m a
-henvLookupBase p m = do
-  r <- henvLookup p m
-  case r of
-    Right a -> return a
-    Left _  -> throwError ("henvLookupBase: entry at path is not a base value: " ++ show p)
-
-instance Functor HEnv where
-  fmap f (HEnv m) = HEnv (fmap (either (Left . fmap f) (Right . f)) m)
+henvExtend p a = HMap.modifyPath (\k -> HMap.insertLeaf k a) p

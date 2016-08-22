@@ -122,9 +122,9 @@ insertLeaf k = insertEntry k . Right
 
 -- | Apply a modification at the end of a path of keys.
 modifyPath :: (Ord k, MonadError String m)
-            => (k -> HMap k v -> m (HMap k v)) -> [k] -> HMap k v -> m (HMap k v)
+            => (k -> HMap k v -> HMap k v) -> [k] -> HMap k v -> m (HMap k v)
 modifyPath _ []     _ = throwError "modifyPath: empty path"
-modifyPath f [k]    h = f k h
+modifyPath f [k]    h = return (f k h)
 modifyPath f (k:ks) h = do
   old <- lookupNode k h
   new <- modifyPath f ks old

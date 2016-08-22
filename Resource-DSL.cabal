@@ -28,6 +28,7 @@ library
     sbv,
     scientific
   exposed-modules:
+    Data.HMap,
     Driver,
     DSL.Environment,
     DSL.Predicate,
