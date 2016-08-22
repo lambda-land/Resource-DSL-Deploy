@@ -34,7 +34,7 @@ data Desc = Desc [Param] Block
 data Stmt
      = Do Cmd Name Expr     -- ^ apply a command to a resource
      | In Path Block        -- ^ do work in a sub-environment
-     | If Pred Block Block  -- ^ conditional statement
+     | If BExpr Block Block  -- ^ conditional statement
   deriving (Eq,Generic,Show)
 
 -- | Resource commands:
@@ -67,7 +67,7 @@ data Value
      = Prim  PVal                  -- ^ basic primitive value
      | Close Var Expr (Env Value)  -- ^ closure
      | PairV Value Value           -- ^ pair value
-     | ChcV  Pred Value Value      -- ^ choice value
+     | ChcV  BExpr Value Value      -- ^ choice value
   deriving (Eq,Generic,Show)
 
 
