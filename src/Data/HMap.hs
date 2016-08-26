@@ -12,7 +12,7 @@ import Data.Data    (Data,Typeable)
 import GHC.Generics (Generic)
 
 import Control.Monad        (foldM)
-import Control.Monad.Except (MonadError,throwError)
+import Control.Monad.Except (MonadError,catchError,throwError)
 
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -37,15 +37,38 @@ newtype HMap k v = HMap (Map k (Entry k v))
 instance Functor (HMap k) where
   fmap = mapLeaves
 
+
+-- ** Errors
+
+-- | An error that can occur in HMap operations.
+data HMapError k
+    = EmptyPath
+    | EntryIsNotNode
+    | EntryIsNotLeaf
+    | EntryNotFound
+    | CannotMergeEntries
+    | OnPath k (HMapError k)
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
+
+-- | Run a computation that may throw an HMapError, extending it's path if
+--   an error occurs.
+onPath :: MonadError (HMapError k) m => k -> m a -> m a
+onPath k x = catchError x (\e -> throwError (OnPath k e))
+
+
+-- ** Converting Entries
+
 -- | Convert an entry to an internal node or throw an error if it's a leaf.
-assumeNode :: MonadError String m => Entry k v -> m (HMap k v)
+assumeNode :: MonadError (HMapError k) m
+  => Entry k v -> m (HMap k v)
 assumeNode (Left h) = return h
-assumeNode _        = throwError "assumeNode: not a node"
+assumeNode _        = throwError EntryIsNotNode
 
 -- | Convert an entry to a leaf or throw an error if it's an internal node.
-assumeLeaf :: MonadError String m => Entry k v -> m v
+assumeLeaf :: MonadError (HMapError k) m
+  => Entry k v -> m v
 assumeLeaf (Right v) = return v
-assumeLeaf _         = throwError "assumeLeaf: not a leaf"
+assumeLeaf _         = throwError EntryIsNotLeaf
 
 
 -- ** Construction
@@ -70,27 +93,35 @@ size :: HMap k v -> Int
 size = undefined
 
 -- | Lookup an entry in the map.
-lookupEntry :: (Ord k, MonadError String m)
-            => k -> HMap k v -> m (Entry k v)
+lookupEntry :: (Ord k, MonadError (HMapError k) m)
+  => k -> HMap k v -> m (Entry k v)
 lookupEntry k (HMap m) = maybe err return (Map.lookup k m)
-  where err = throwError "lookupEntry: no entry for key in map"
+  where err = throwError EntryNotFound
 
 -- | Lookup an internal node in the map.
-lookupNode :: (Ord k, MonadError String m)
-           => k -> HMap k v -> m (HMap k v)
+lookupNode :: (Ord k, MonadError (HMapError k) m)
+  => k -> HMap k v -> m (HMap k v)
 lookupNode k h = lookupEntry k h >>= assumeNode
 
 -- | Lookup a leaf in the map.
-lookupLeaf :: (Ord k, MonadError String m)
-           => k -> HMap k v -> m v
+lookupLeaf :: (Ord k, MonadError (HMapError k) m)
+  => k -> HMap k v -> m v
 lookupLeaf k h = lookupEntry k h >>= assumeLeaf
 
+-- | Lookup an internal node in the map, or return a new empty node if no
+--   entry exists.
+lookupOrCreateNode :: (Ord k, MonadError (HMapError k) m)
+  => k -> HMap k v -> m (HMap k v)
+lookupOrCreateNode k (HMap m) = case Map.lookup k m of
+    Just e  -> assumeNode e
+    Nothing -> return empty
+
 -- | Apply a query at the end of a path of keys.
-queryPath :: (Ord k, MonadError String m)
-            => (k -> HMap k v -> m a) -> [k] -> HMap k v -> m a
-queryPath _ []     _ = throwError "queryPath: empty path"
+queryPath :: (Ord k, MonadError (HMapError k) m)
+  => (k -> HMap k v -> m a) -> [k] -> HMap k v -> m a
+queryPath _ []     _ = throwError EmptyPath
 queryPath f [k]    h = f k h
-queryPath f (k:ks) h = lookupNode k h >>= queryPath f ks
+queryPath f (k:ks) h = onPath k (lookupNode k h >>= queryPath f ks)
 
 
 -- ** Modification
@@ -120,22 +151,23 @@ insertNode k = insertEntry k . Left
 insertLeaf :: Ord k => k -> v -> HMap k v -> HMap k v
 insertLeaf k = insertEntry k . Right
 
--- | Apply a modification at the end of a path of keys.
-modifyPath :: (Ord k, MonadError String m)
+-- | Apply a modification at the end of a path of keys, creating the path
+--   along the way if needed.
+modifyPath :: (Ord k, MonadError (HMapError k) m)
             => (k -> HMap k v -> HMap k v) -> [k] -> HMap k v -> m (HMap k v)
-modifyPath _ []     _ = throwError "modifyPath: empty path"
+modifyPath _ []     _ = throwError EmptyPath
 modifyPath f [k]    h = return (f k h)
-modifyPath f (k:ks) h = do
-  old <- lookupNode k h
-  new <- modifyPath f ks old
-  return (insertNode k new h)
+modifyPath f (k:ks) h = onPath k $ do
+    old <- lookupOrCreateNode k h
+    new <- modifyPath f ks old
+    return (insertNode k new h)
 
 
 -- ** Combine
 
 -- | Recursive union of two hierarchical maps. Leaves are merged with the
 --   given function. Throws an error if forced to merge a node and leaf.
-unionWith :: (Ord k, MonadError String m)
+unionWith :: (Ord k, MonadError (HMapError k) m)
           => (v -> v -> m v) -> HMap k v -> HMap k v -> m (HMap k v)
 unionWith f (HMap m1) (HMap m2) = do 
     let todo = Map.keys (Map.intersection m1 m2)
@@ -143,14 +175,15 @@ unionWith f (HMap m1) (HMap m2) = do
     m <- foldM merge Map.empty todo
     return (HMap (m `Map.union` rest))
   where
-    merge m k = case (m1 Map.! k, m2 Map.! k) of
-      (Left h1, Left h2) -> do
-        h <- unionWith f h1 h2
-        return (Map.insert k (Left h) m)
-      (Right v1, Right v2) -> do
-        v <- f v1 v2
-        return (Map.insert k (Right v) m)
-      _ -> throwError "unionWith: attempting to merge node and leaf"
+    merge m k = onPath k $
+      case (m1 Map.! k, m2 Map.! k) of
+        (Left h1, Left h2) -> do
+          h <- unionWith f h1 h2
+          return (Map.insert k (Left h) m)
+        (Right v1, Right v2) -> do
+          v <- f v1 v2
+          return (Map.insert k (Right v) m)
+        _ -> throwError CannotMergeEntries
 
 
 -- ** Traversal
