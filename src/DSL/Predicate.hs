@@ -9,6 +9,7 @@ import Prelude hiding (LT,GT)
 
 import Data.Set (Set)
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 
 import Data.Function (on)
 import Data.SBV
@@ -25,9 +26,12 @@ import DSL.SAT
 
 -- ** Abstract syntax
 
+-- | Variables.
+type Var = Name
+
 -- | Unary boolean predicates.
 data Pred
-     = UPred            -- ^ trivial predicate on a unit value
+     = UPred            -- ^ trivial predicate on unit value
      | BPred Var BExpr  -- ^ predicate on boolean value
      | IPred Var BExpr  -- ^ predicate on integer value
   deriving (Eq,Generic,Show)
@@ -144,6 +148,11 @@ substI v i (OpIB o l r) = OpIB o (substI' l) (substI' r)
 
 
 -- ** Evaluation to plain and symbolic values
+
+-- | Construct an environment with fresh symbolic values for each variable.
+symEnv :: (Name -> Symbolic b) -> Set Name -> Symbolic (Env b)
+symEnv f s = fmap (Map.fromList . zip vs) (mapM f vs)
+  where vs = Set.toList s
 
 -- | Evaluate a boolean expression to either a ground or symbolic boolean,
 --   given a corresponding dictionary of comparison operators and
