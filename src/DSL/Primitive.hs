@@ -1,9 +1,4 @@
-{-# LANGUAGE
-      DeriveGeneric,
-      FlexibleContexts,
-      FlexibleInstances,
-      MultiParamTypeClasses
-  #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module DSL.Primitive 
   ( PType(..), PVal(..)

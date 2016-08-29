@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
-
 module DSL.Semantics where
 
 import Control.Monad (liftM2)

@@ -1,8 +1,3 @@
-{-# LANGUAGE
-      DeriveGeneric,
-      MultiParamTypeClasses
-  #-}
-
 module DSL.Syntax where
 
 import Prelude hiding (LT,GT)

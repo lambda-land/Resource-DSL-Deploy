@@ -1,10 +1,3 @@
-{-# LANGUAGE
-      DeriveDataTypeable,
-      DeriveGeneric,
-      FlexibleContexts,
-      GeneralizedNewtypeDeriving
-  #-}
-
 module DSL.Environment where
 
 import Data.Data (Data,Typeable)

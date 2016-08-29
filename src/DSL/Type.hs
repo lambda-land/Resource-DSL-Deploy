@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
-
 module DSL.Type where
 
 import GHC.Generics (Generic)
