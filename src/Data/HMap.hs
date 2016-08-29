@@ -104,6 +104,10 @@ null (HMap m) = Map.null m
 size :: HMap k v -> Int
 size = undefined
 
+-- | Is this key in the map?
+member :: Ord k => k -> HMap k v -> Bool
+member k (HMap m) = Map.member k m
+
 -- | Lookup an entry in the map.
 lookupEntry :: (Ord k, MonadError (Error k) m)
   => k -> HMap k v -> m (Entry k v)
@@ -136,6 +140,12 @@ queryPath f p h = onPath p (go p h)
     go []     _ = errorEmpty
     go [k]    h = f k h
     go (k:ks) h = lookupNode k h >>= go ks
+
+-- | Apply a query at the end of a path of keys, or return a default value on
+--   an error.
+queryPathWithDefault :: (Ord k, MonadError (Error k) m)
+  => (k -> HMap k v -> m a) -> a -> [k] -> HMap k v -> m a
+queryPathWithDefault f d p h = catchError (queryPath f p h) (const (return d))
 
 
 -- ** Modification
