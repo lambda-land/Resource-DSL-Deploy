@@ -4,7 +4,7 @@ import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
 import Control.Monad (foldM)
-import Control.Monad.Except (MonadError,catchError,throwError)
+import Control.Monad.Catch
 
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -32,6 +32,14 @@ type Env v = Map Name v
 newtype NotFound = NotFound Name
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
+instance Exception NotFound
+
+-- | Assume an operation succeeds, failing dynamically otherwise.
+assumeSuccess :: Show e => Either e v -> v
+assumeSuccess (Right a)  = a
+assumeSuccess (Left err) = error msg
+  where msg = "assumeSuccess: bad assumption: " ++ show err
+
 
 -- ** Construction
 
@@ -55,15 +63,9 @@ envExtend :: Name -> v -> Env v -> Env v
 envExtend = Map.insert
 
 -- | Lookup a binding in an environment.
-envLookup :: MonadError NotFound m => Name -> Env v -> m v
+envLookup :: MonadThrow m => Name -> Env v -> m v
 envLookup k m = maybe notFound return (Map.lookup k m)
-  where notFound = throwError (NotFound k)
-
--- | Assume a binding is found, failing dynamically otherwise.
-assumeFound :: Either NotFound v -> v
-assumeFound (Right a)  = a
-assumeFound (Left err) = error msg
-  where msg = "assumeFound: bad assumption: " ++ show err
+  where notFound = throwM (NotFound k)
 
 
 --
@@ -103,17 +105,19 @@ data HEnvError = HEnvError {
      errorKind :: HEnvErrorKind
 } deriving (Data,Eq,Generic,Read,Show,Typeable)
 
+instance Exception HEnvError
+
 -- | Throw an empty path error.
-henvEmptyPath :: MonadError HEnvError m => m a
-henvEmptyPath = throwError (HEnvError [] EmptyPath)
+henvEmptyPath :: MonadThrow m => m a
+henvEmptyPath = throwM (HEnvError [] EmptyPath)
 
 -- | Throw an error associated with a particular name.
-henvError :: MonadError HEnvError m => Name -> HEnvErrorKind -> m a
-henvError k e = throwError (HEnvError [k] e)
+henvError :: MonadThrow m => Name -> HEnvErrorKind -> m a
+henvError k e = throwM (HEnvError [k] e)
 
 -- | Replace the path of any thrown errors.
-onPath :: MonadError HEnvError m => Path -> m a -> m a
-onPath p x = catchError x (\(HEnvError _ e) -> throwError (HEnvError p e))
+onPath :: MonadCatch m => Path -> m a -> m a
+onPath p x = catch x (\(HEnvError _ e) -> throwM (HEnvError p e))
 
 
 -- ** Construction
@@ -123,30 +127,30 @@ henvEmpty :: HEnv v
 henvEmpty = HEnv Map.empty
 
 -- | Extend a hierarchical environment with a new binding.
-henvExtend :: MonadError HEnvError m => Path -> v -> HEnv v -> m (HEnv v)
+henvExtend :: MonadCatch m => Path -> v -> HEnv v -> m (HEnv v)
 henvExtend p v = modifyPath (\k -> insertLeafHere k v) p
 
 
 -- ** Operations
 
 -- | Is there an entry at this path in the hierarchical map?
-henvHas :: MonadError HEnvError m => Path -> HEnv v -> m Bool
+henvHas :: MonadCatch m => Path -> HEnv v -> m Bool
 henvHas = queryPathWithDefault (\k h -> return (hasHere k h)) False
 
 -- | Lookup a value in a hierarchical environment using a path.
-henvLookup :: MonadError HEnvError m => Path -> HEnv v -> m v
+henvLookup :: MonadCatch m => Path -> HEnv v -> m v
 henvLookup = queryPath lookupLeafHere
 
 
 -- ** Converting Entries
 
 -- | Convert an entry to an internal node or throw an error if it's a leaf.
-assumeNode :: MonadError HEnvError m => Name -> Entry v -> m (HEnv v)
+assumeNode :: MonadThrow m => Name -> Entry v -> m (HEnv v)
 assumeNode _ (Left h) = return h
 assumeNode k _        = henvError k EntryIsNotNode
 
 -- | Convert an entry to a leaf or throw an error if it's an internal node.
-assumeLeaf :: MonadError HEnvError m => Name -> Entry v -> m v
+assumeLeaf :: MonadThrow m => Name -> Entry v -> m v
 assumeLeaf _ (Right v) = return v
 assumeLeaf k _         = henvError k EntryIsNotLeaf
 
@@ -158,28 +162,27 @@ hasHere :: Name -> HEnv v -> Bool
 hasHere k (HEnv m) = Map.member k m
 
 -- | Lookup an entry at this node in the HEnv.
-lookupEntryHere :: MonadError HEnvError m => Name -> HEnv v -> m (Entry v)
+lookupEntryHere :: MonadThrow m => Name -> HEnv v -> m (Entry v)
 lookupEntryHere k (HEnv m) = maybe err return (Map.lookup k m)
   where err = henvError k EntryNotFound
 
 -- | Lookup an internal node at this node in the HEnv.
-lookupNodeHere :: MonadError HEnvError m => Name -> HEnv v -> m (HEnv v)
+lookupNodeHere :: MonadThrow m => Name -> HEnv v -> m (HEnv v)
 lookupNodeHere k h = lookupEntryHere k h >>= assumeNode k
 
 -- | Lookup a leaf at this node in the HEnv.
-lookupLeafHere :: MonadError HEnvError m => Name -> HEnv v -> m v
+lookupLeafHere :: MonadThrow m => Name -> HEnv v -> m v
 lookupLeafHere k h = lookupEntryHere k h >>= assumeLeaf k
 
 -- | Lookup an internal node at this node in the HEnv,
 --   or return an empty node if no entry exists.
-lookupOrCreateNodeHere :: MonadError HEnvError m => Name -> HEnv v -> m (HEnv v)
+lookupOrCreateNodeHere :: MonadThrow m => Name -> HEnv v -> m (HEnv v)
 lookupOrCreateNodeHere k (HEnv m) = case Map.lookup k m of
     Just e  -> assumeNode k e
     Nothing -> return henvEmpty
 
 -- | Apply a query at the end of a path.
-queryPath :: MonadError HEnvError m
-  => (Name -> HEnv v -> m a) -> Path -> HEnv v -> m a
+queryPath :: MonadCatch m => (Name -> HEnv v -> m a) -> Path -> HEnv v -> m a
 queryPath f p h = onPath p (go p h)
   where
     go []     _ = henvEmptyPath
@@ -187,9 +190,9 @@ queryPath f p h = onPath p (go p h)
     go (k:ks) h = lookupNodeHere k h >>= go ks
 
 -- | Apply a query at the end of a path, or return a default value on an error.
-queryPathWithDefault :: MonadError HEnvError m
+queryPathWithDefault :: MonadCatch m
   => (Name -> HEnv v -> m a) -> a -> Path -> HEnv v -> m a
-queryPathWithDefault f d p h = catchError (queryPath f p h) (const (return d))
+queryPathWithDefault f d p h = catch (queryPath f p h) (\(HEnvError _ _) -> return d)
 
 
 -- ** Modification
@@ -221,7 +224,7 @@ insertLeafHere k = insertEntryHere k . Right
 
 -- | Apply a modification at the end of a path of keys, creating the path
 --   along the way if needed.
-modifyPath :: MonadError HEnvError m
+modifyPath :: MonadCatch m
   => (Name -> HEnv v -> HEnv v) -> Path -> HEnv v -> m (HEnv v)
 modifyPath f p h = onPath p (go p h)
   where
@@ -237,7 +240,7 @@ modifyPath f p h = onPath p (go p h)
 
 -- | Recursive union of two hierarchical maps. Leaves are merged with the
 --   given function. Throws an error if forced to merge a node and leaf.
-henvUnionWith :: MonadError HEnvError m
+henvUnionWith :: MonadThrow m
   => (v -> v -> m v) -> HEnv v -> HEnv v -> m (HEnv v)
 henvUnionWith f (HEnv m1) (HEnv m2) = do 
     let todo = Map.keys (Map.intersection m1 m2)

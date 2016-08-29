@@ -29,6 +29,7 @@ library
     aeson-pretty,
     bytestring,
     containers,
+    exceptions,
     directory,
     mtl,
     sbv,

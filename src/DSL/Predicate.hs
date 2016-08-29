@@ -2,13 +2,15 @@ module DSL.Predicate where
 
 import Prelude hiding (LT,GT)
 
+import Data.Data (Data,Typeable)
+import GHC.Generics (Generic)
+
+import Data.Function (on)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 
-import Data.Function (on)
 import Data.SBV
-import GHC.Generics (Generic)
 
 import DSL.Environment
 import DSL.Primitive
@@ -29,7 +31,7 @@ data Pred
      = UPred            -- ^ trivial predicate on unit value
      | BPred Var BExpr  -- ^ predicate on boolean value
      | IPred Var BExpr  -- ^ predicate on integer value
-  deriving (Eq,Generic,Show)
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Boolean expressions with variable references.
 data BExpr
@@ -38,7 +40,7 @@ data BExpr
      | OpB  B_B  BExpr
      | OpBB BB_B BExpr BExpr
      | OpIB II_B IExpr IExpr
-  deriving (Eq,Generic,Show)
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Integer expressions with variable references.
 data IExpr
@@ -46,7 +48,7 @@ data IExpr
      | IRef Var
      | OpI  I_I  IExpr
      | OpII II_I IExpr IExpr
-  deriving (Eq,Generic,Show)
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | The set of boolean variables referenced in a boolean expression.
 boolVars :: BExpr -> Set Var
@@ -154,7 +156,7 @@ symEnv f s = fmap (Map.fromList . zip vs) (mapM f vs)
 --   environments binding all of the variables.
 evalBExpr :: Prim b i => Env b -> Env i -> BExpr -> b
 evalBExpr _  _  (BLit b)     = fromBool b
-evalBExpr mb _  (BRef v)     = assumeFound (envLookup v mb)
+evalBExpr mb _  (BRef v)     = assumeSuccess (envLookup v mb)
 evalBExpr mb mi (OpB o e)    = opB_B o (evalBExpr mb mi e)
 evalBExpr mb mi (OpBB o l r) = (opBB_B o `on` evalBExpr mb mi) l r
 evalBExpr mb mi (OpIB o l r) = (opII_B o `on` evalIExpr mi) l r
@@ -163,7 +165,7 @@ evalBExpr mb mi (OpIB o l r) = (opII_B o `on` evalIExpr mi) l r
 --   given an environment binding all of the variables.
 evalIExpr :: PrimI i => Env i -> IExpr -> i
 evalIExpr _ (ILit i)     = fromIntegral i
-evalIExpr m (IRef v)     = assumeFound (envLookup v m)
+evalIExpr m (IRef v)     = assumeSuccess (envLookup v m)
 evalIExpr m (OpI o e)    = opI_I o (evalIExpr m e)
 evalIExpr m (OpII o l r) = (opII_I o `on` evalIExpr m) l r
 

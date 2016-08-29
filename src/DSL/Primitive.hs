@@ -15,13 +15,14 @@ module DSL.Primitive
 
 import Prelude hiding (LT,GT)
 
-import Control.Monad.Except (MonadError,throwError)
+import Data.Data (Data,Typeable)
+import GHC.Generics (Generic)
+
+import Control.Monad.Catch (Exception,MonadThrow,throwM)
 
 import Data.Bits
 import Data.SBV (Boolean(..),SBool,SInteger,SInt8,SInt16,SInt32,SInt64)
 import qualified Data.SBV as SBV
-
-import GHC.Generics (Generic)
 
 
 --
@@ -30,14 +31,14 @@ import GHC.Generics (Generic)
 
 -- | Primitive base types.
 data PType = TUnit | TBool | TInt
-  deriving (Eq,Generic,Show)
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Primitive values.
 data PVal
      = Unit
      | B Bool
      | I Int
-  deriving (Eq,Generic,Show)
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 
 --
@@ -49,50 +50,56 @@ data Op1
      = U_U        -- ^ noop that matches a unit value
      | B_B B_B    -- ^ unary boolean operation
      | I_I I_I    -- ^ unary integer operation
-  deriving (Eq,Generic,Show)
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Primitive binary operators organized by type.
 data Op2
      = BB_B BB_B  -- ^ binary boolean operator
      | II_I II_I  -- ^ binary integer operator
      | II_B II_B  -- ^ integer comparison operator
-  deriving (Eq,Generic,Show)
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Boolean negation.
 data B_B = Not
-  deriving (Eq,Generic,Show)
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Unary integer operators.
 data I_I = Abs | Neg | Sign
-  deriving (Eq,Generic,Show)
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Binary boolean operators.
 data BB_B = And | Or | XOr | Imp | Eqv
-  deriving (Eq,Generic,Show)
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Binary integer comparison operators.
 data II_B = LT | LTE | Equ | GTE | GT
-  deriving (Eq,Generic,Show)
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Binary integer arithmetic operators.
 data II_I = Add | Sub | Mul | Div | Mod
-  deriving (Eq,Generic,Show)
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
+
+-- | Type error applying primitive operator.
+data PrimTypeError
+     = ErrorOp1 Op1 PVal
+     | ErrorOp2 Op2 PVal PVal
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
+
+instance Exception PrimTypeError
 
 -- | Evaluate a primitive unary operator.
-primOp1 :: MonadError String m => Op1 -> PVal -> m PVal
+primOp1 :: MonadThrow m => Op1 -> PVal -> m PVal
 primOp1 U_U     Unit  = return Unit
 primOp1 (B_B o) (B b) = return (B (opB_B o b))
 primOp1 (I_I o) (I i) = return (I (opI_I o i))
-primOp1 o e = throwError $ "primOp1: type error applying operator "
-                           ++ show o ++ " to " ++ show e
+primOp1 o v = throwM (ErrorOp1 o v)
 
 -- | Evaluate a primitive binary operator.
-primOp2 :: MonadError String m => Op2 -> PVal -> PVal -> m PVal
+primOp2 :: MonadThrow m => Op2 -> PVal -> PVal -> m PVal
 primOp2 (BB_B o) (B l) (B r) = return (B (opBB_B o l r))
 primOp2 (II_I o) (I l) (I r) = return (I (opII_I o l r))
 primOp2 (II_B o) (I l) (I r) = return (B (opII_B o l r))
-primOp2 o l r = throwError $ "primOp2: type error applying operator "
-                             ++ show o ++ " to " ++ show l ++ " and " ++ show r
+primOp2 o l r = throwM (ErrorOp2 o l r)
 
 -- | Lookup unary boolean operator.
 opB_B :: Boolean b => B_B -> b -> b
