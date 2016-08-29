@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
-
 module DSL.Primitive 
   ( PType(..), PVal(..)
   , Op1(..), Op2(..)

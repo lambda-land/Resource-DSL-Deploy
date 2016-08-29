@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
-
 module DSL.SAT where
 
 import Control.Monad (liftM,liftM2)
