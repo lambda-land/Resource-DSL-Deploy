@@ -38,16 +38,15 @@ library
     sbv,
     scientific
   exposed-modules:
-    Data.HMap,
     Driver,
     DSL.Environment,
+    DSL.Expression,
     DSL.Predicate,
     DSL.Primitive,
     DSL.Resource,
     DSL.SAT,
     DSL.Serialize,
-    DSL.Syntax,
-    DSL.Type
+    DSL.Value
 
 executable resource-dsl
   hs-source-dirs:   app
