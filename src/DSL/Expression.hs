@@ -11,14 +11,14 @@ import Control.Monad.Reader
 import DSL.Environment
 import DSL.Predicate
 import DSL.Primitive
+import DSL.Value
 
 
 --
--- * Syntax
+-- * Expressions
 --
 
--- | Unary functions.
-type Fun = (Var,Expr)
+-- ** Syntax
 
 -- | Expressions.
 data Expr
@@ -29,11 +29,8 @@ data Expr
      | Chc BExpr Expr Expr  -- ^ choice constructor
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
--- | Values.
-data Value
-     = Prim PVal               -- ^ basic primitive value
-     | ChcV BExpr Value Value  -- ^ choice value
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
+-- | Unary functions.
+type Fun = (Var,Expr)
 
 -- Use SBV's Boolean type class for boolean predicates.
 instance Boolean Expr where
@@ -70,14 +67,7 @@ instance Prim Expr Expr where
   (.>)  = P2 (II_B GT)
 
 
---
--- * Semantics
---
-
--- | Evaluate a function.
-evalFun :: (MonadReader (Env Value) m, MonadCatch m)
-  => Fun -> Value -> m Value
-evalFun (x,e) v = local (envExtend x v) (evalExpr e)
+-- ** Semantics
 
 -- | Evaluate an expression.
 evalExpr :: (MonadReader (Env Value) m, MonadCatch m)
@@ -90,13 +80,7 @@ evalExpr (P2 o l r)  = do l' <- evalExpr l
                           applyPrim2 o l' r'
 evalExpr (Chc p l r) = liftM2 (ChcV p) (evalExpr l) (evalExpr r)
 
--- | Apply a primitive unary function to a value.
-applyPrim1 :: MonadThrow m => Op1 -> Value -> m Value
-applyPrim1 o (Prim v)     = fmap Prim (primOp1 o v)
-applyPrim1 o (ChcV d l r) = liftM2 (ChcV d) (applyPrim1 o l) (applyPrim1 o r)
-
--- | Apply a primitive binary function to two values.
-applyPrim2 :: MonadThrow m => Op2 -> Value -> Value -> m Value
-applyPrim2 o (Prim l) (Prim r) = fmap Prim (primOp2 o l r)
-applyPrim2 o (ChcV d ll lr) r  = liftM2 (ChcV d) (applyPrim2 o ll r) (applyPrim2 o lr r)
-applyPrim2 o l (ChcV d rl rr)  = liftM2 (ChcV d) (applyPrim2 o l rl) (applyPrim2 o l rr)
+-- | Evaluate a function.
+evalFun :: (MonadReader (Env Value) m, MonadCatch m)
+  => Fun -> Value -> m Value
+evalFun (x,e) v = local (envExtend x v) (evalExpr e)

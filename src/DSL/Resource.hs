@@ -1,94 +1,122 @@
-{-# LANGUAGE
-      DeriveGeneric,
-      FlexibleContexts
-  #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module DSL.Resource where
 
+import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
-import Control.Monad.Except (MonadError,throwError)
+import Control.Monad        (unless,when)
+import Control.Monad.Catch  (Exception,MonadCatch,MonadThrow,throwM)
+import Control.Monad.Reader (MonadReader)
 import Control.Monad.Writer (MonadWriter,tell)
 
+import Data.List (union)
+
 import DSL.Environment
+import DSL.Expression
 import DSL.Predicate
 import DSL.Primitive
-import DSL.Type
+import DSL.Value
+-- import DSL.Type
+
 
 --
 -- * Resource Effects
 --
 
+-- ** Types
+
+-- | Resource environment.
+type REnv = HEnv Value
+
 -- | An effect on a particular resource.
 data Effect
-     = Noop
-     | Check  Refine
-     | Create Refine
-     | Delete Refine
-     | Modify Refine Refine
-  deriving (Eq,Generic,Show)
+     = Create Expr
+     | Check  Fun
+     | Modify Fun
+     | Delete
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
 
--- | An error produced by composing resource effects.
-data EffectError
-     = PTypeMisMatch
-     | DeleteUse
-     | UseCreate
-  deriving (Eq,Generic,Show)
 
--- | Compose two refinements, raising a PTypeMisMatch effect error if the
---   primitive types don't agree.
-composeRefineEffect :: MonadError EffectError m
-  => (Pred -> Pred -> Pred) -> Refine -> Refine -> m Refine
-composeRefineEffect p r1 r2 = case composeRefine p r1 r2 of
-    Just r  -> return r
-    Nothing -> throwError PTypeMisMatch
+-- ** Errors
 
--- | Conjunction of two refinements.
-checkBoth :: MonadError EffectError m => Refine -> Refine -> m Refine
-checkBoth = composeRefineEffect (&&&)
+-- | Kinds of errors that can occur when resolving or combining an effect.
+data EffectErrorKind
+     = CheckFailure
+     | CheckTypeError
+     | NoSuchResource
+     | ResourceAlreadyExists
+     | EffectConflict
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
 
--- | Check that an output refinement is compatible with the next input refinement.
-checkSide :: (MonadError EffectError m, MonadWriter [Refine] m)
-  => Refine -> Refine -> m ()
-checkSide r1 r2 = do
-    r <- composeRefineEffect (==>) r1 r2
-    tell [r]
+-- | An error resulting from applying a resource effect.
+data EffectError = EffectError {
+     errorEffect :: Effect,
+     errorKind   :: EffectErrorKind,
+     errorPath   :: Path,
+     errorValue  :: Maybe Value
+} deriving (Data,Eq,Generic,Read,Show,Typeable)
 
--- | Compose two resource effects. The Writer monad tracks side conditions
---   that must be checked in addition to the refinements in the resulting
---   effect.
-composeEffect :: (MonadError EffectError m, MonadWriter [Refine] m)
-  => Effect -> Effect -> m Effect
-composeEffect Noop           e              = return e
-composeEffect e              Noop           = return e
-composeEffect (Check r1)     (Check r2)     = fmap Check (checkBoth r1 r2)
-composeEffect (Check r1)     (Delete r2)    = fmap Delete (checkBoth r1 r2)
-composeEffect (Check r1)     (Modify r2 r3) = fmap (flip Modify r3) (checkBoth r1 r2)
-composeEffect (Create r1)    (Check r2)     = fmap Create (checkBoth r1 r2)
-composeEffect (Create r1)    (Delete r2)    = checkSide r1 r2 >> return Noop
-composeEffect (Create r1)    (Modify r2 r3) = checkSide r1 r2 >> return (Create r3)
-composeEffect (Delete r1)    (Create r2)    = return (Modify r1 r2)
-composeEffect (Modify r1 r2) (Check r3)     = fmap (Modify r1) (checkBoth r2 r3)
-composeEffect (Modify r1 r2) (Delete r3)    = checkSide r2 r3 >> return (Delete r1)
-composeEffect (Modify r1 r2) (Modify r3 r4) = checkSide r2 r3 >> return (Modify r1 r4)
-composeEffect (Delete _)     _              = throwError DeleteUse
-composeEffect _              (Create _)     = throwError UseCreate
+instance Exception EffectError
+
+
+-- ** Resolution
+
+-- | A monad that supports resolving effects. Just a synonym for convenience.
+class (MonadCatch m, MonadReader (Env Value) m) => MonadEffect m
+instance (MonadCatch m, MonadReader (Env Value) m) => MonadEffect m
+
+-- | Check that a resource exists at the given path;
+--   if not, throw an error for the given effect.
+checkExists :: MonadEffect m => Effect -> Path -> REnv -> m ()
+checkExists eff path env = do
+    exists <- henvHas path env
+    unless exists $
+      throwM (EffectError eff NoSuchResource path Nothing)
+
+-- | Execute the effect on the given resouce environment.
+resolveEffect :: MonadEffect m => Path -> Effect -> REnv -> m REnv
+-- create
+resolveEffect path eff@(Create expr) env = do
+    exists <- henvHas path env
+    when exists $
+      throwM (EffectError eff ResourceAlreadyExists path Nothing)
+    val <- evalExpr expr
+    henvExtend path val env
+-- check
+resolveEffect path eff@(Check fun) env = do
+    checkExists eff path env
+    val <- henvLookup path env
+    result <- evalFun fun val
+    case valIsTrue result of
+      Just True  -> return env
+      Just False -> throwM (EffectError eff CheckFailure path (Just val))
+      Nothing    -> throwM (EffectError eff CheckTypeError path (Just val))
+-- modify
+resolveEffect path eff@(Modify fun) env = do
+    checkExists eff path env
+    old <- henvLookup path env
+    new <- evalFun fun old
+    henvExtend path new env
+-- delete
+resolveEffect path Delete env = do
+    checkExists Delete path env
+    henvDelete path env
 
 
 --
--- * Resource Types
+-- * Resource Profiles
 --
 
--- | A named parameter of primitive type.
-type Param = (Var,PType)
+-- | Resource profile: a parameterized account of all of the resource effects
+--   of a program or component.
+data Profile = Profile [Var] (HEnv [Effect])
+  deriving (Eq,Generic,Show) 
 
--- | Resource type.
-data RType = RT {
-    rtParams :: [Param],     -- ^ parameters
-    rtEffect :: HEnv Effect  -- ^ effects on resources
-} deriving (Eq,Generic,Show) 
-
--- | Compose two resource types.
-composeRType :: (MonadError EffectError m, MonadWriter [Refine] m)
-  => (Var -> Var) -> RType -> RType -> m RType
-composeRType = undefined
+-- | Compose two resource profiles. Merges parameters by name.
+composeProfiles :: MonadThrow m => Profile -> Profile -> m Profile
+composeProfiles (Profile ps1 h1) (Profile ps2 h2) =
+    fmap (Profile ps) (henvUnionWith cat h1 h2)
+  where
+    ps = ps1 `union` ps2
+    cat l r = return (l ++ r)

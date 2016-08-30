@@ -141,6 +141,10 @@ henvHas = queryPathWithDefault (\k h -> return (hasHere k h)) False
 henvLookup :: MonadCatch m => Path -> HEnv v -> m v
 henvLookup = queryPath lookupLeafHere
 
+-- | Detete the entry at a given path.
+henvDelete :: MonadCatch m => Path -> HEnv v -> m (HEnv v)
+henvDelete = modifyPath deleteEntryHere
+
 
 -- ** Converting Entries
 

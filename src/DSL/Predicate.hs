@@ -151,6 +151,12 @@ symEnv :: (Name -> Symbolic b) -> Set Name -> Symbolic (Env b)
 symEnv f s = fmap (Map.fromList . zip vs) (mapM f vs)
   where vs = Set.toList s
 
+-- | Evaluate a predicate against a primitive value.
+evalPred :: Env Bool -> Env Int -> Pred -> PVal -> Bool
+evalPred _  _  UPred       Unit  = true
+evalPred mb mi (BPred x e) (B b) = evalBExpr (envExtend x b mb) mi e
+evalPred mb mi (IPred x e) (I i) = evalBExpr mb (envExtend x i mi) e
+
 -- | Evaluate a boolean expression to either a ground or symbolic boolean,
 --   given a corresponding dictionary of comparison operators and
 --   environments binding all of the variables.
