@@ -24,10 +24,7 @@ data Profile = Profile [Var] (HEnv [Effect])
 
 -- | Load a profile by resolving all of its effects.
 loadProfile :: MonadEval m => Profile -> [Expr] -> m ()
-loadProfile (Profile xs effs) args = do
-    vals <- mapM evalExpr args
-    let new = envFromList (zip xs vals)
-    withVarEnv (envUnion new) undefined
+loadProfile (Profile xs effs) args = withArgs xs args undefined
 
 -- | Compose two resource profiles. Merges parameters by name.
 composeProfiles :: MonadThrow m => Profile -> Profile -> m Profile

@@ -82,3 +82,10 @@ evalExpr (Chc p l r) = liftM2 (ChcV p) (evalExpr l) (evalExpr r)
 -- | Evaluate a function.
 evalFun :: MonadEval m => Fun -> Value -> m Value
 evalFun (x,e) v = withVarEnv (envExtend x v) (evalExpr e)
+
+-- | Run a computation in a variable environment extended by new arguments.
+withArgs :: MonadEval m => [Var] -> [Expr] -> m a -> m a
+withArgs xs args go = do
+    vals <- mapM evalExpr args
+    let new = envFromList (zip xs vals)
+    withVarEnv (envUnion new) go

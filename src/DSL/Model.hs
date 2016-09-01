@@ -37,10 +37,7 @@ data Stmt
 
 -- | Load a model into the current environment, prefixed by the given path.
 loadModel :: MonadEval m => Model -> [Expr] -> m ()
-loadModel (Model xs block) args = do
-    vals <- mapM evalExpr args
-    let new = envFromList (zip xs vals)
-    withVarEnv (envUnion new) (execBlock block)
+loadModel (Model xs block) args = withArgs xs args (execBlock block)
 
 -- | Execute a block of statements.
 execBlock :: MonadEval m => Block -> m ()
