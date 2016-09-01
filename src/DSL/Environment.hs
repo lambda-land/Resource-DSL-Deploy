@@ -62,6 +62,10 @@ envHas = Map.member
 envExtend :: Name -> v -> Env v -> Env v
 envExtend = Map.insert
 
+-- | Left-biased union of two environments.
+envUnion :: Env v -> Env v -> Env v
+envUnion = Map.union
+
 -- | Lookup a binding in an environment.
 envLookup :: MonadThrow m => Name -> Env v -> m v
 envLookup k m = maybe notFound return (Map.lookup k m)

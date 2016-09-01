@@ -7,17 +7,14 @@ import GHC.Generics (Generic)
 
 import Control.Monad        (unless,when)
 import Control.Monad.Catch  (Exception,MonadCatch,MonadThrow,throwM)
-import Control.Monad.Reader (MonadReader)
-import Control.Monad.Writer (MonadWriter,tell)
+import Control.Monad.Reader (MonadReader,local)
 
 import Data.List (union)
 
 import DSL.Environment
 import DSL.Expression
 import DSL.Predicate
-import DSL.Primitive
 import DSL.Value
--- import DSL.Type
 
 
 --
@@ -62,20 +59,16 @@ instance Exception EffectError
 
 -- ** Resolution
 
--- | A monad that supports resolving effects. Just a synonym for convenience.
-class (MonadCatch m, MonadReader (Env Value) m) => MonadEffect m
-instance (MonadCatch m, MonadReader (Env Value) m) => MonadEffect m
-
 -- | Check that a resource exists at the given path;
 --   if not, throw an error for the given effect.
-checkExists :: MonadEffect m => Effect -> Path -> REnv -> m ()
+checkExists :: MonadEval m => Effect -> Path -> REnv -> m ()
 checkExists eff path env = do
     exists <- henvHas path env
     unless exists $
       throwM (EffectError eff NoSuchResource path Nothing)
 
--- | Execute the effect on the given resouce environment.
-resolveEffect :: MonadEffect m => Path -> Effect -> REnv -> m REnv
+-- | Execute the effect on the given resource environment.
+resolveEffect :: MonadEval m => Path -> Effect -> REnv -> m REnv
 -- create
 resolveEffect path eff@(Create expr) env = do
     exists <- henvHas path env
@@ -111,7 +104,14 @@ resolveEffect path Delete env = do
 -- | Resource profile: a parameterized account of all of the resource effects
 --   of a program or component.
 data Profile = Profile [Var] (HEnv [Effect])
-  deriving (Eq,Generic,Show) 
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
+
+-- | Load a profile by resolving all of its effects.
+loadProfile :: MonadEval m => Profile -> [Expr] -> REnv -> m REnv
+loadProfile (Profile xs effs) args renv = do
+    vals <- mapM evalExpr args
+    let new = envFromList (zip xs vals)
+    local (envUnion new) undefined
 
 -- | Compose two resource profiles. Merges parameters by name.
 composeProfiles :: MonadThrow m => Profile -> Profile -> m Profile

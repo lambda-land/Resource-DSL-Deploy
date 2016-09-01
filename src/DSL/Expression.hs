@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+
 module DSL.Expression where
 
 import Prelude hiding (LT,GT)
@@ -69,9 +71,12 @@ instance Prim Expr Expr where
 
 -- ** Semantics
 
+-- | A monad that supports evaluating expressions.
+class (MonadCatch m, MonadReader (Env Value) m) => MonadEval m
+instance (MonadCatch m, MonadReader (Env Value) m) => MonadEval m
+
 -- | Evaluate an expression.
-evalExpr :: (MonadReader (Env Value) m, MonadCatch m)
-  => Expr -> m Value
+evalExpr :: MonadEval m => Expr -> m Value
 evalExpr (Ref x)     = ask >>= envLookup x
 evalExpr (Lit v)     = return (Prim v)
 evalExpr (P1 o e)    = evalExpr e >>= applyPrim1 o
