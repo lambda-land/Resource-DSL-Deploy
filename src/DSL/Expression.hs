@@ -1,5 +1,3 @@
-{-# LANGUAGE UndecidableInstances #-}
-
 module DSL.Expression where
 
 import Prelude hiding (LT,GT)
@@ -7,12 +5,12 @@ import Prelude hiding (LT,GT)
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
-import Control.Monad.Catch (MonadCatch,MonadThrow)
-import Control.Monad.Reader
+import Control.Monad (liftM2)
 
 import DSL.Environment
 import DSL.Predicate
 import DSL.Primitive
+import DSL.Resource
 import DSL.Value
 
 
@@ -71,13 +69,9 @@ instance Prim Expr Expr where
 
 -- ** Semantics
 
--- | A monad that supports evaluating expressions.
-class (MonadCatch m, MonadReader (Env Value) m) => MonadEval m
-instance (MonadCatch m, MonadReader (Env Value) m) => MonadEval m
-
 -- | Evaluate an expression.
 evalExpr :: MonadEval m => Expr -> m Value
-evalExpr (Ref x)     = ask >>= envLookup x
+evalExpr (Ref x)     = getVarEnv >>= envLookup x
 evalExpr (Lit v)     = return (Prim v)
 evalExpr (P1 o e)    = evalExpr e >>= applyPrim1 o
 evalExpr (P2 o l r)  = do l' <- evalExpr l
@@ -86,6 +80,5 @@ evalExpr (P2 o l r)  = do l' <- evalExpr l
 evalExpr (Chc p l r) = liftM2 (ChcV p) (evalExpr l) (evalExpr r)
 
 -- | Evaluate a function.
-evalFun :: (MonadReader (Env Value) m, MonadCatch m)
-  => Fun -> Value -> m Value
-evalFun (x,e) v = local (envExtend x v) (evalExpr e)
+evalFun :: MonadEval m => Fun -> Value -> m Value
+evalFun (x,e) v = withVarEnv (envExtend x v) (evalExpr e)

@@ -4,7 +4,7 @@ import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
 import Control.Monad (foldM)
-import Control.Monad.Catch
+import Control.Monad.Catch (Exception,MonadCatch,MonadThrow,catch,throwM)
 
 import Data.Map (Map)
 import qualified Data.Map as Map

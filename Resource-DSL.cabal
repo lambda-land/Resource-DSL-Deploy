@@ -39,10 +39,13 @@ library
     scientific
   exposed-modules:
     Driver,
+    DSL.Effect,
     DSL.Environment,
     DSL.Expression,
+    DSL.Model,
     DSL.Predicate,
     DSL.Primitive,
+    DSL.Profile,
     DSL.Resource,
     DSL.SAT,
     DSL.Serialize,
