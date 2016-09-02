@@ -55,7 +55,7 @@ instance Exception EffectError
 --   if not, throw an error for the given effect.
 checkExists :: MonadEval m => Effect -> Path -> m ()
 checkExists eff path = do
-    exists <- getResEnv >>= henvHas path
+    exists <- queryResEnv (envHas path)
     unless exists $
       throwM (EffectError eff NoSuchResource path Nothing)
 
@@ -63,15 +63,15 @@ checkExists eff path = do
 resolveEffect :: MonadEval m => Path -> Effect -> m ()
 -- create
 resolveEffect path eff@(Create expr) = do
-    exists <- getResEnv >>= henvHas path
+    exists <- queryResEnv (envHas path)
     when exists $
       throwM (EffectError eff ResourceAlreadyExists path Nothing)
     val <- evalExpr expr
-    updateResEnv (henvExtend path val)
+    updateResEnv (envExtend path val)
 -- check
 resolveEffect path eff@(Check fun) = do
     checkExists eff path
-    val <- getResEnv >>= henvLookup path
+    val <- getResEnv >>= envLookup path
     result <- evalFun fun val
     case valIsTrue result of
       Just True  -> return ()
@@ -80,9 +80,9 @@ resolveEffect path eff@(Check fun) = do
 -- modify
 resolveEffect path eff@(Modify fun) = do
     checkExists eff path
-    new <- getResEnv >>= henvLookup path >>= evalFun fun
-    updateResEnv (henvExtend path new)
+    new <- getResEnv >>= envLookup path >>= evalFun fun
+    updateResEnv (envExtend path new)
 -- delete
 resolveEffect path Delete = do
     checkExists Delete path
-    updateResEnv (henvDelete path)
+    updateResEnv (envDelete path)

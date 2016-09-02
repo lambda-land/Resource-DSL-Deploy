@@ -8,7 +8,6 @@ import GHC.Generics (Generic)
 import Data.Function (on)
 import Data.Set (Set)
 import qualified Data.Set as Set
-import qualified Data.Map as Map
 
 import Data.SBV
 
@@ -22,9 +21,6 @@ import DSL.SAT
 --
 
 -- ** Abstract syntax
-
--- | Variables.
-type Var = Name
 
 -- | Unary boolean predicates.
 data Pred
@@ -147,12 +143,12 @@ substI v i (OpIB o l r) = OpIB o (substI' l) (substI' r)
 -- ** Evaluation to plain and symbolic values
 
 -- | Construct an environment with fresh symbolic values for each variable.
-symEnv :: (Name -> Symbolic b) -> Set Name -> Symbolic (Env b)
-symEnv f s = fmap (Map.fromList . zip vs) (mapM f vs)
+symEnv :: (Name -> Symbolic b) -> Set Name -> Symbolic (Env Var b)
+symEnv f s = fmap (envFromList . zip vs) (mapM f vs)
   where vs = Set.toList s
 
 -- | Evaluate a predicate against a primitive value.
-evalPred :: Env Bool -> Env Int -> Pred -> PVal -> Bool
+evalPred :: Env Var Bool -> Env Var Int -> Pred -> PVal -> Bool
 evalPred _  _  UPred       Unit  = true
 evalPred mb mi (BPred x e) (B b) = evalBExpr (envExtend x b mb) mi e
 evalPred mb mi (IPred x e) (I i) = evalBExpr mb (envExtend x i mi) e
@@ -160,7 +156,7 @@ evalPred mb mi (IPred x e) (I i) = evalBExpr mb (envExtend x i mi) e
 -- | Evaluate a boolean expression to either a ground or symbolic boolean,
 --   given a corresponding dictionary of comparison operators and
 --   environments binding all of the variables.
-evalBExpr :: Prim b i => Env b -> Env i -> BExpr -> b
+evalBExpr :: Prim b i => Env Var b -> Env Var i -> BExpr -> b
 evalBExpr _  _  (BLit b)     = fromBool b
 evalBExpr mb _  (BRef v)     = assumeSuccess (envLookup v mb)
 evalBExpr mb mi (OpB o e)    = opB_B o (evalBExpr mb mi e)
@@ -169,18 +165,18 @@ evalBExpr mb mi (OpIB o l r) = (opII_B o `on` evalIExpr mi) l r
 
 -- | Evaluate an integer expression to either a ground or symbolic integer,
 --   given an environment binding all of the variables.
-evalIExpr :: PrimI i => Env i -> IExpr -> i
+evalIExpr :: PrimI i => Env Var i -> IExpr -> i
 evalIExpr _ (ILit i)     = fromIntegral i
 evalIExpr m (IRef v)     = assumeSuccess (envLookup v m)
 evalIExpr m (OpI o e)    = opI_I o (evalIExpr m e)
 evalIExpr m (OpII o l r) = (opII_I o `on` evalIExpr m) l r
 
 -- | Evaluate a boolean expression to a ground boolean.
-toBool :: Env Bool -> Env Int -> BExpr -> Bool
+toBool :: Env Var Bool -> Env Var Int -> BExpr -> Bool
 toBool = evalBExpr
 
 -- | Evaluate a boolean expression to a symbolic boolean.
-toSBool :: Env SBool -> Env SInt32 -> BExpr -> SBool
+toSBool :: Env Var SBool -> Env Var SInt32 -> BExpr -> SBool
 toSBool = evalBExpr
 
 -- Enable satisfiability checking of boolean expressions.
