@@ -10,6 +10,7 @@ import DSL.Effect
 import DSL.Environment
 import DSL.Expression
 import DSL.Predicate
+import DSL.Primitive
 import DSL.Resource
 
 
@@ -17,19 +18,22 @@ import DSL.Resource
 -- * Resource Profiles
 --
 
+-- | Named and primitively typed parameters.
+type Param = (Var,PType)
+
 -- | Resource profile: a parameterized account of all of the resource effects
 --   of a program or component.
-data Profile = Profile [Var] (Env Path [Effect])
+data Profile = Profile [Param] (Env Path [Effect])
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Construct a profile from an argument list and an association list of effects.
-profile :: [Var] -> [(Path,[Effect])] -> Profile
+profile :: [Param] -> [(Path,[Effect])] -> Profile
 profile xs = Profile xs . envFromList
 
 -- | Load a profile by resolving all of its effects.
 loadProfile :: MonadEval m => Profile -> [Expr] -> m ()
 loadProfile (Profile xs effs) args =
-    withArgs xs args (envMapM_ (mapM_ . resolveEffect) effs)
+    withArgs (map fst xs) args (envMapM_ (mapM_ . resolveEffect) effs)
 
 -- | Compose two resource profiles. Merges parameters by name.
 composeProfiles :: Profile -> Profile -> Profile

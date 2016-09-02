@@ -19,17 +19,20 @@ import DSL.Resource
 -- ** Syntax
 
 -- | An application model.
-data Model = Model [Var] Block
+data Model = Model [Param] Block
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Statement block.
 type Block = [Stmt]
 
+-- | A condition in a conditional statement.
+type Cond = BExpr
+
 -- | Statement in an application model.
 data Stmt
      = Do Name Effect       -- ^ apply an effect
      | In Path Block        -- ^ do work in a sub-environment
-     | If Pred Block Block  -- ^ conditional statement
+     | If Cond Block Block  -- ^ conditional statement
      | Load Name [Expr]     -- ^ load a sub-model or profile
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
@@ -62,7 +65,7 @@ profileDict l = envFromList [(n, Left (toProfile m)) | (n,m) <- l]
 
 -- | Load a model into the current environment, prefixed by the given path.
 loadModel :: MonadEval m => Model -> [Expr] -> m ()
-loadModel (Model xs block) args = withArgs xs args (execBlock block)
+loadModel (Model xs block) args = withArgs (map fst xs) args (execBlock block)
 
 -- | Execute a block of statements.
 execBlock :: MonadEval m => Block -> m ()
