@@ -42,6 +42,22 @@ provideUnit :: Name -> Stmt
 provideUnit n = Do n (Create (Lit Unit))
 
 
+-- ** Conversion
+
+-- | Convert a simple model into a profile. This allows writing profiles
+--   with nicer syntax. Fails with a runtime error on a Load or If statement.
+toProfile :: Model -> Profile
+toProfile (Model xs stmts) = Profile xs (envFromListAcc (stmts >>= entries []))
+  where
+    entries pre (Do name eff) = [(pre ++ [name], [eff])]
+    entries pre (In path blk) = blk >>= entries (pre ++ path)
+    entries _ _ = error "toProfile: cannot convert models with If/Load to profiles"
+
+-- | Construct a profile dictionary from an association list of models.
+profileDict :: [(Name,Model)] -> Dictionary
+profileDict l = envFromList [(n, Left (toProfile m)) | (n,m) <- l]
+
+
 -- ** Semantics
 
 -- | Load a model into the current environment, prefixed by the given path.
@@ -55,9 +71,9 @@ execBlock stmts = mapM_ execStmt stmts
 -- | Execute a statement.
 execStmt :: MonadEval m => Stmt -> m ()
 -- apply an effect
-execStmt (Do n eff) = do
+execStmt (Do name eff) = do
     pre <- getPrefix
-    resolveEffect (pre ++ [n]) eff
+    resolveEffect (pre ++ [name]) eff
 -- do work in sub-environment
 execStmt (In path block) = withPrefix (++ path) (execBlock block)
 -- conditional statement

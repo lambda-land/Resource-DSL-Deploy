@@ -57,6 +57,12 @@ envEmpty = Map.empty
 envFromList :: Ord k => [(k,v)] -> Env k v
 envFromList = Map.fromList
 
+-- | Construct an environment from an association list, accumulating duplicate
+--   entries.
+envFromListAcc :: (Ord k, Monoid m) => [(k,m)] -> Env k m
+envFromListAcc []        = envEmpty
+envFromListAcc ((k,m):l) = envUnionWith mappend (Map.singleton k m) (envFromListAcc l)
+
 
 -- ** Operations
 

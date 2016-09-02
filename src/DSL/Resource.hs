@@ -44,7 +44,6 @@ class (MonadCatch m, MonadReader Context m, MonadState ResEnv m)
 instance (MonadCatch m, MonadReader Context m, MonadState ResEnv m)
   => MonadEval m
 
-
 -- | Get the current resource path prefix.
 getPrefix :: MonadEval m => m Path
 getPrefix = asks prefix
