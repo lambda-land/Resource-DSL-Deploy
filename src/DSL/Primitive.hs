@@ -1,5 +1,6 @@
 module DSL.Primitive 
   ( PType(..), PVal(..)
+  , primType
   , Op1(..), Op2(..)
   , primOp1, primOp2
   , B_B(..), opB_B
@@ -37,6 +38,12 @@ data PVal
      | B Bool
      | I Int
   deriving (Data,Eq,Generic,Read,Show,Typeable)
+
+-- | Type of primitive value.
+primType :: PVal -> PType
+primType Unit  = TUnit
+primType (B _) = TBool
+primType (I _) = TInt
 
 
 --

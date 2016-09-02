@@ -32,9 +32,9 @@ data Stmt
      | Load Name [Expr]     -- ^ load a sub-model or profile
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
--- | Check whether a resource is present.
-checkPresent :: Name -> Stmt
-checkPresent n = Do n (Check ("x",true))
+-- | Check whether a unit-valued resource is present.
+checkUnit :: Name -> Stmt
+checkUnit n = Do n (Check (Fun ("x",TUnit) true))
 
 -- | Provide a unit-valued resource.
 provideUnit :: Name -> Stmt
@@ -61,7 +61,7 @@ profileDict l = envFromList [(n, Left (toProfile m)) | (n,m) <- l]
 
 -- | Load a model into the current environment, prefixed by the given path.
 loadModel :: MonadEval m => Model -> [Expr] -> m ()
-loadModel (Model xs block) args = withArgs (map fst xs) args (execBlock block)
+loadModel (Model xs block) args = withArgs xs args (execBlock block)
 
 -- | Execute a block of statements.
 execBlock :: MonadEval m => Block -> m ()

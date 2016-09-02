@@ -5,7 +5,8 @@ import Prelude hiding (LT,GT)
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
-import Control.Monad (liftM2)
+import Control.Monad (liftM2,zipWithM)
+import Control.Monad.Catch (Exception,throwM)
 
 import DSL.Environment
 import DSL.Primitive
@@ -18,6 +19,13 @@ import DSL.Resource
 
 -- ** Syntax
 
+-- | Named and primitively typed parameters.
+type Param = (Var,PType)
+
+-- | Unary functions.
+data Fun = Fun Param Expr
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
+
 -- | Expressions.
 data Expr
      = Ref Var              -- ^ variable reference
@@ -27,8 +35,11 @@ data Expr
 --     | Chc BExpr Expr Expr  -- ^ choice constructor
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
--- | Unary functions.
-type Fun = (Var,Expr)
+-- | Type error caused by passing argument of the wrong type.
+data ArgTypeError = ArgTypeError Param PVal
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
+
+instance Exception ArgTypeError
 
 -- Use SBV's Boolean type class for boolean predicates.
 instance Boolean Expr where
@@ -77,13 +88,20 @@ evalExpr (P2 o l r)  = do l' <- evalExpr l
                           primOp2 o l' r'
 -- evalExpr (Chc p l r) = liftM2 (ChcV p) (evalExpr l) (evalExpr r)
 
+-- | Check the type of an argument.
+checkArg :: MonadEval m => Param -> PVal -> m (Var,PVal)
+checkArg p@(x,t) v | primType v == t = return (x,v)
+                   | otherwise       = throwM (ArgTypeError p v)
+
 -- | Evaluate a function.
 evalFun :: MonadEval m => Fun -> PVal -> m PVal
-evalFun (x,e) v = withVarEnv (envExtend x v) (evalExpr e)
+evalFun (Fun p@(x,t) e) v = do
+    checkArg p v
+    withVarEnv (envExtend x v) (evalExpr e)
 
 -- | Run a computation in a variable environment extended by new arguments.
-withArgs :: MonadEval m => [Var] -> [Expr] -> m a -> m a
+withArgs :: MonadEval m => [Param] -> [Expr] -> m a -> m a
 withArgs xs args go = do
     vals <- mapM evalExpr args
-    let new = envFromList (zip xs vals)
+    new  <- fmap envFromList (zipWithM checkArg xs vals)
     withVarEnv (envUnion new) go

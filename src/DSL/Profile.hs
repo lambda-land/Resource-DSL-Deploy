@@ -17,9 +17,6 @@ import DSL.Resource
 -- * Resource Profiles
 --
 
--- | Named and primitively typed parameters.
-type Param = (Var,PType)
-
 -- | Resource profile: a parameterized account of all of the resource effects
 --   of a program or component.
 data Profile = Profile [Param] (Env Path [Effect])
@@ -32,7 +29,7 @@ profile xs = Profile xs . envFromList
 -- | Load a profile by resolving all of its effects.
 loadProfile :: MonadEval m => Profile -> [Expr] -> m ()
 loadProfile (Profile xs effs) args =
-    withArgs (map fst xs) args (envMapM_ (mapM_ . resolveEffect) effs)
+    withArgs xs args (envMapM_ (mapM_ . resolveEffect) effs)
 
 -- | Compose two resource profiles. Merges parameters by name.
 composeProfiles :: Profile -> Profile -> Profile

@@ -21,32 +21,32 @@ locationDFUs = profileDict $
 gpsAndroid :: Model
 gpsAndroid = Model []
     [ In ["GPS"]
-      [ checkPresent "SAT"
-      , checkPresent "Dev" ]
+      [ checkUnit "SAT"
+      , checkUnit "Dev" ]
     , provideUnit "Location"
     ]
 
 -- | Bluetooth-based GPS.
 gpsBluetooth :: Model
 gpsBluetooth = Model []
-    [ In ["GPS"] [checkPresent "SAT"]
-    , In ["Ext"] [checkPresent "BT"]
+    [ In ["GPS"] [checkUnit "SAT"]
+    , In ["Ext"] [checkUnit "BT"]
     , provideUnit "Location"
     ]
 
 -- | Generic USB-based GPS.
 gpsUsb :: Model
 gpsUsb = Model []
-    [ In ["GPS"] [checkPresent "SAT"]
-    , In ["Ext"] [checkPresent "USB"]
+    [ In ["GPS"] [checkUnit "SAT"]
+    , In ["Ext"] [checkUnit "USB"]
     , provideUnit "Location"
     ]
 
 -- | USB-based SAASM GPS.
 gpsSaasm :: Model
 gpsSaasm = Model []
-    [ In ["GPS"] [checkPresent "SAT"]
-    , In ["Ext"] [checkPresent "USB"]
+    [ In ["GPS"] [checkUnit "SAT"]
+    , In ["Ext"] [checkUnit "USB"]
     , provideUnit "Location"
     , In ["Location"] [provideUnit "SAASM"]
     ]
@@ -54,7 +54,7 @@ gpsSaasm = Model []
 -- | Manual / dead reckoning location capability.
 deadReck :: Model
 deadReck = Model []
-    [ checkPresent "UI"
+    [ checkUnit "UI"
     , provideUnit "Location"
     ]
 
