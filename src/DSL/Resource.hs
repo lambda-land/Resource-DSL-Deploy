@@ -10,7 +10,7 @@ import Control.Monad.Reader (MonadReader,asks,local)
 import Control.Monad.State  (MonadState,get,gets,modify,put)
 
 import DSL.Environment
-import DSL.Value
+import DSL.Primitive
 
 import {-# SOURCE #-} DSL.Effect  (Effect)
 import {-# SOURCE #-} DSL.Model   (Model)
@@ -22,10 +22,10 @@ import {-# SOURCE #-} DSL.Profile (Profile)
 --
 
 -- | Variable environment.
-type VarEnv = Env Var Value
+type VarEnv = Env Var PVal
 
 -- | Resource environment.
-type ResEnv = Env Path Value
+type ResEnv = Env Path PVal -- TODO make variational
 
 -- | Dictionary of profiles and models.
 type Dictionary = Env Var (Either Profile Model)

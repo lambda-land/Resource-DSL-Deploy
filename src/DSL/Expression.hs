@@ -8,10 +8,8 @@ import GHC.Generics (Generic)
 import Control.Monad (liftM2)
 
 import DSL.Environment
-import DSL.Predicate
 import DSL.Primitive
 import DSL.Resource
-import DSL.Value
 
 
 --
@@ -26,7 +24,7 @@ data Expr
      | Lit PVal             -- ^ primitive literal
      | P1  Op1 Expr         -- ^ primitive unary function
      | P2  Op2 Expr Expr    -- ^ primitive binary function
-     | Chc BExpr Expr Expr  -- ^ choice constructor
+--     | Chc BExpr Expr Expr  -- ^ choice constructor
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Unary functions.
@@ -70,17 +68,17 @@ instance Prim Expr Expr where
 -- ** Semantics
 
 -- | Evaluate an expression.
-evalExpr :: MonadEval m => Expr -> m Value
+evalExpr :: MonadEval m => Expr -> m PVal
 evalExpr (Ref x)     = getVarEnv >>= envLookup x
-evalExpr (Lit v)     = return (Prim v)
-evalExpr (P1 o e)    = evalExpr e >>= applyPrim1 o
+evalExpr (Lit v)     = return v
+evalExpr (P1 o e)    = evalExpr e >>= primOp1 o
 evalExpr (P2 o l r)  = do l' <- evalExpr l
                           r' <- evalExpr r
-                          applyPrim2 o l' r'
-evalExpr (Chc p l r) = liftM2 (ChcV p) (evalExpr l) (evalExpr r)
+                          primOp2 o l' r'
+-- evalExpr (Chc p l r) = liftM2 (ChcV p) (evalExpr l) (evalExpr r)
 
 -- | Evaluate a function.
-evalFun :: MonadEval m => Fun -> Value -> m Value
+evalFun :: MonadEval m => Fun -> PVal -> m PVal
 evalFun (x,e) v = withVarEnv (envExtend x v) (evalExpr e)
 
 -- | Run a computation in a variable environment extended by new arguments.

@@ -9,7 +9,7 @@ import Control.Monad.Catch (Exception,throwM)
 import DSL.Environment
 import DSL.Expression
 import DSL.Resource
-import DSL.Value
+import DSL.Primitive
 
 
 --
@@ -43,7 +43,7 @@ data EffectError = EffectError {
      errorEffect :: Effect,
      errorKind   :: EffectErrorKind,
      errorPath   :: Path,
-     errorValue  :: Maybe Value
+     errorValue  :: Maybe PVal
 } deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 instance Exception EffectError
@@ -73,10 +73,10 @@ resolveEffect path eff@(Check fun) = do
     checkExists eff path
     val <- getResEnv >>= envLookup path
     result <- evalFun fun val
-    case valIsTrue result of
-      Just True  -> return ()
-      Just False -> throwM (EffectError eff CheckFailure path (Just val))
-      Nothing    -> throwM (EffectError eff CheckTypeError path (Just val))
+    case result of
+      B True  -> return ()
+      B False -> throwM (EffectError eff CheckFailure path (Just val))
+      _       -> throwM (EffectError eff CheckTypeError path (Just val))
 -- modify
 resolveEffect path eff@(Modify fun) = do
     checkExists eff path

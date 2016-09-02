@@ -6,7 +6,6 @@ import GHC.Generics (Generic)
 import DSL.Effect
 import DSL.Environment
 import DSL.Expression
-import DSL.Predicate
 import DSL.Primitive
 import DSL.Profile
 import DSL.Resource
@@ -25,14 +24,11 @@ data Model = Model [Param] Block
 -- | Statement block.
 type Block = [Stmt]
 
--- | A condition in a conditional statement.
-type Cond = BExpr
-
 -- | Statement in an application model.
 data Stmt
      = Do Name Effect       -- ^ apply an effect
      | In Path Block        -- ^ do work in a sub-environment
-     | If Cond Block Block  -- ^ conditional statement
+     | If Expr Block Block  -- ^ conditional statement
      | Load Name [Expr]     -- ^ load a sub-model or profile
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 

@@ -6,7 +6,7 @@ import GHC.Generics (Generic)
 import Control.Monad       (liftM2)
 import Control.Monad.Catch (MonadThrow)
 
-import DSL.Predicate
+import DSL.Predicate (BExpr)
 import DSL.Primitive
 
 

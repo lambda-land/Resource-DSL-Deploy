@@ -9,7 +9,6 @@ import Control.Monad.Catch (MonadCatch,MonadThrow)
 import DSL.Effect
 import DSL.Environment
 import DSL.Expression
-import DSL.Predicate
 import DSL.Primitive
 import DSL.Resource
 
