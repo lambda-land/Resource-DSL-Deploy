@@ -3,6 +3,8 @@ module DSL.Model where
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
+import Control.Monad.Catch (Exception,throwM)
+
 import DSL.Effect
 import DSL.Environment
 import DSL.Expression
@@ -31,6 +33,12 @@ data Stmt
      | If Expr Block Block  -- ^ conditional statement
      | Load Name [Expr]     -- ^ load a sub-model or profile
   deriving (Data,Eq,Generic,Read,Show,Typeable)
+
+-- | Type error caused by non-boolean condition.
+data StmtError = IfTypeError Expr
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
+
+instance Exception StmtError
 
 -- | Check whether a unit-valued resource is present.
 checkUnit :: Name -> Stmt
@@ -76,7 +84,12 @@ execStmt (Do name eff) = do
 -- do work in sub-environment
 execStmt (In path block) = withPrefix (++ path) (execBlock block)
 -- conditional statement
-execStmt (If cond tru fls) = error "execStmt: If not yet implemented"
+execStmt (If cond tru fls) = do
+    val <- evalExpr cond
+    case val of
+      B True  -> execBlock tru
+      B False -> execBlock fls
+      _ -> throwM (IfTypeError cond)
 -- load a sub-module or profile
 execStmt (Load name args) = do
     def <- getDict >>= envLookup name
