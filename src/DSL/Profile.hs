@@ -24,7 +24,8 @@ data Profile = Profile [Var] (HEnv [Effect])
 
 -- | Load a profile by resolving all of its effects.
 loadProfile :: MonadEval m => Profile -> [Expr] -> m ()
-loadProfile (Profile xs effs) args = withArgs xs args undefined
+loadProfile (Profile xs effs) args =
+    withArgs xs args (mapPathLeafM_ (mapM_ . resolveEffect) effs)
 
 -- | Compose two resource profiles. Merges parameters by name.
 composeProfiles :: MonadThrow m => Profile -> Profile -> m Profile

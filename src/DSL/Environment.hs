@@ -246,8 +246,8 @@ modifyPath f p h = onPath p (go p h)
 
 -- ** Combine
 
--- | Recursive union of two hierarchical maps. Leaves are merged with the
---   given function. Throws an error if forced to merge a node and leaf.
+-- | Recursive union of two hierarchical environments. Leaves are merged with
+--   the given function. Throws an error if forced to merge a node and leaf.
 henvUnionWith :: MonadThrow m
   => (v -> v -> m v) -> HEnv v -> HEnv v -> m (HEnv v)
 henvUnionWith f (HEnv m1) (HEnv m2) = do 
@@ -271,3 +271,11 @@ henvUnionWith f (HEnv m1) (HEnv m2) = do
 -- | Map a function over all of the values at the leaves.
 mapLeaves :: (a -> b) -> HEnv a -> HEnv b
 mapLeaves f (HEnv m) = HEnv (fmap (either (Left . fmap f) (Right . f)) m)
+
+-- | Apply a result-less monadic action to all path-leaf pairs.
+mapPathLeafM_ :: Monad m => (Path -> a -> m ()) -> HEnv a -> m ()
+mapPathLeafM_ f h = traverse [] h
+  where
+    traverse p (HEnv m) = mapM_ (entry p) (Map.toAscList m)
+    entry p (k,Left h)  = traverse (k:p) h
+    entry p (k,Right v) = f (k:p) v
