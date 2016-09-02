@@ -4,7 +4,7 @@ import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
 import Data.List (union)
-import Control.Monad.Catch (MonadThrow)
+import Control.Monad.Catch (MonadCatch,MonadThrow)
 
 import DSL.Effect
 import DSL.Environment
@@ -21,6 +21,10 @@ import DSL.Resource
 --   of a program or component.
 data Profile = Profile [Var] (HEnv [Effect])
   deriving (Data,Eq,Generic,Read,Show,Typeable)
+
+-- | Construct a profile from an argument list and an association list of effects.
+profile :: MonadCatch m => [Var] -> [(Path,[Effect])] -> m Profile
+profile xs = fmap (Profile xs) . henvFromList
 
 -- | Load a profile by resolving all of its effects.
 loadProfile :: MonadEval m => Profile -> [Expr] -> m ()

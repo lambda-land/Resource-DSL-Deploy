@@ -47,7 +47,7 @@ assumeSuccess (Left err) = error msg
 envEmpty :: Env v
 envEmpty = Map.empty
 
--- | Smart constructor for environments.
+-- | Construct an environment from an association list.
 envFromList :: [(Name,v)] -> Env v
 envFromList = Map.fromList
 
@@ -133,6 +133,10 @@ henvEmpty = HEnv Map.empty
 -- | Extend a hierarchical environment with a new binding.
 henvExtend :: MonadCatch m => Path -> v -> HEnv v -> m (HEnv v)
 henvExtend p v = modifyPath (\k -> insertLeafHere k v) p
+
+-- | Construct a hierarchical environment from an association list.
+henvFromList :: MonadCatch m => [(Path,v)] -> m (HEnv v)
+henvFromList = foldM (\h (p,v) -> henvExtend p v h) henvEmpty
 
 
 -- ** Operations

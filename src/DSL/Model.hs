@@ -7,6 +7,7 @@ import DSL.Effect
 import DSL.Environment
 import DSL.Expression
 import DSL.Predicate
+import DSL.Primitive
 import DSL.Profile
 import DSL.Resource
 
@@ -29,8 +30,16 @@ data Stmt
      = Do Name Effect       -- ^ apply an effect
      | In Path Block        -- ^ do work in a sub-environment
      | If Pred Block Block  -- ^ conditional statement
-     | Sub Name [Expr]      -- ^ load a sub-model or profile
+     | Load Name [Expr]     -- ^ load a sub-model or profile
   deriving (Data,Eq,Generic,Read,Show,Typeable)
+
+-- | Check whether a resource is present.
+checkPresent :: Name -> Stmt
+checkPresent n = Do n (Check ("x",true))
+
+-- | Provide a unit-valued resource.
+provideUnit :: Name -> Stmt
+provideUnit n = Do n (Create (Lit Unit))
 
 
 -- ** Semantics
@@ -54,7 +63,7 @@ execStmt (In path block) = withPrefix (++ path) (execBlock block)
 -- conditional statement
 execStmt (If cond tru fls) = error "execStmt: If not yet implemented"
 -- load a sub-module or profile
-execStmt (Sub name args) = do
+execStmt (Load name args) = do
     def <- getDict >>= envLookup name
     case def of
       Left profile -> loadProfile profile args
