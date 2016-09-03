@@ -113,6 +113,7 @@ instance Prim BExpr IExpr where
   (.<)  = OpIB LT
   (.<=) = OpIB LTE
   (.==) = OpIB Equ
+  (./=) = OpIB Neq
   (.>=) = OpIB GTE
   (.>)  = OpIB GT
 

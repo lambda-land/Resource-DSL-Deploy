@@ -77,7 +77,7 @@ data BB_B = And | Or | XOr | Imp | Eqv
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Binary integer comparison operators.
-data II_B = LT | LTE | Equ | GTE | GT
+data II_B = LT | LTE | Equ | Neq | GTE | GT
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Binary integer arithmetic operators.
@@ -129,6 +129,7 @@ opII_B :: Prim b i => II_B -> i -> i -> b
 opII_B LT  = (.<)
 opII_B LTE = (.<=)
 opII_B Equ = (.==)
+opII_B Neq = (./=)
 opII_B GTE = (.>=)
 opII_B GT  = (.>)
 
@@ -146,9 +147,9 @@ class Num i => PrimI i where
 
 -- | A type class for overloading the primitive operators.
 class (Boolean b, PrimI i) => Prim b i where
-  (.<), (.<=), (.==), (.>=), (.>) :: i -> i -> b
+  (.<), (.<=), (.==), (./=), (.>=), (.>) :: i -> i -> b
 
-infix 4 .<, .<=, .==, .>=, .>
+infix 4 .<, .<=, .==, ./=, .>=, .>
 infixl 7 ./, .%
 
 -- Ground instances
@@ -161,6 +162,7 @@ instance Prim Bool Int where
   (.<)  = (<)
   (.<=) = (<=)
   (.==) = (==)
+  (./=) = (/=)
   (.>=) = (>=)
   (.>)  = (>)
 
@@ -190,6 +192,7 @@ instance Prim SBool SInteger where
   (.<)  = (SBV..<)
   (.<=) = (SBV..<=)
   (.==) = (SBV..==)
+  (./=) = (SBV../=)
   (.>=) = (SBV..>=)
   (.>)  = (SBV..>)
 
@@ -197,6 +200,7 @@ instance Prim SBool SInt8 where
   (.<)  = (SBV..<)
   (.<=) = (SBV..<=)
   (.==) = (SBV..==)
+  (./=) = (SBV../=)
   (.>=) = (SBV..>=)
   (.>)  = (SBV..>)
 
@@ -204,6 +208,7 @@ instance Prim SBool SInt16 where
   (.<)  = (SBV..<)
   (.<=) = (SBV..<=)
   (.==) = (SBV..==)
+  (./=) = (SBV../=)
   (.>=) = (SBV..>=)
   (.>)  = (SBV..>)
 
@@ -211,6 +216,7 @@ instance Prim SBool SInt32 where
   (.<)  = (SBV..<)
   (.<=) = (SBV..<=)
   (.==) = (SBV..==)
+  (./=) = (SBV../=)
   (.>=) = (SBV..>=)
   (.>)  = (SBV..>)
 
@@ -218,5 +224,6 @@ instance Prim SBool SInt64 where
   (.<)  = (SBV..<)
   (.<=) = (SBV..<=)
   (.==) = (SBV..==)
+  (./=) = (SBV../=)
   (.>=) = (SBV..>=)
   (.>)  = (SBV..>)

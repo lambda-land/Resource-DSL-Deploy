@@ -72,6 +72,7 @@ instance Prim Expr Expr where
   (.<)  = P2 (II_B LT)
   (.<=) = P2 (II_B LTE)
   (.==) = P2 (II_B Equ)
+  (./=) = P2 (II_B Neq)
   (.>=) = P2 (II_B GTE)
   (.>)  = P2 (II_B GT)
 
