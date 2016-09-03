@@ -43,11 +43,11 @@ opTable =
       , infixN "<="  (.<=)
       , infixN ">="  (.>=)
       , infixN ">"   (.>)  ]
-    , [ infixR "&"   (&&&) ]
-    , [ infixR "|"   (|||)
+    , [ infixR "&&"  (&&&) ]
+    , [ infixR "||"  (|||)
       , infixR "><"  (<+>) ]
-    , [ infixR "=>"  (==>) ]
-    , [ infixR "<=>" (<=>) ] ]
+    , [ infixR "->"  (==>) ]
+    , [ infixR "<->" (<=>) ] ]
   where
     prefix n f = Prefix (f <$ symbol n)
     infixN n f = InfixN (f <$ symbol n)

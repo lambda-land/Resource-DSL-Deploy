@@ -44,6 +44,7 @@ library
     DSL.Environment,
     DSL.Expression,
     DSL.Model,
+    DSL.Parser,
     DSL.Predicate,
     DSL.Primitive,
     DSL.Profile,
