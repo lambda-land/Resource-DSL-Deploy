@@ -53,6 +53,10 @@ assumeSuccess (Left err) = error msg
 envEmpty :: Env k v
 envEmpty = Map.empty
 
+-- | Singleton environment.
+envSingle :: Ord k => k -> v -> Env k v
+envSingle = Map.singleton
+
 -- | Construct an environment from an association list.
 envFromList :: Ord k => [(k,v)] -> Env k v
 envFromList = Map.fromList

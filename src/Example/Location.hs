@@ -1,8 +1,29 @@
 module Example.Location where
 
+import Data.List (intercalate,subsequences)
+
+import DSL.Environment
+import DSL.Expression
 import DSL.Model
+import DSL.Primitive
 import DSL.Profile
 import DSL.Resource
+
+
+-- ** Application model
+
+-- | Location-provider application model. The input parameter selects which
+--   location provider to use. NOTE: This is the only thing that is currently
+--   required to be written in the DSL directly. Everything else can be passed
+--   in via the JSON interface.
+appModel = Model [("provider", TInt)]
+    [ caseOf (Ref "provider")
+      [ (1, [Load "gps-android" []])
+      , (2, [Load "gps-bluetooth" []])
+      , (3, [Load "gps-usb" []])
+      , (4, [Load "gps-saasm" []])
+      ] [Load "dead-reckoning" []]
+    ]
 
 
 -- ** DFUs
@@ -59,6 +80,30 @@ deadReck = Model []
     ]
 
 
--- ** Application model
+-- ** Initial environments
 
--- | Trivial application model.
+-- | All relevant initial environments for the location scenario.
+locationEnvs :: [(String, ResEnv)]
+locationEnvs = [(toID ps, toEnv ps) | ps <- tail (subsequences paths)]
+  where
+    toEnv = envFromList . map (\p -> (p,Unit))
+    toID  = intercalate "+" . map (intercalate ".")
+    paths = [["GPS","SAT"],["GPS","Dev"],["Ext","USB"],["Ext","BT"],["UI"]]
+
+
+-- ** Mission requirements
+
+-- | Require location.
+hasLocation :: Profile
+hasLocation = toProfile $ Model [] [checkUnit "Location"]
+
+-- | Require SAASM location.
+hasSaasm :: Profile
+hasSaasm = toProfile $ Model []
+    [ checkUnit "Location"
+    , In ["Location"] [checkUnit "SAASM"]
+    ]
+
+-- | All relevant mission requirements for the location scenario.
+locationReqs :: [(String, Profile)]
+locationReqs = [("location", hasLocation), ("saasm", hasSaasm)]
