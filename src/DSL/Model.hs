@@ -31,6 +31,7 @@ data Stmt
      = Do Name Effect       -- ^ apply an effect
      | In Path Block        -- ^ do work in a sub-environment
      | If Expr Block Block  -- ^ conditional statement
+     | Let Var Expr Block   -- ^ extend the variable environment
      | Load Name [Expr]     -- ^ load a sub-model or profile
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
@@ -48,6 +49,14 @@ checkUnit n = Do n (Check (Fun ("x",TUnit) true))
 provideUnit :: Name -> Stmt
 provideUnit n = Do n (Create (Lit Unit))
 
+-- | Macro for an integer-case construct. Evaluates the expression, then
+--   compares the resulting integer value against each case in turn, executing
+--   the first matching block, otherwise executes the final block arugment.
+caseOf :: Expr -> [(Int,Block)] -> Block -> Stmt
+caseOf expr cases other = Let x expr (foldr ifs other cases)
+  where
+    ifs (i,thn) els = [If (Ref x .== Lit (I i)) thn els]
+    x = "$case"
 
 -- ** Conversion
 
@@ -90,6 +99,10 @@ execStmt (If cond tru fls) = do
       B True  -> execBlock tru
       B False -> execBlock fls
       _ -> throwM (IfTypeError cond)
+-- extend the variable environment
+execStmt (Let var expr block) = do
+    val <- evalExpr expr
+    withVarEnv (envExtend var val) (execBlock block)
 -- load a sub-module or profile
 execStmt (Load name args) = do
     def <- getDict >>= envLookup name
