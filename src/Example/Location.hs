@@ -107,3 +107,12 @@ hasSaasm = toProfile $ Model []
 -- | All relevant mission requirements for the location scenario.
 locationReqs :: [(String, Profile)]
 locationReqs = [("location", hasLocation), ("saasm", hasSaasm)]
+
+
+-- ** Testing
+
+runLocationTest :: String -> Int -> IO ResEnv
+runLocationTest initID dfuID = case lookup initID locationEnvs of
+    Just init -> fmap snd $ runWithDict locationDFUs init (loadModel appModel [Lit (I dfuID)])
+    Nothing -> error $ "bad initial environment ID, try one of: \n" ++ ids
+  where ids = intercalate "\n" (map fst locationEnvs)

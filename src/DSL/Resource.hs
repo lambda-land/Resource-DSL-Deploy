@@ -5,9 +5,9 @@ module DSL.Resource where
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
-import Control.Monad.Catch  (MonadCatch)
-import Control.Monad.Reader (MonadReader,asks,local)
-import Control.Monad.State  (MonadState,get,gets,modify,put)
+import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Reader
+import Control.Monad.State
 
 import DSL.Environment
 import DSL.Primitive
@@ -37,12 +37,23 @@ data Context = Ctx {
     dictionary  :: Dictionary  -- ^ dictionary of profiles and models
 } deriving (Data,Eq,Generic,Read,Show,Typeable)
 
+type EvalM a = StateT ResEnv (ReaderT Context IO) a
+
 -- | A monad for computations that affect a resource environment, given a
 --   an evaluation context, and which may throw/catch exceptions.
 class (MonadCatch m, MonadReader Context m, MonadState ResEnv m)
   => MonadEval m
 instance (MonadCatch m, MonadReader Context m, MonadState ResEnv m)
   => MonadEval m
+
+-- | Execute a computation in a given context.
+runInContext :: Context -> ResEnv -> EvalM a -> IO (a, ResEnv)
+runInContext ctx init mx = runReaderT (runStateT mx init) ctx
+
+-- | Execute a computation with a given dictionary and an empty variable
+--   environment and prefix.
+runWithDict :: Dictionary -> ResEnv -> EvalM a -> IO (a, ResEnv)
+runWithDict dict = runInContext (Ctx [] envEmpty dict)
 
 -- | Get the current resource path prefix.
 getPrefix :: MonadEval m => m Path
