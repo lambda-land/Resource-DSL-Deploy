@@ -46,6 +46,7 @@ library
     DSL.Model,
     DSL.Parser,
     DSL.Predicate,
+    DSL.Pretty,
     DSL.Primitive,
     DSL.Profile,
     DSL.Resource,
