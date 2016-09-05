@@ -37,7 +37,8 @@ library
     megaparsec,
     mtl,
     sbv,
-    scientific
+    scientific,
+    text
   exposed-modules:
     Driver,
     DSL.Effect,
