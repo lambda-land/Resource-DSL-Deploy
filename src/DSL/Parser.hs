@@ -81,7 +81,7 @@ opTable =
     [ [op Prefix negate "-", op Prefix bnot "!"]
     , map inII_I [Mul,Div,Mod]
     , map inII_I [Add,Sub]
-    , map inII_B [LT,LTE,Equ,Neq,GTE,GT]
+    , map inII_B [LTE,LT,Equ,Neq,GTE,GT]
     , [inBB_B And]
     , map inBB_B [Or,XOr]
     , [inBB_B Imp]
