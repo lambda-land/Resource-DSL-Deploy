@@ -3,6 +3,7 @@ module DSL.Environment where
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
+import Data.Composition ((.:))
 import Control.Monad (foldM)
 import Control.Monad.Catch (Exception,MonadCatch,MonadThrow,catch,throwM)
 
@@ -29,7 +30,12 @@ type Var = Name
 type Path = [Name]
 
 -- | An environment is a map from keys to values.
-type Env k v = Map k v
+newtype Env k v = Env { envAsMap :: Map k v }
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
+
+-- | Apply a function to the map that implements this environment.
+envOnMap :: (Map k v -> Map k v) -> Env k v -> Env k v
+envOnMap f (Env m) = Env (f m)
 
 
 -- ** Errors
@@ -51,50 +57,50 @@ assumeSuccess (Left err) = error msg
 
 -- | Empty enivornment.
 envEmpty :: Env k v
-envEmpty = Map.empty
+envEmpty = Env Map.empty
 
 -- | Singleton environment.
 envSingle :: Ord k => k -> v -> Env k v
-envSingle = Map.singleton
+envSingle = Env .: Map.singleton
 
 -- | Construct an environment from an association list.
 envFromList :: Ord k => [(k,v)] -> Env k v
-envFromList = Map.fromList
+envFromList = Env . Map.fromList
 
 -- | Construct an environment from an association list, accumulating duplicate
 --   entries.
 envFromListAcc :: (Ord k, Monoid m) => [(k,m)] -> Env k m
 envFromListAcc []        = envEmpty
-envFromListAcc ((k,m):l) = envUnionWith mappend (Map.singleton k m) (envFromListAcc l)
+envFromListAcc ((k,m):l) = envUnionWith mappend (envSingle k m) (envFromListAcc l)
 
 
 -- ** Operations
 
 -- | Check whether an environment contains a particular name.
 envHas :: Ord k => k -> Env k v -> Bool
-envHas = Map.member
+envHas k = Map.member k . envAsMap
 
 -- | Extend an environment with a new name binding.
 envExtend :: Ord k => k -> v -> Env k v -> Env k v
-envExtend = Map.insert
+envExtend = envOnMap .: Map.insert
 
 -- | Delete a binding in an environment.
 envDelete :: Ord k => k -> Env k v -> Env k v
-envDelete = Map.delete
+envDelete = envOnMap . Map.delete
 
 -- | Left-biased union of two environments.
 envUnion :: Ord k => Env k v -> Env k v -> Env k v
-envUnion = Map.union
+envUnion (Env l) (Env r) = Env (Map.union l r)
 
 -- | Left-biased union of two environments.
 envUnionWith :: Ord k => (v -> v -> v) -> Env k v -> Env k v -> Env k v
-envUnionWith = Map.unionWith
+envUnionWith f (Env l) (Env r) = Env (Map.unionWith f l r)
 
 -- | Lookup a binding in an environment.
 envLookup :: (Ord k, Show k, Typeable k, MonadThrow m) => k -> Env k v -> m v
-envLookup k m = maybe notFound return (Map.lookup k m)
+envLookup k = maybe notFound return . Map.lookup k . envAsMap
   where notFound = throwM (NotFound k)
 
 -- | Apply a result-less monadic action to all key-value pairs.
 envMapM_ :: Monad m => (k -> v -> m ()) -> Env k v -> m ()
-envMapM_ f m = mapM_ (uncurry f) (Map.toAscList m)
+envMapM_ f = mapM_ (uncurry f) . Map.toAscList . envAsMap
