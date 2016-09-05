@@ -2,11 +2,26 @@ module DSL.Pretty where
 
 import Prelude hiding (LT,GT)
 
+import Data.List (intercalate)
+
+import DSL.Expression
 import DSL.Primitive
 
+
 --
--- * Keyword and Symbol Names
+-- * Expression Pretty Printer
 --
+
+-- ** Primitive Values
+
+pPVal :: PVal -> String
+pPVal Unit      = "()"
+pPVal (B True)  = "true"
+pPVal (B False) = "false"
+pPVal (I i)     = show i
+
+
+-- ** Symbol Names
 
 pOp2 :: Op2 -> String
 pOp2 (BB_B o) = pBB_B o
@@ -34,3 +49,22 @@ pII_I Sub = "-"
 pII_I Mul = "*"
 pII_I Div = "/"
 pII_I Mod = "%"
+
+
+-- ** Expressions
+
+pTerm :: Expr -> String
+pTerm (Ref x) = x
+pTerm (Lit v) = pPVal v
+pTerm e       = pParens (pExpr e)
+
+pExpr :: Expr -> String
+pExpr (Ref x)          = x
+pExpr (Lit v)          = pPVal v
+pExpr (P1 (B_B Not) e) = "!" ++ pTerm e
+pExpr (P1 (I_I Neg) e) = "-" ++ pTerm e
+pExpr (P2 o l r)       = intercalate " " [pTerm l, pOp2 o, pTerm r]
+pExpr e = error $ "Couldn't pretty print expression: " ++ show e
+
+pParens :: String -> String
+pParens s = "(" ++ s ++ ")"
