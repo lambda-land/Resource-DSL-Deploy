@@ -4,8 +4,8 @@ module DSL.Parser
 
 import Prelude hiding (LT,GT)
 
-import Control.Applicative (empty)
-import Control.Monad (liftM2,void)
+import Control.Applicative (empty,liftA2)
+import Control.Monad (void)
 
 import Data.Bifunctor (first)
 import Data.Text (Text,pack)
@@ -68,7 +68,7 @@ int :: Parser Int
 int = fmap fromInteger (lexeme L.integer) <?> "integer literal"
 
 var :: Parser Var
-var = lexeme (liftM2 (:) varStart (many varRest)) <?> "variable name"
+var = lexeme (liftA2 (:) varStart (many varRest)) <?> "variable name"
   where
     varStart = char '_' <|> letterChar
     varRest  = char '_' <|> alphaNumChar
