@@ -37,14 +37,20 @@ data Context = Ctx {
     dictionary  :: Dictionary  -- ^ dictionary of profiles and models
 } deriving (Data,Eq,Generic,Read,Show,Typeable)
 
-type EvalM a = StateT ResEnv (ReaderT Context IO) a
+-- Merge duplicate entries in a variable/resource environment by preferring
+-- the last entry.
+instance MergeDup PVal where
+  mergeDup _ r = r
 
--- | A monad for computations that affect a resource environment, given a
---   an evaluation context, and which may throw/catch exceptions.
+-- | A class of monads for computations that affect a resource environment,
+--   given an evaluation context, and which may throw/catch exceptions.
 class (MonadCatch m, MonadReader Context m, MonadState ResEnv m)
   => MonadEval m
 instance (MonadCatch m, MonadReader Context m, MonadState ResEnv m)
   => MonadEval m
+
+-- | A specific monad for running MonadEval computations.
+type EvalM a = StateT ResEnv (ReaderT Context IO) a
 
 -- | Execute a computation in a given context.
 runInContext :: Context -> ResEnv -> EvalM a -> IO (a, ResEnv)

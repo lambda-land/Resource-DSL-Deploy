@@ -143,8 +143,8 @@ instance (ToJSON k, ToJSON v) => ToJSON (Env k v) where
     where
       entry (k,v) = object [ "key" .= toJSON k, "value" .= toJSON v ]
 
-instance (FromJSON k, FromJSON v, Ord k) => FromJSON (Env k v) where
-  parseJSON (Array kvs) = fmap envFromList (mapM entry (toList kvs))
+instance (FromJSON k, FromJSON v, Ord k, MergeDup v) => FromJSON (Env k v) where
+  parseJSON (Array kvs) = fmap envFromListAcc (mapM entry (toList kvs))
     where
       entry (Object o) = do
         key <- o .: "key"

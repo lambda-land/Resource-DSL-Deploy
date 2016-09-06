@@ -67,11 +67,18 @@ envSingle = Env .: Map.singleton
 envFromList :: Ord k => [(k,v)] -> Env k v
 envFromList = Env . Map.fromList
 
--- | Construct an environment from an association list, accumulating duplicate
---   entries.
-envFromListAcc :: (Ord k, Monoid m) => [(k,m)] -> Env k m
+-- | Construct an environment from an association list, merging duplicates.
+envFromListAcc :: (Ord k, MergeDup m) => [(k,m)] -> Env k m
 envFromListAcc []        = envEmpty
-envFromListAcc ((k,m):l) = envUnionWith mappend (envSingle k m) (envFromListAcc l)
+envFromListAcc ((k,m):l) = envUnionWith mergeDup (envSingle k m) (envFromListAcc l)
+
+-- | Type class for merging duplicate values when constructing an environment
+--   from an association list.
+class MergeDup v where
+  mergeDup :: v -> v -> v
+
+instance MergeDup [a] where
+  mergeDup = (++)
 
 
 -- ** Operations

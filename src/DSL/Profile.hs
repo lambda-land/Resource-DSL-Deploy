@@ -35,3 +35,6 @@ loadProfile (Profile xs effs) args =
 composeProfiles :: Profile -> Profile -> Profile
 composeProfiles (Profile ps1 h1) (Profile ps2 h2) =
     Profile (union ps1 ps2) (envUnionWith (++) h1 h2)
+
+instance MergeDup Profile where
+  mergeDup = composeProfiles
