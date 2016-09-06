@@ -59,11 +59,12 @@ pTerm (Lit v) = pPVal v
 pTerm e       = pParens (pExpr e)
 
 pExpr :: Expr -> String
-pExpr (Ref x)          = x
-pExpr (Lit v)          = pPVal v
-pExpr (P1 (B_B Not) e) = "!" ++ pTerm e
-pExpr (P1 (I_I Neg) e) = "-" ++ pTerm e
-pExpr (P2 o l r)       = intercalate " " [pTerm l, pOp2 o, pTerm r]
+pExpr (Ref x)           = x
+pExpr (Lit v)           = pPVal v
+pExpr (P1 (B_B Not) e)  = "!" ++ pTerm e
+pExpr (P1 (I_I Neg) e)  = "-" ++ pTerm e
+pExpr (P2 (II_I o) l r) = concat [pTerm l, pII_I o, pTerm r]
+pExpr (P2 o l r)        = intercalate " " [pTerm l, pOp2 o, pTerm r]
 pExpr e = error $ "Couldn't pretty print expression: " ++ show e
 
 pParens :: String -> String
