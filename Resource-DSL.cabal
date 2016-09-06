@@ -39,7 +39,8 @@ library
     mtl,
     sbv,
     scientific,
-    text
+    text,
+    vector
   exposed-modules:
     Driver,
     DSL.Effect,
