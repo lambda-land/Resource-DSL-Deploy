@@ -20,7 +20,8 @@ import DSL.Resource
 -- ** Syntax
 
 -- | Named and primitively typed parameters.
-type Param = (Var,PType)
+data Param = P Var PType
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Unary functions.
 data Fun = Fun Param Expr
@@ -91,12 +92,12 @@ evalExpr (P2 o l r)  = do l' <- evalExpr l
 
 -- | Check the type of an argument.
 checkArg :: MonadEval m => Param -> PVal -> m (Var,PVal)
-checkArg p@(x,t) v | primType v == t = return (x,v)
-                   | otherwise       = throwM (ArgTypeError p v)
+checkArg p@(P x t) v | primType v == t = return (x,v)
+                     | otherwise       = throwM (ArgTypeError p v)
 
 -- | Evaluate a function.
 evalFun :: MonadEval m => Fun -> PVal -> m PVal
-evalFun (Fun p@(x,t) e) v = do
+evalFun (Fun p@(P x _) e) v = do
     checkArg p v
     withVarEnv (envExtend x v) (evalExpr e)
 

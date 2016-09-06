@@ -43,7 +43,7 @@ instance Exception StmtError
 
 -- | Check whether a unit-valued resource is present.
 checkUnit :: Name -> Stmt
-checkUnit n = Do n (Check (Fun ("x",TUnit) true))
+checkUnit n = Do n (Check (Fun (P "x" TUnit) true))
 
 -- | Provide a unit-valued resource.
 provideUnit :: Name -> Stmt
