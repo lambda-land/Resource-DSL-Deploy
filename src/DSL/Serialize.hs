@@ -12,6 +12,7 @@ import Data.Scientific (toBoundedInteger)
 import Data.Text (pack,unpack)
 import Data.Vector (fromList,toList)
 import System.Directory (createDirectoryIfMissing)
+import System.FilePath (takeDirectory)
 
 import qualified Data.ByteString.Lazy.Char8 as B
 
@@ -29,24 +30,19 @@ import DSL.Profile
 -- * Read/Write JSON Files
 -- 
 
--- | Construct a JSON file name from a directory and file name.
-jsonFile :: FilePath -> FilePath -> FilePath
-jsonFile dir file = dir ++ "/" ++ file ++ ".json"
+-- | Write value to a JSON file, creating the directory if needed.
+writeJSON :: ToJSON a => FilePath -> a -> IO ()
+writeJSON file x = do
+    createDirectoryIfMissing True (takeDirectory file)
+    B.writeFile file (encodePretty x)
 
--- | Write a JSON file to the given directory with the given name,
---   creating the directory if needed.
-writeJSON :: ToJSON a => FilePath -> FilePath -> a -> IO ()
-writeJSON dir file x = do
-    createDirectoryIfMissing True dir
-    B.writeFile (jsonFile dir file) (encodePretty x)
-
--- | Read a JSON file from the given directory with the given name.
-readJSON :: FromJSON a => FilePath -> FilePath -> IO a
-readJSON dir file = do
-    mx <- fmap decode (B.readFile (jsonFile dir file))
+-- | Read value from a JSON file.
+readJSON :: FromJSON a => FilePath -> IO a
+readJSON file = do
+    mx <- fmap decode (B.readFile file)
     case mx of
       Just x  -> return x
-      Nothing -> fail ("Error decoding JSON file: " ++ jsonFile dir file)
+      Nothing -> fail ("Error decoding JSON file: " ++ file)
 
 
 --

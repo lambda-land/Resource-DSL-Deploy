@@ -1,5 +1,7 @@
 module DSL.Driver where
 
+import Prelude hiding (init)
+
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
@@ -16,14 +18,18 @@ import DSL.Serialize
 -- * Run the Program
 --
 
-runDriver = do
-    dfus   <- readJSON "inbox" "dictionary"
-    init   <- readJSON "inbox" "resources"
-    model  <- readJSON "model" "model"
-    -- config <- readJSON "inbox" "configuration"
-    -- reqs   <- readJSON "inbox" "requirements"
-    let dict = fmap Left dfus
-    runWithDict dict init (loadModel model [])
+runDriver = getOptions >>= runWithOpts
+
+runWithOpts opts = do
+    dfus   <- readJSON (dict opts)
+    init   <- readJSON (init opts)
+    model  <- readJSON (model opts)
+    config <- readJSON (config opts)
+    reqs   <- readJSON (reqs opts)
+    let run r x = fmap snd (runWithDict (fmap Left dfus) r x)
+    out <- run init (loadModel model config)
+    run out (loadProfile reqs [])
+    writeJSON (output opts) out
 
 
 --
