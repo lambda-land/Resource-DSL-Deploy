@@ -2,6 +2,8 @@
 
 module DSL.Serialize where
 
+import Control.Monad (liftM2,liftM3)
+
 import Data.Aeson
 import Data.Aeson.Types
 import Data.Aeson.Encode.Pretty (encodePretty)
@@ -16,6 +18,7 @@ import qualified Data.ByteString.Lazy.Char8 as B
 import DSL.Effect
 import DSL.Environment
 import DSL.Expression
+import DSL.Model
 import DSL.Parser
 import DSL.Pretty
 import DSL.Primitive
@@ -91,12 +94,12 @@ instance FromJSON Param where
 
 instance ToJSON Fun where
   toJSON (Fun param body) = object
-    [ "param" .= toJSON param
-    , "body"  .= toJSON body ]
+    [ "parameter" .= toJSON param
+    , "body"      .= toJSON body ]
 
 instance FromJSON Fun where
   parseJSON (Object o) = do
-    param <- o .: "param"
+    param <- o .: "parameter"
     body  <- o .: "body"
     return (Fun param body)
   parseJSON bad = typeMismatch "Fun" bad
@@ -109,7 +112,24 @@ instance FromJSON Expr where
   parseJSON bad = typeMismatch "Expr" bad
 
 
--- ** Effects
+-- ** Environments
+
+instance (ToJSON k, ToJSON v) => ToJSON (Env k v) where
+  toJSON (Env m) = Array (fromList (map entry (toAscList m)))
+    where
+      entry (k,v) = object [ "key" .= toJSON k, "value" .= toJSON v ]
+
+instance (FromJSON k, FromJSON v, Ord k, MergeDup v) => FromJSON (Env k v) where
+  parseJSON (Array kvs) = fmap envFromListAcc (mapM entry (toList kvs))
+    where
+      entry (Object o) = do
+        key <- o .: "key"
+        val <- o .: "value"
+        return (key,val)
+  parseJSON bad = typeMismatch "Env" bad
+
+
+-- ** Effects and Profiles
 
 instance ToJSON Effect where
   toJSON (Create expr) = object
@@ -135,34 +155,68 @@ instance FromJSON Effect where
       _ -> fail $ "invalid effect name: " ++ show eff
   parseJSON bad = typeMismatch "Effect" bad
 
-
--- ** Environments
-
-instance (ToJSON k, ToJSON v) => ToJSON (Env k v) where
-  toJSON (Env m) = Array (fromList (map entry (toAscList m)))
-    where
-      entry (k,v) = object [ "key" .= toJSON k, "value" .= toJSON v ]
-
-instance (FromJSON k, FromJSON v, Ord k, MergeDup v) => FromJSON (Env k v) where
-  parseJSON (Array kvs) = fmap envFromListAcc (mapM entry (toList kvs))
-    where
-      entry (Object o) = do
-        key <- o .: "key"
-        val <- o .: "value"
-        return (key,val)
-  parseJSON bad = typeMismatch "Env" bad
-
-
--- ** Profiles
-
 instance ToJSON Profile where
   toJSON (Profile xs effs) = object
-    [ "params"  .= toJSON xs
-    , "effects" .= toJSON effs ]
+    [ "parameters" .= toJSON xs
+    , "effects"    .= toJSON effs ]
 
 instance FromJSON Profile where
   parseJSON (Object o) = do
-    xs   <- o .: "params"
+    xs   <- o .: "parameters"
     effs <- o .: "effects"
     return (Profile xs effs)
   parseJSON bad = typeMismatch "Profile" bad
+
+
+-- ** Statements and Models
+
+instance ToJSON Stmt where
+  toJSON (Do name eff) = object
+    [ "statement" .= String "do"
+    , "name"      .= String (pack name)
+    , "effect"    .= toJSON eff ]
+  toJSON (In ctx body) = object
+    [ "statement" .= String "in"
+    , "context"   .= toJSON ctx
+    , "body"      .= toJSON body ]
+  toJSON (If cond tru fls) = object
+    [ "statement" .= String "if"
+    , "condition" .= toJSON cond
+    , "then"      .= toJSON tru
+    , "else"      .= toJSON fls ]
+  toJSON (Let x bound body) = object
+    [ "statement" .= String "let"
+    , "variable"  .= String (pack x)
+    , "bound"     .= toJSON bound
+    , "body"      .= toJSON body ]
+  toJSON (Load name args) = object
+    [ "statement" .= String "load"
+    , "name"      .= String (pack name)
+    , "arguments" .= toJSON args ]
+
+instance FromJSON Stmt where
+  parseJSON (Object o) = do
+      stmt <- o .: "statement"
+      case stmt of
+        String "do"   -> liftM2 Do (string "name") (object "body")
+        String "in"   -> liftM2 In (object "context") (object "body")
+        String "if"   -> liftM3 If (object "condition") (object "then") (object "else")
+        String "let"  -> liftM3 Let (string "variable") (object "bound") (object "body")
+        String "load" -> liftM2 Load (string "name") (object "arguments")
+        _ -> fail $ "invalid statement name: " ++ show stmt
+    where
+      string k = do String t <- o .: k; return (unpack t)
+      object k = o .: k >>= parseJSON
+  parseJSON bad = typeMismatch "Stmt" bad
+
+instance ToJSON Model where
+  toJSON (Model xs block) = object
+    [ "parameters" .= toJSON xs
+    , "block"      .= toJSON block ]
+
+instance FromJSON Model where
+  parseJSON (Object o) = do
+    xs    <- o .: "parameters"
+    block <- o .: "block"
+    return (Model xs block)
+  parseJSON bad = typeMismatch "Model" bad
