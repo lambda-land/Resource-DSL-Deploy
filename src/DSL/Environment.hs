@@ -34,7 +34,7 @@ newtype Env k v = Env { envAsMap :: Map k v }
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Apply a function to the map that implements this environment.
-envOnMap :: (Map k v -> Map k v) -> Env k v -> Env k v
+envOnMap :: (Map a b -> Map c d) -> Env a b -> Env c d
 envOnMap f (Env m) = Env (f m)
 
 
@@ -111,3 +111,6 @@ envLookup k = maybe notFound return . Map.lookup k . envAsMap
 -- | Apply a result-less monadic action to all key-value pairs.
 envMapM_ :: Monad m => (k -> v -> m ()) -> Env k v -> m ()
 envMapM_ f = mapM_ (uncurry f) . Map.toAscList . envAsMap
+
+instance Functor (Env k) where
+  fmap = envOnMap . fmap

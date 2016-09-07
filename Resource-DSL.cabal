@@ -42,7 +42,7 @@ library
     text,
     vector
   exposed-modules:
-    Driver,
+    DSL.Driver,
     DSL.Effect,
     DSL.Environment,
     DSL.Expression,
