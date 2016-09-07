@@ -37,6 +37,7 @@ library
     directory,
     megaparsec,
     mtl,
+    optparse-applicative,
     sbv,
     scientific,
     text,
