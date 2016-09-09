@@ -7,6 +7,7 @@ import Control.Monad (liftM2,liftM3)
 import Data.Aeson
 import Data.Aeson.Types
 import Data.Aeson.Encode.Pretty (encodePretty)
+import Data.Either (either)
 import Data.Map.Strict (toAscList)
 import Data.Scientific (toBoundedInteger)
 import Data.Text (pack,unpack)
@@ -30,11 +31,9 @@ import DSL.Profile
 -- * Read/Write JSON Files
 -- 
 
--- | Write value to a JSON file, creating the directory if needed.
-writeJSON :: ToJSON a => FilePath -> a -> IO ()
-writeJSON file x = do
-    createDirectoryIfMissing True (takeDirectory file)
-    B.writeFile file (encodePretty x)
+-- | Parse a String containing a JSON value.
+decodeJSON :: FromJSON a => String -> IO a
+decodeJSON = either fail return . eitherDecode . B.pack
 
 -- | Read value from a JSON file.
 readJSON :: FromJSON a => FilePath -> IO a
@@ -43,6 +42,12 @@ readJSON file = do
     case mx of
       Just x  -> return x
       Nothing -> fail ("Error decoding JSON file: " ++ file)
+
+-- | Write value to a JSON file, creating the directory if needed.
+writeJSON :: ToJSON a => FilePath -> a -> IO ()
+writeJSON file x = do
+    createDirectoryIfMissing True (takeDirectory file)
+    B.writeFile file (encodePretty x)
 
 
 --
