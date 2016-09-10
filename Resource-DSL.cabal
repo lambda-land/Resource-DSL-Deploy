@@ -57,7 +57,8 @@ library
     DSL.Resource,
     DSL.SAT,
     DSL.Serialize,
-    DSL.Value
+    DSL.Value,
+    Example.Location
 
 executable resource-dsl
   hs-source-dirs:   app

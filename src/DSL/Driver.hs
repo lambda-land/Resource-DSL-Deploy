@@ -15,14 +15,22 @@ import DSL.Profile
 import DSL.Resource
 import DSL.Serialize
 
+import Example.Location
+
 
 --
 -- * Run the Program
 --
 
-runDriver = getOptions >>= runWithOpts
+runDriver :: IO ()
+runDriver = do
+    cmd <- getCommand
+    case cmd of
+      Check opts -> runCheck opts
+      Example (Location opts) -> runLocation opts
 
-runWithOpts opts = do
+runCheck :: CheckOpts -> IO ()
+runCheck opts = do
     dfus  <- readJSON (dictFile opts)
     init  <- readJSON (initFile opts)
     model <- readJSON (modelFile opts)
@@ -41,6 +49,11 @@ runWithOpts opts = do
 -- * Command Line Arguments
 --
 
+data Command
+     = Check   CheckOpts
+     | Example Example
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
+
 data CheckOpts = CheckOpts
      { noReqs      :: Bool
      , configValue :: Maybe String
@@ -52,17 +65,34 @@ data CheckOpts = CheckOpts
      , reqsFile    :: FilePath }
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
-data Command
-     = Check   CheckOpts
-     | Example Examples
+data Example
+     = Location LocationOpts
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
-data Examples
-     = Location -- LocationOptions
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
+getCommand :: IO Command
+getCommand = getArgs >>= handleParseResult . execParserPure pref desc
+  where
+    pref = prefs (columns 100)
+    desc = info (helper <*> parseCommand) fullDesc
 
-checkOpts :: Parser CheckOpts
-checkOpts = CheckOpts
+parseCommand :: Parser Command
+parseCommand = subparser
+     ( command "check" 
+        (info (Check <$> (helper <*> parseCheckOpts))
+        (progDesc ("Execute an application model on a given resource environment; "
+          ++ "optionally check result against given mission requirements")))
+    <> command "example" 
+        (info (Example <$> (helper <*> parseExample))
+        (progDesc ("Generate example inputs and put them in the inbox"))) )
+
+parseExample :: Parser Example
+parseExample = subparser
+     ( command "location"
+        (info (Location <$> (helper <*> parseLocationOpts))
+        (progDesc ("Location provider example"))) )
+
+parseCheckOpts :: Parser CheckOpts
+parseCheckOpts = CheckOpts
   <$> switch
        ( short 'n'
       <> long "no-reqs"
@@ -76,38 +106,32 @@ checkOpts = CheckOpts
 
   <*> pathOption
        ( long "dict-file"
-      <> value "inbox/dictionary.json"
+      <> value defaultDict
       <> help "Dictionary of DFU profiles" )
   
   <*> pathOption
        ( long "init-file"
-      <> value "inbox/resources.json"
+      <> value defaultInit
       <> help "Initial resource environment" )
   
   <*> pathOption
        ( long "model-file"
-      <> value "inbox/model.json"
+      <> value defaultModel
       <> help "Application model" )
   
   <*> pathOption
        ( long "config-file"
-      <> value "inbox/configuration.json"
+      <> value defaultConfig
       <> help "Arguments to the application model" )
   
   <*> pathOption
        ( long "reqs-file"
-      <> value "inbox/requirements.json"
+      <> value defaultReqs
       <> help "Mission requirements profile" )
   
   <*> pathOption
        ( long "output-file"
-      <> value "outbox/resources.json"
+      <> value defaultOutput
       <> help "Final resource environment" )
   where
     pathOption mods = strOption (mods <> showDefault <> metavar "FILE")
-
-getOptions :: IO CheckOpts
-getOptions = getArgs >>= handleParseResult . execParserPure pref desc
-  where
-    pref = prefs (columns 100)
-    desc = info (helper <*> checkOpts) fullDesc

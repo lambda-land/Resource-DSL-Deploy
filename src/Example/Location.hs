@@ -1,6 +1,11 @@
 module Example.Location where
 
+import Data.Data (Data,Typeable)
+import GHC.Generics (Generic)
+
+import Control.Monad (when)
 import Data.List (intercalate,subsequences)
+import Options.Applicative
 
 import DSL.Environment
 import DSL.Expression
@@ -8,7 +13,12 @@ import DSL.Model
 import DSL.Primitive
 import DSL.Profile
 import DSL.Resource
+import DSL.Serialize
 
+
+--
+-- * Location Provider Example
+--
 
 -- ** Application model
 
@@ -16,7 +26,7 @@ import DSL.Resource
 --   location provider to use. NOTE: This is the only thing that is currently
 --   required to be written in the DSL directly. Everything else can be passed
 --   in via the JSON interface.
-appModel = Model [("provider", TInt)]
+appModel = Model [P "provider" TInt]
     [ caseOf (Ref "provider")
       [ (1, [Load "gps-android" []])
       , (2, [Load "gps-bluetooth" []])
@@ -90,6 +100,13 @@ locationEnvs = [(toID ps, toEnv ps) | ps <- tail (subsequences paths)]
     toID  = intercalate "+" . map (intercalate ".")
     paths = [["GPS","SAT"],["GPS","Dev"],["Ext","USB"],["Ext","BT"],["UI"]]
 
+-- | Lookup a location environment by ID.
+lookupLocationEnv :: Monad m => String -> m ResEnv
+lookupLocationEnv envID = case lookup envID locationEnvs of
+    Just env -> return env
+    Nothing -> fail $ "bad environment ID, try one of: \n" ++ ids
+  where ids = intercalate "\n" (map fst locationEnvs)
+
 
 -- ** Mission requirements
 
@@ -109,10 +126,59 @@ locationReqs :: [(String, Profile)]
 locationReqs = [("location", hasLocation), ("saasm", hasSaasm)]
 
 
--- ** Testing
+--
+-- * Driver
+--
+
+-- ** Basic Tests
 
 runLocationTest :: String -> Int -> IO ResEnv
-runLocationTest initID dfuID = case lookup initID locationEnvs of
-    Just init -> fmap snd $ runWithDict locationDFUs init (loadModel appModel [Lit (I dfuID)])
-    Nothing -> error $ "bad initial environment ID, try one of: \n" ++ ids
-  where ids = intercalate "\n" (map fst locationEnvs)
+runLocationTest initID dfuID = do
+    init <- lookupLocationEnv initID
+    fmap snd $ runWithDict locationDFUs init (loadModel appModel [Lit (I dfuID)])
+
+
+-- ** Driver Plugin
+
+data LocationOpts = LocationOpts
+     { genDict  :: Bool
+     , genModel :: Bool
+     , genReqs  :: Bool
+     , genSaasm :: Bool
+     , genInit  :: Maybe String }
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
+
+parseLocationOpts :: Parser LocationOpts
+parseLocationOpts = LocationOpts
+  <$> switch
+       ( long "dict"
+      <> help "Generate DFU dictionary" )
+  
+  <*> switch
+       ( long "model"
+      <> help "Generate application model" )
+  
+  <*> switch
+       ( long "reqs"
+      <> help "Generate mission requirements" )
+
+  <*> switch
+       ( long "saasm"
+      <> help "Generate SAASM mission requirements; overrides --req" )
+
+  <*> (optional . strOption)
+       ( long "init"
+      <> metavar "STRING"
+      <> help ("Generate initial resource environment; valid strings: "
+               ++ intercalate ", " (map fst locationEnvs)) )
+
+runLocation :: LocationOpts -> IO ()
+runLocation opts = do
+    when (genDict opts)  (writeJSON defaultDict locationDFUs)
+    when (genModel opts) (writeJSON defaultModel appModel)
+    when (genReqs opts)  (writeJSON defaultReqs hasLocation)
+    when (genSaasm opts) (writeJSON defaultReqs hasSaasm)
+    case genInit opts of
+      Just k  -> lookupLocationEnv k >>= writeJSON defaultInit
+      Nothing -> return ()
+

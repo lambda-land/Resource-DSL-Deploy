@@ -28,6 +28,18 @@ import DSL.Profile
 
 
 --
+-- * Default File Paths
+--
+
+defaultDict   = "inbox/dictionary.json"
+defaultInit   = "inbox/resources.json"
+defaultModel  = "inbox/model.json"
+defaultConfig = "inbox/configuration.json"
+defaultReqs   = "inbox/requirements.json"
+defaultOutput = "outbox/resources.json"
+
+
+--
 -- * Read/Write JSON Files
 -- 
 
