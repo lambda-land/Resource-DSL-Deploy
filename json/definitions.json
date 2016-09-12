@@ -1,0 +1,253 @@
+{
+  "$schema": "http://json-schema.org/schema#",
+  "title": "Immortals: DSL Exchange Format Definitions",
+
+  "definitions": {
+
+    "primType": {
+      "type": "string",
+      "enum": [ "bool", "int", "unit" ]
+    },
+
+    "primValue": {
+      "anyOf": [
+        { "type": "boolean" },
+        { "type": "integer" },
+        { "type": "null" }
+      ]
+    },
+    
+    "path": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+
+    "parameter": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "$ref": "#/definitions/primType" }
+      },
+      "required": [ "name", "type" ]
+    },
+
+    "expression": {
+      "type": "string"
+    },
+
+    "function": {
+      "type": "object",
+      "properties": {
+        "parameter": { "$ref": "#/definitions/parameter" },
+        "body": { "$ref": "#/definitions/expression" }
+      },
+      "required": [ "parameter", "body" ]
+    },
+
+    "createEffect": {
+      "type": "object",
+      "properties": {
+        "effect": { "enum": [ "create" ] },
+        "expression": { "$ref": "#/definitions/expression" }
+      },
+      "required": [ "effect", "expression" ]
+    },
+    
+    "checkEffect": {
+      "type": "object",
+      "properties": {
+        "effect": { "enum": [ "check" ] },
+        "function": { "$ref": "#/definitions/function" }
+      },
+      "required": [ "effect", "function" ]
+    },
+    
+    "modifyEffect": {
+      "type": "object",
+      "properties": {
+        "effect": { "enum": [ "modify" ] },
+        "function": { "$ref": "#/definitions/function" }
+      },
+      "required": [ "effect", "function" ]
+    },
+    
+    "deleteEffect": {
+      "type": "object",
+      "properties": {
+        "effect": { "enum": [ "delete" ] }
+      },
+      "required": [ "effect" ]
+    },
+
+    "effect": {
+      "anyOf": [
+        { "$ref": "#/definitions/createEffect" },
+        { "$ref": "#/definitions/checkEffect" },
+        { "$ref": "#/definitions/modifyEffect" },
+        { "$ref": "#/definitions/deleteEffect" }
+      ]
+    },
+
+    "doStatement": {
+      "type": "object",
+      "properties": {
+        "statement": { "enum": [ "do" ] },
+        "name": { "type": "string" },
+        "effect": { "$ref": "#/definitions/effect" }
+      },
+      "required": [ "statement", "name", "effect" ]
+    },
+    
+    "inStatement": {
+      "type": "object",
+      "properties": {
+        "statement": { "enum": [ "in" ] },
+        "context": { "$ref": "#/definitions/path" },
+        "body": { "$ref": "#/definitions/block" }
+      },
+      "required": [ "statement", "context", "body" ]
+    },
+    
+    "ifStatement": {
+      "type": "object",
+      "properties": {
+        "statement": { "enum": [ "if" ] },
+        "condition": { "$ref": "#/definitions/expression" },
+        "then": { "$ref": "#/definitions/block" },
+        "else": { "$ref": "#/definitions/block" }
+      },
+      "required": [ "statement", "condition", "then", "else" ]
+    },
+    
+    "letStatement": {
+      "type": "object",
+      "properties": {
+        "statement": { "enum": [ "let" ] },
+        "variable": { "type": "string" },
+        "bound": { "$ref": "#/definitions/expression" },
+        "body": { "$ref": "#/definitions/block" }
+      },
+      "required": [ "statement", "variable", "bound", "body" ]
+    },
+    
+    "loadStatement": {
+      "type": "object",
+      "properties": {
+        "statement": { "enum": [ "load" ] },
+        "name": { "type": "string" },
+        "arguments": { 
+          "type": "array",
+          "items": { "$ref": "#/definitions/expression" }
+        }
+      },
+      "required": [ "statement", "name", "arguments" ]
+    },
+    
+    "statement": {
+      "anyOf": [
+        { "$ref": "#/definitions/doStatement" },
+        { "$ref": "#/definitions/inStatement" },
+        { "$ref": "#/definitions/ifStatement" },
+        { "$ref": "#/definitions/letStatement" },
+        { "$ref": "#/definitions/loadStatement" }
+      ]
+    },
+
+    "block": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/statement" }
+    },
+
+    "profileEffects": {
+      "type": "object",
+      "properties": {
+        "key": { "$ref": "#/definitions/path" },
+        "value": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/effect" }
+        }
+      },
+      "required": [ "key", "value" ]
+    },
+
+    "profile": {
+      "type": "object",
+      "properties": {
+        "parameters": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/parameter" }
+        },
+        "effects": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/profileEffects" }
+        }
+      },
+      "required": [ "parameters", "effects" ]
+    },
+    
+    "model": {
+      "type": "object",
+      "properties": {
+        "parameters": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/parameter" }
+        },
+        "block": { "$ref": "#/definitions/block" }
+      },
+      "required": [ "parameters", "block" ]
+    },
+
+    "profileEntry": {
+      "type": "object",
+      "properties": {
+        "type": { "enum": [ "profile" ] },
+        "entry": { "$ref": "#/definitions/profile" }
+      },
+      "required": [ "type", "entry" ]
+    },
+    
+    "modelEntry": {
+      "type": "object",
+      "properties": {
+        "type": { "enum": [ "model" ] },
+        "entry": { "$ref": "#/definitions/model" }
+      },
+      "required": [ "type", "entry" ]
+    },
+
+    "entry": {
+      "anyOf": [
+        { "$ref": "#/definitions/profileEntry" },
+        { "$ref": "#/definitions/modelEntry" }
+      ]
+    },
+
+    "dictionary": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": { "type": "string" },
+          "value": { "$ref": "#/definitions/entry" }
+        },
+        "required": [ "key", "value" ]
+      }
+    },
+
+    "resourceEnv": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": { "$ref": "#/definitions/path" },
+          "value": { "$ref": "#/definitions/primValue" }
+        },
+        "required": [ "key", "value" ]
+      }
+    }
+
+  },
+
+  "$ref": "#/definitions/model"
+
+}

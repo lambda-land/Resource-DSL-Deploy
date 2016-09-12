@@ -17,6 +17,27 @@ import {-# SOURCE #-} DSL.Model   (Model)
 import {-# SOURCE #-} DSL.Profile (Profile)
 
 
+--
+-- * Dictionary
+--
+
+-- | Dictionary entry.
+data Entry
+     = ProEntry Profile
+     | ModEntry Model
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
+
+-- | Dictionary of profiles and models.
+type Dictionary = Env Var Entry
+
+-- Merge duplicate dictionary entries. For now, merges profiles w/ profiles
+-- and models w/ models, otherwise throws an error.
+instance MergeDup Entry where
+  mergeDup (ProEntry l) (ProEntry r) = ProEntry (mergeDup l r)
+  mergeDup (ModEntry l) (ModEntry r) = ModEntry (mergeDup l r)
+  mergeDup l r = error "mergeDup (Entry): cannot merge profile and model"
+
+
 -- 
 -- * Evaluation Monad
 --
@@ -27,9 +48,6 @@ type VarEnv = Env Var PVal
 -- | Resource environment.
 type ResEnv = Env Path PVal -- TODO make variational
 
--- | Dictionary of profiles and models.
-type Dictionary = Env Var (Either Profile Model)
-
 -- | Reader context for evaluation.
 data Context = Ctx {
     prefix      :: Path,       -- ^ resource path prefix
@@ -37,10 +55,9 @@ data Context = Ctx {
     dictionary  :: Dictionary  -- ^ dictionary of profiles and models
 } deriving (Data,Eq,Generic,Read,Show,Typeable)
 
--- Merge duplicate entries in a variable/resource environment by preferring
--- the last entry.
+-- Throw an error if we attempt to merge two primitive values.
 instance MergeDup PVal where
-  mergeDup _ r = r
+  mergeDup r1 r2 = error "mergeDup (PVal): attempted to merge duplicate entries"
 
 -- | A class of monads for computations that affect a resource environment,
 --   given an evaluation context, and which may throw/catch exceptions.

@@ -31,10 +31,10 @@ runDriver = do
 
 runCheck :: CheckOpts -> IO ()
 runCheck opts = do
-    dfus  <- readJSON (dictFile opts)
+    dict  <- readJSON (dictFile opts)
     init  <- readJSON (initFile opts)
     model <- readJSON (modelFile opts)
-    let run r x = fmap snd (runWithDict (fmap Left dfus) r x)
+    let run r x = fmap snd (runWithDict dict r x)
     args <- case configValue opts of
               Just xs -> decodeJSON xs
               Nothing -> readJSON (configFile opts)

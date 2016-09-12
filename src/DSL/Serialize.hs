@@ -25,6 +25,7 @@ import DSL.Parser
 import DSL.Pretty
 import DSL.Primitive
 import DSL.Profile
+import DSL.Resource
 
 
 --
@@ -96,7 +97,7 @@ instance FromJSON PVal where
 instance ToJSON Param where
   toJSON (P pname ptype) = object
     [ "name" .= String (pack pname)
-    , "type" .= String (pack (show ptype)) ]
+    , "type" .= toJSON ptype ]
 
 instance FromJSON Param where
   parseJSON (Object o) = do
@@ -140,6 +141,24 @@ instance (FromJSON k, FromJSON v, Ord k, MergeDup v) => FromJSON (Env k v) where
         val <- o .: "value"
         return (key,val)
   parseJSON bad = typeMismatch "Env" bad
+
+instance ToJSON Entry where
+  toJSON (ProEntry p) = object
+    [ "type"  .= String "profile"
+    , "entry" .= toJSON p ]
+  toJSON (ModEntry m) = object
+    [ "type"  .= String "model"
+    , "entry" .= toJSON m ]
+
+instance FromJSON Entry where
+  parseJSON (Object o) = do
+    t <- o .: "type"
+    e <- o .: "entry"
+    case t of
+      String "profile" -> fmap ProEntry (parseJSON e)
+      String "model"   -> fmap ModEntry (parseJSON e)
+      _ -> fail $ "invalid entry type: " ++ show t
+  parseJSON bad = typeMismatch "Entry" bad
 
 
 -- ** Effects and Profiles
@@ -211,12 +230,12 @@ instance FromJSON Stmt where
   parseJSON (Object o) = do
       stmt <- o .: "statement"
       case stmt of
-        String "do"   -> liftM2 Do (string "name") (object "body")
+        String "do"   -> liftM2 Do (string "name") (object "effect")
         String "in"   -> liftM2 In (object "context") (object "body")
         String "if"   -> liftM3 If (object "condition") (object "then") (object "else")
         String "let"  -> liftM3 Let (string "variable") (object "bound") (object "body")
         String "load" -> liftM2 Load (string "name") (object "arguments")
-        _ -> fail $ "invalid statement name: " ++ show stmt
+        _ -> fail $ "invalid statement type: " ++ show stmt
     where
       string k = do String t <- o .: k; return (unpack t)
       object k = o .: k >>= parseJSON
