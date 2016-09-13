@@ -86,6 +86,10 @@ provided in the following input file.
  
  * `inbox/requirements.json` -- mission requirements
 
+Alternatively, you can pass the `--no-reqs` option to the `check` subcommand to
+generate the output resource environment without checking it against any
+mission requirements.
+
 
 ### Outputs
 
