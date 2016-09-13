@@ -140,7 +140,7 @@ requirements, and an initial resource environment containing the resources
 GPS.SAT and Ext.USB:
 
 ```bash
-> stack exec resource-dsl -- example location --dict --model --reqs --saasm GPS.SAT+Ext.USB
+> stack exec resource-dsl -- example location --dict --model --saasm --init GPS.SAT+Ext.USB
 ```
 
 Next, we want to check loading the application model with various input
