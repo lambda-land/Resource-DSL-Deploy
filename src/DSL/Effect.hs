@@ -35,7 +35,6 @@ data EffectErrorKind
      | CheckTypeError
      | NoSuchResource
      | ResourceAlreadyExists
-     | EffectConflict
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | An error resulting from applying a resource effect.

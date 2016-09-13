@@ -4,15 +4,49 @@ import Prelude hiding (LT,GT)
 
 import Data.List (intercalate)
 
+import DSL.Effect
+import DSL.Environment
 import DSL.Expression
 import DSL.Primitive
 
 
 --
--- * Expression Pretty Printer
+-- * Resources
 --
 
--- ** Primitive Values
+pPath :: Path -> String
+pPath = intercalate "."
+
+pEffect :: Effect -> String
+pEffect (Create e) = "create " ++ pExpr e
+pEffect (Check f)  = "check " ++ pFun f
+pEffect (Modify f) = "modify " ++ pFun f
+pEffect Delete     = "delete"
+
+pEffectErrorKind :: EffectErrorKind -> String
+pEffectErrorKind CheckFailure          = "Resource check failure"
+pEffectErrorKind CheckTypeError        = "Type error on resource check"
+pEffectErrorKind NoSuchResource        = "No such resource"
+pEffectErrorKind ResourceAlreadyExists = "Resource already exists"
+
+pEffectError :: EffectError -> String
+pEffectError err = unlines $
+    [ pEffectErrorKind (errorKind err) ++ ":"
+    , "  At path: " ++ pPath (errorPath err)
+    , "  While executing: " ++ pEffect (errorEffect err) ]
+    ++ maybe [] (\v -> ["  Resource value: " ++ pPVal v]) (errorValue err)
+
+
+--
+-- * Expressions
+--
+
+-- ** Primitives
+
+pPType :: PType -> String
+pPType TUnit = "unit"
+pPType TBool = "bool"
+pPType TInt  = "int"
 
 pPVal :: PVal -> String
 pPVal Unit      = "()"
@@ -69,3 +103,12 @@ pExpr e = error $ "Couldn't pretty print expression: " ++ show e
 
 pParens :: String -> String
 pParens s = "(" ++ s ++ ")"
+
+
+-- ** Functions
+
+pParam :: Param -> String
+pParam (P x t) = x ++ ":" ++ pPType t
+
+pFun :: Fun -> String
+pFun (Fun p e) = "λ" ++ pParam p ++ "." ++ pExpr e
