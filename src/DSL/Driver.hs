@@ -44,16 +44,17 @@ runCheck opts = do
               Just xs -> decodeJSON xs
               Nothing -> readJSON (configFile opts)
     out <- run init (loadModel model (map Lit args))
-      `catchErr` "Error executing application model ..."
+      `catchErr` (2,"Error executing application model ...")
     writeJSON (outputFile opts) out
     unless (noReqs opts) $ do
       reqs <- readJSON (reqsFile opts)
       void (run out (loadProfile reqs []))
-        `catchErr` "Requirements not satisfied ..."
+        `catchErr` (3,"Requirements not satisfied ...")
+    putStrLn "OK"
   where
-    catchErr x msg = catch x $ \err -> do
+    catchErr x (code,msg) = catch x $ \err -> do
       putStrLn (msg ++ "\n" ++ pEffectError err)
-      exitWith (ExitFailure 3)
+      exitWith (ExitFailure code)
 
 
 --
