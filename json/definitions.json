@@ -234,7 +234,7 @@
       }
     },
 
-    "resourceEnv": {
+    "resources": {
       "type": "array",
       "items": {
         "type": "object",
@@ -246,8 +246,6 @@
       }
     }
 
-  },
-
-  "$ref": "#/definitions/model"
+  }
 
 }

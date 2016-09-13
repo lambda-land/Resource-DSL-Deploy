@@ -1,0 +1,6 @@
+{
+  "$schema": "http://json-schema.org/schema#",
+  "title": "Immortals: DSL Resource Environment Format",
+  
+  "$ref": "definitions.json#/definitions/resources"
+}

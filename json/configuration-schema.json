@@ -1,0 +1,7 @@
+{
+  "$schema": "http://json-schema.org/schema#",
+  "title": "Immortals: DSL Configuration Format",
+  
+  "type": "array",
+  "items": { "$ref": "definitions.json#/definitions/primValue" }
+}
