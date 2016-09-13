@@ -13,6 +13,7 @@ import System.Environment (getArgs,withArgs)
 import System.Exit
 
 import DSL.Effect hiding (Check)
+import DSL.Expression
 import DSL.Model
 import DSL.Profile
 import DSL.Resource
@@ -42,7 +43,7 @@ runCheck opts = do
     args <- case configValue opts of
               Just xs -> decodeJSON xs
               Nothing -> readJSON (configFile opts)
-    out <- run init (loadModel model args)
+    out <- run init (loadModel model (map Lit args))
       `catchErr` "Error executing application model ..."
     writeJSON (outputFile opts) out
     unless (noReqs opts) $ do
