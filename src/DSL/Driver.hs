@@ -61,8 +61,8 @@ data CheckOpts = CheckOpts
      , initFile    :: FilePath
      , modelFile   :: FilePath
      , configFile  :: FilePath
-     , outputFile  :: FilePath
-     , reqsFile    :: FilePath }
+     , reqsFile    :: FilePath
+     , outputFile  :: FilePath }
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 data Example

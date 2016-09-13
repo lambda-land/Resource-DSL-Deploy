@@ -70,8 +70,8 @@ int = fmap fromInteger (lexeme L.integer) <?> "integer literal"
 var :: Parser Var
 var = lexeme (liftA2 (:) varStart (many varRest)) <?> "variable name"
   where
-    varStart = char '_' <|> letterChar
-    varRest  = char '_' <|> alphaNumChar
+    varStart = char '$' <|> char '_' <|> letterChar
+    varRest  = char '$' <|> char '_' <|> alphaNumChar
 
 parens :: Parser a -> Parser a
 parens = between (symbol "(") (symbol ")")
