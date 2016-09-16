@@ -89,9 +89,9 @@ opTable =
     ]
   where
     op fixity f name = fixity (f <$ symbol name)
-    inII_I o = op InfixL (opII_I o) (pII_I o)
-    inII_B o = op InfixN (opII_B o) (pII_B o)
-    inBB_B o = op InfixR (opBB_B o) (pBB_B o)
+    inII_I o = op InfixL (opII_I o) (prettyII_I o)
+    inII_B o = op InfixN (opII_B o) (prettyII_B o)
+    inBB_B o = op InfixR (opBB_B o) (prettyBB_B o)
 
 expr :: Parser Expr
 expr = makeExprParser term opTable <?> "expression"

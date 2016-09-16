@@ -119,7 +119,7 @@ instance FromJSON Fun where
   parseJSON bad = typeMismatch "Fun" bad
 
 instance ToJSON Expr where
-  toJSON = String . pack . pExpr
+  toJSON = String . pack . prettyExpr
 
 instance FromJSON Expr where
   parseJSON (String t) = either fail pure (parseExprText t)
