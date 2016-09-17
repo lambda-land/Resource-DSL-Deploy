@@ -36,24 +36,24 @@ runDriver = do
 
 runCheck :: CheckOpts -> IO ()
 runCheck opts = do
-    dict  <- readJSON (dictFile opts)
-    init  <- readJSON (initFile opts)
-    model <- readJSON (modelFile opts)
+    dict  <- readJSON (dictFile opts) asDictionary
+    init  <- readJSON (initFile opts) asResEnv
+    model <- readJSON (modelFile opts) asModel
     let run r x = fmap snd (runWithDict dict r x)
     args <- case configValue opts of
-              Just xs -> decodeJSON xs
-              Nothing -> readJSON (configFile opts)
+              Just xs -> decodeJSON xs asConfig
+              Nothing -> readJSON (configFile opts) asConfig
     out <- run init (loadModel model (map Lit args))
-      `catchErr` (2,"Error executing application model ...")
+      `catchEffErr` (2,"Error executing application model ...")
     writeJSON (outputFile opts) out
     unless (noReqs opts) $ do
-      reqs <- readJSON (reqsFile opts)
+      reqs <- readJSON (reqsFile opts) asProfile
       void (run out (loadProfile reqs []))
-        `catchErr` (3,"Requirements not satisfied ...")
+        `catchEffErr` (3,"Requirements not satisfied ...")
     putStrLn "OK"
   where
-    catchErr x (code,msg) = catch x $ \err -> do
-      putStrLn (msg ++ "\n" ++ pEffectError err)
+    catchEffErr x (code,msg) = catch x $ \err -> do
+      putStrLn (msg ++ "\n" ++ prettyEffectError err)
       exitWith (ExitFailure code)
 
 

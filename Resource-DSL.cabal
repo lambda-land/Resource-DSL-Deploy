@@ -29,6 +29,7 @@ library
   build-depends:
     base,
     aeson,
+    aeson-better-errors,
     aeson-pretty,
     bytestring,
     composition,
