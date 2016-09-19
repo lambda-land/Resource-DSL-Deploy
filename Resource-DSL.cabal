@@ -41,7 +41,6 @@ library
     mtl,
     optparse-applicative,
     sbv,
-    scientific,
     text,
     vector
   exposed-modules:
