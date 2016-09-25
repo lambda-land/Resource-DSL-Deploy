@@ -1,4 +1,4 @@
-module Example.Location where
+module DSL.Example.Location where
 
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
