@@ -68,7 +68,7 @@ handleParseError :: Maybe FilePath -> Either (ParseError SchemaViolation) a -> I
 handleParseError _   (Right ok) = return ok
 handleParseError loc (Left err) = do
     putStrLn ("Error parsing JSON " ++ maybe "string" ("file: " ++) loc)
-    mapM_ (putStrLn . unpack) (displayError prettySchemaViolation err)
+    printParseError err
     exitWith (ExitFailure 1)
 
 
@@ -95,6 +95,9 @@ prettySchemaViolation (BadPVal bad) =
 prettySchemaViolation (ExprParseError msg bad) =
     "Error parsing expression: " <> bad
     <> "\n" <> pack msg
+
+printParseError :: ParseError SchemaViolation -> IO ()
+printParseError = mapM_ (putStrLn . unpack) . displayError prettySchemaViolation
 
 
 -- ** Primitives

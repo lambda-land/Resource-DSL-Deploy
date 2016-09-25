@@ -58,7 +58,7 @@ library
     DSL.SAT,
     DSL.Serialize,
     DSL.Value,
-    Example.Location
+    DSL.Example.Location
 
 executable resource-dsl
   hs-source-dirs:   app
@@ -78,7 +78,12 @@ test-suite test
   build-depends:
     Resource-DSL,
     base,
+    aeson,
+    aeson-better-errors,
+    aeson-pretty,
     tasty,
     tasty-hunit,
     tasty-th
   other-modules:
+    DSL.Test.Effect,
+    DSL.Test.Serialize

@@ -181,4 +181,3 @@ runLocation opts = do
     case genInit opts of
       Just k  -> lookupLocationEnv k >>= writeJSON defaultInit
       Nothing -> return ()
-
