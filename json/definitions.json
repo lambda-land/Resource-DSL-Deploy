@@ -165,7 +165,7 @@
     "profileEffects": {
       "type": "object",
       "properties": {
-        "key": { "$ref": "#/definitions/resourceID" },
+        "key": { "$ref": "#/definitions/path" },
         "value": {
           "type": "array",
           "items": { "$ref": "#/definitions/effect" }
