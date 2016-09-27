@@ -10,6 +10,7 @@ import Control.Monad.Reader
 import Control.Monad.State
 
 import DSL.Environment
+import DSL.Name
 import DSL.Primitive
 
 import {-# SOURCE #-} DSL.Effect  (Effect)
@@ -46,11 +47,11 @@ instance MergeDup Entry where
 type VarEnv = Env Var PVal
 
 -- | Resource environment.
-type ResEnv = Env Path PVal -- TODO make variational
+type ResEnv = Env ResID PVal  -- TODO make variational
 
 -- | Reader context for evaluation.
 data Context = Ctx {
-    prefix      :: Path,       -- ^ resource path prefix
+    prefix      :: ResID,      -- ^ resource ID prefix
     environment :: VarEnv,     -- ^ variable environment
     dictionary  :: Dictionary  -- ^ dictionary of profiles and models
 } deriving (Data,Eq,Generic,Read,Show,Typeable)
@@ -76,14 +77,14 @@ runInContext ctx init mx = runReaderT (runStateT mx init) ctx
 -- | Execute a computation with a given dictionary and an empty variable
 --   environment and prefix.
 runWithDict :: Dictionary -> ResEnv -> EvalM a -> IO (a, ResEnv)
-runWithDict dict = runInContext (Ctx [] envEmpty dict)
+runWithDict dict = runInContext (Ctx (ResID []) envEmpty dict)
 
 -- | Execute a computation in the empty context.
 runInEmptyContext :: ResEnv -> EvalM a -> IO (a, ResEnv)
 runInEmptyContext = runWithDict envEmpty
 
--- | Get the current resource path prefix.
-getPrefix :: MonadEval m => m Path
+-- | Get the current resource ID prefix.
+getPrefix :: MonadEval m => m ResID
 getPrefix = asks prefix
 
 -- | Get the current dictionary of profiles and models.
@@ -110,13 +111,9 @@ queryVarEnv f = fmap f getVarEnv
 queryResEnv :: MonadEval m => (ResEnv -> a) -> m a
 queryResEnv = gets
 
--- | Execute a computation with an updated prefix.
-withPrefix :: MonadEval m => (Path -> Path) -> m a -> m a
-withPrefix f = local (\(Ctx p m d) -> Ctx (f p) m d)
-
--- | Execute a computation with an updated value environment.
-withDict :: MonadEval m => (Dictionary -> Dictionary) -> m a -> m a
-withDict f = local (\(Ctx p m d) -> Ctx p m (f d))
+-- | Execute a computation with a specific prefix.
+withPrefix :: MonadEval m => ResID -> m a -> m a
+withPrefix p = local (\(Ctx _ m d) -> Ctx p m d)
 
 -- | Execute a computation with an updated value environment.
 withVarEnv :: MonadEval m => (VarEnv -> VarEnv) -> m a -> m a

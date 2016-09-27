@@ -8,6 +8,7 @@ import Control.Monad.Catch (Exception,throwM)
 
 import DSL.Environment
 import DSL.Expression
+import DSL.Name
 import DSL.Resource
 import DSL.Primitive
 
@@ -41,7 +42,7 @@ data EffectErrorKind
 data EffectError = EffectError {
      errorEffect :: Effect,
      errorKind   :: EffectErrorKind,
-     errorPath   :: Path,
+     errorResID  :: ResID,
      errorValue  :: Maybe PVal
 } deriving (Data,Eq,Generic,Read,Show,Typeable)
 
@@ -50,38 +51,38 @@ instance Exception EffectError
 
 -- ** Resolution
 
--- | Check that a resource exists at the given path;
+-- | Check that a resource exists at the given resource ID;
 --   if not, throw an error for the given effect.
-checkExists :: MonadEval m => Effect -> Path -> m ()
-checkExists eff path = do
-    exists <- queryResEnv (envHas path)
+checkExists :: MonadEval m => Effect -> ResID -> m ()
+checkExists eff rID = do
+    exists <- queryResEnv (envHas rID)
     unless exists $
-      throwM (EffectError eff NoSuchResource path Nothing)
+      throwM (EffectError eff NoSuchResource rID Nothing)
 
 -- | Execute the effect on the given resource environment.
-resolveEffect :: MonadEval m => Path -> Effect -> m ()
+resolveEffect :: MonadEval m => ResID -> Effect -> m ()
 -- create
-resolveEffect path eff@(Create expr) = do
-    exists <- queryResEnv (envHas path)
+resolveEffect rID eff@(Create expr) = do
+    exists <- queryResEnv (envHas rID)
     when exists $
-      throwM (EffectError eff ResourceAlreadyExists path Nothing)
+      throwM (EffectError eff ResourceAlreadyExists rID Nothing)
     val <- evalExpr expr
-    updateResEnv (envExtend path val)
+    updateResEnv (envExtend rID val)
 -- check
-resolveEffect path eff@(Check fun) = do
-    checkExists eff path
-    val <- getResEnv >>= envLookup path
+resolveEffect rID eff@(Check fun) = do
+    checkExists eff rID
+    val <- getResEnv >>= envLookup rID
     result <- evalFun fun val
     case result of
       B True  -> return ()
-      B False -> throwM (EffectError eff CheckFailure path (Just val))
-      _       -> throwM (EffectError eff CheckTypeError path (Just val))
+      B False -> throwM (EffectError eff CheckFailure rID (Just val))
+      _       -> throwM (EffectError eff CheckTypeError rID (Just val))
 -- modify
-resolveEffect path eff@(Modify fun) = do
-    checkExists eff path
-    new <- getResEnv >>= envLookup path >>= evalFun fun
-    updateResEnv (envExtend path new)
+resolveEffect rID eff@(Modify fun) = do
+    checkExists eff rID
+    new <- getResEnv >>= envLookup rID >>= evalFun fun
+    updateResEnv (envExtend rID new)
 -- delete
-resolveEffect path Delete = do
-    checkExists Delete path
-    updateResEnv (envDelete path)
+resolveEffect rID Delete = do
+    checkExists Delete rID
+    updateResEnv (envDelete rID)

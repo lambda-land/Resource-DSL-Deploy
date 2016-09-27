@@ -9,6 +9,7 @@ import Control.Monad (liftM2,zipWithM)
 import Control.Monad.Catch (Exception,throwM)
 
 import DSL.Environment
+import DSL.Name
 import DSL.Primitive
 import DSL.Resource
 
@@ -20,7 +21,7 @@ import DSL.Resource
 -- ** Syntax
 
 -- | Named and primitively typed parameters.
-data Param = P Var PType
+data Param = Param Var PType
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Unary functions.
@@ -92,12 +93,13 @@ evalExpr (P2 o l r)  = do l' <- evalExpr l
 
 -- | Check the type of an argument.
 checkArg :: MonadEval m => Param -> PVal -> m (Var,PVal)
-checkArg p@(P x t) v | primType v == t = return (x,v)
-                     | otherwise       = throwM (ArgTypeError p v)
+checkArg p@(Param x t) v
+    | primType v == t = return (x,v)
+    | otherwise       = throwM (ArgTypeError p v)
 
 -- | Evaluate a function.
 evalFun :: MonadEval m => Fun -> PVal -> m PVal
-evalFun (Fun p@(P x _) e) v = do
+evalFun (Fun p@(Param x _) e) v = do
     checkArg p v
     withVarEnv (envExtend x v) (evalExpr e)
 

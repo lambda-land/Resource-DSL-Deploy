@@ -13,21 +13,14 @@ import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
 
+import DSL.Name
+
 
 --
 -- * Generic Environments
 --
 
--- ** Types
-
--- | Names.
-type Name = String
-
--- | Variable names.
-type Var = Name
-
--- | A path through a hierarchical environment.
-type Path = [Name]
+-- ** Type
 
 -- | An environment is a map from keys to values.
 newtype Env k v = Env { envAsMap :: Map k v }

@@ -5,10 +5,12 @@ import GHC.Generics (Generic)
 
 import Control.Monad.Catch (Exception,throwM)
 import Data.List (union)
+import Data.Monoid ((<>))
 
 import DSL.Effect
 import DSL.Environment
 import DSL.Expression
+import DSL.Name
 import DSL.Primitive
 import DSL.Profile
 import DSL.Resource
@@ -29,7 +31,7 @@ type Block = [Stmt]
 
 -- | Statement in an application model.
 data Stmt
-     = Do Name Effect       -- ^ apply an effect
+     = Do Path Effect       -- ^ apply an effect
      | In Path Block        -- ^ do work in a sub-environment
      | If Expr Block Block  -- ^ conditional statement
      | Let Var Expr Block   -- ^ extend the variable environment
@@ -43,12 +45,12 @@ data StmtError = IfTypeError Expr
 instance Exception StmtError
 
 -- | Check whether a unit-valued resource is present.
-checkUnit :: Name -> Stmt
-checkUnit n = Do n (Check (Fun (P "x" TUnit) true))
+checkUnit :: Path -> Stmt
+checkUnit p = Do p (Check (Fun (Param "x" TUnit) true))
 
 -- | Provide a unit-valued resource.
-provideUnit :: Name -> Stmt
-provideUnit n = Do n (Create (Lit Unit))
+provideUnit :: Path -> Stmt
+provideUnit p = Do p (Create (Lit Unit))
 
 -- | Macro for an integer-case construct. Evaluates the expression, then
 --   compares the resulting integer value against each case in turn, executing
@@ -65,11 +67,11 @@ caseOf expr cases other = Let x expr (foldr ifs other cases)
 -- | Convert a simple model into a profile. This allows writing profiles
 --   with nicer syntax. Fails with a runtime error on a Load or If statement.
 toProfile :: Model -> Profile
-toProfile (Model xs stmts) = Profile xs (envFromListAcc (stmts >>= entries []))
+toProfile (Model xs stmts) = Profile xs (envFromListAcc (concatMap (entries root) stmts))
   where
-    entries pre (Do name eff) = [(pre ++ [name], [eff])]
-    entries pre (In path blk) = blk >>= entries (pre ++ path)
-    entries _ _ = error "toProfile: cannot convert models with If/Load to profiles"
+    entries pre (In path blk) | Just rID <- toResID pre path = concatMap (entries rID) blk
+    entries pre (Do path eff) | Just rID <- toResID pre path = [(rID, [eff])]
+    entries _ _ = error "toProfile: cannot convert model to profile"
 
 -- | Construct a profile dictionary from an association list of models.
 profileDict :: [(Name,Model)] -> Dictionary
@@ -97,14 +99,22 @@ loadModel (Model xs block) args = withArgs xs args (execBlock block)
 execBlock :: MonadEval m => Block -> m ()
 execBlock stmts = mapM_ execStmt stmts
 
+-- | Convert a path to a resource ID.
+getResID :: MonadEval m => Path -> m ResID
+getResID path = do
+    pre <- getPrefix
+    toResID pre path
+
 -- | Execute a statement.
 execStmt :: MonadEval m => Stmt -> m ()
 -- apply an effect
-execStmt (Do name eff) = do
-    pre <- getPrefix
-    resolveEffect (pre ++ [name]) eff
+execStmt (Do path eff) = do
+    rID <- getResID path
+    resolveEffect rID eff
 -- do work in sub-environment
-execStmt (In path block) = withPrefix (++ path) (execBlock block)
+execStmt (In path block) = do
+    rID <- getResID path
+    withPrefix rID (execBlock block)
 -- conditional statement
 execStmt (If cond tru fls) = do
     val <- evalExpr cond

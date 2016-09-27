@@ -9,6 +9,7 @@ import Control.Monad.Catch (MonadCatch,MonadThrow)
 import DSL.Effect
 import DSL.Environment
 import DSL.Expression
+import DSL.Name
 import DSL.Primitive
 import DSL.Resource
 
@@ -19,11 +20,11 @@ import DSL.Resource
 
 -- | Resource profile: a parameterized account of all of the resource effects
 --   of a program or component.
-data Profile = Profile [Param] (Env Path [Effect])
+data Profile = Profile [Param] (Env ResID [Effect])
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Construct a profile from an argument list and an association list of effects.
-profile :: [Param] -> [(Path,[Effect])] -> Profile
+profile :: [Param] -> [(ResID, [Effect])] -> Profile
 profile xs = Profile xs . envFromList
 
 -- | Load a profile by resolving all of its effects.

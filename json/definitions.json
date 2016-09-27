@@ -16,8 +16,12 @@
         { "type": "null" }
       ]
     },
-    
+
     "path": {
+      "type": "string"
+    },
+
+    "resourceID": {
       "type": "array",
       "items": { "type": "string" }
     },
@@ -92,7 +96,7 @@
       "type": "object",
       "properties": {
         "statement": { "enum": [ "do" ] },
-        "name": { "type": "string" },
+        "path": { "$ref": "#/definitions/path" },
         "effect": { "$ref": "#/definitions/effect" }
       },
       "required": [ "statement", "name", "effect" ]
@@ -161,7 +165,7 @@
     "profileEffects": {
       "type": "object",
       "properties": {
-        "key": { "$ref": "#/definitions/path" },
+        "key": { "$ref": "#/definitions/resourceID" },
         "value": {
           "type": "array",
           "items": { "$ref": "#/definitions/effect" }
@@ -239,7 +243,7 @@
       "items": {
         "type": "object",
         "properties": {
-          "key": { "$ref": "#/definitions/path" },
+          "key": { "$ref": "#/definitions/resourceID" },
           "value": { "$ref": "#/definitions/primValue" }
         },
         "required": [ "key", "value" ]

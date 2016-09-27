@@ -10,6 +10,7 @@ import Options.Applicative
 import DSL.Environment
 import DSL.Expression
 import DSL.Model
+import DSL.Name
 import DSL.Primitive
 import DSL.Profile
 import DSL.Resource
@@ -26,7 +27,7 @@ import DSL.Serialize
 --   location provider to use. NOTE: This is the only thing that is currently
 --   required to be written in the DSL directly. Everything else can be passed
 --   in via the JSON interface.
-appModel = Model [P "provider" TInt]
+appModel = Model [Param "provider" TInt]
     [ caseOf (Ref "provider")
       [ (1, [Load "gps-android" []])
       , (2, [Load "gps-bluetooth" []])
@@ -51,7 +52,7 @@ locationDFUs = profileDict $
 -- | Use built-in android GPS API.
 gpsAndroid :: Model
 gpsAndroid = Model []
-    [ In ["GPS"]
+    [ In "GPS"
       [ checkUnit "SAT"
       , checkUnit "Dev" ]
     , provideUnit "Location"
@@ -60,26 +61,26 @@ gpsAndroid = Model []
 -- | Bluetooth-based GPS.
 gpsBluetooth :: Model
 gpsBluetooth = Model []
-    [ In ["GPS"] [checkUnit "SAT"]
-    , In ["Ext"] [checkUnit "BT"]
+    [ In "GPS" [checkUnit "SAT"]
+    , In "Ext" [checkUnit "BT"]
     , provideUnit "Location"
     ]
 
 -- | Generic USB-based GPS.
 gpsUsb :: Model
 gpsUsb = Model []
-    [ In ["GPS"] [checkUnit "SAT"]
-    , In ["Ext"] [checkUnit "USB"]
+    [ In "GPS" [checkUnit "SAT"]
+    , In "Ext" [checkUnit "USB"]
     , provideUnit "Location"
     ]
 
 -- | USB-based SAASM GPS.
 gpsSaasm :: Model
 gpsSaasm = Model []
-    [ In ["GPS"] [checkUnit "SAT"]
-    , In ["Ext"] [checkUnit "USB"]
+    [ In "GPS" [checkUnit "SAT"]
+    , In "Ext" [checkUnit "USB"]
     , provideUnit "Location"
-    , In ["Location"] [provideUnit "SAASM"]
+    , In "Location" [provideUnit "SAASM"]
     ]
 
 -- | Manual / dead reckoning location capability.
@@ -96,7 +97,7 @@ deadReck = Model []
 locationEnvs :: [(String, ResEnv)]
 locationEnvs = [(toID ps, toEnv ps) | ps <- tail (subsequences paths)]
   where
-    toEnv = envFromList . map (\p -> (p,Unit))
+    toEnv = envFromList . map (\p -> (ResID p, Unit))
     toID  = intercalate "+" . map (intercalate ".")
     paths = [["GPS","SAT"],["GPS","Dev"],["Ext","USB"],["Ext","BT"],["UI"]]
 
@@ -118,7 +119,7 @@ hasLocation = toProfile $ Model [] [checkUnit "Location"]
 hasSaasm :: Profile
 hasSaasm = toProfile $ Model []
     [ checkUnit "Location"
-    , In ["Location"] [checkUnit "SAASM"]
+    , In "Location" [checkUnit "SAASM"]
     ]
 
 -- | All relevant mission requirements for the location scenario.
