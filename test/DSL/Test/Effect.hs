@@ -7,7 +7,7 @@ import Test.Tasty.HUnit
 import DSL.Effect
 import DSL.Environment
 import DSL.Expression
-import DSL.Name
+import DSL.Path
 import DSL.Primitive
 import DSL.Resource
 

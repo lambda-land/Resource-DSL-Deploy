@@ -10,7 +10,7 @@ import Options.Applicative
 import DSL.Environment
 import DSL.Expression
 import DSL.Model
-import DSL.Name
+import DSL.Path
 import DSL.Primitive
 import DSL.Profile
 import DSL.Resource

@@ -11,6 +11,7 @@ import Control.Monad.State
 
 import DSL.Environment
 import DSL.Name
+import DSL.Path
 import DSL.Primitive
 
 import {-# SOURCE #-} DSL.Effect  (Effect)
@@ -29,7 +30,7 @@ data Entry
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Dictionary of profiles and models.
-type Dictionary = Env Var Entry
+type Dictionary = Env Name Entry
 
 -- Merge duplicate dictionary entries. For now, merges profiles w/ profiles
 -- and models w/ models, otherwise throws an error.
@@ -86,6 +87,12 @@ runInEmptyContext = runWithDict envEmpty
 -- | Get the current resource ID prefix.
 getPrefix :: MonadEval m => m ResID
 getPrefix = asks prefix
+
+-- | Convert a path to a resource ID, using the prefix if the path is relative.
+getResID :: MonadEval m => Path -> m ResID
+getResID path = do
+    pre <- getPrefix
+    toResID pre path
 
 -- | Get the current dictionary of profiles and models.
 getDict :: MonadEval m => m Dictionary

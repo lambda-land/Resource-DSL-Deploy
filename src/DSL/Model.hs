@@ -11,6 +11,7 @@ import DSL.Effect
 import DSL.Environment
 import DSL.Expression
 import DSL.Name
+import DSL.Path
 import DSL.Primitive
 import DSL.Profile
 import DSL.Resource
@@ -67,10 +68,13 @@ caseOf expr cases other = Let x expr (foldr ifs other cases)
 -- | Convert a simple model into a profile. This allows writing profiles
 --   with nicer syntax. Fails with a runtime error on a Load or If statement.
 toProfile :: Model -> Profile
-toProfile (Model xs stmts) = Profile xs (envFromListAcc (concatMap (entries root) stmts))
+toProfile (Model xs stmts) =
+    Profile xs (envFromListAcc (concatMap (entries pathThis) stmts))
   where
-    entries pre (In path blk) | Just rID <- toResID pre path = concatMap (entries rID) blk
-    entries pre (Do path eff) | Just rID <- toResID pre path = [(rID, [eff])]
+    entries pre (In path blk)
+      | Just path' <- pathAppend pre path = concatMap (entries path') blk
+    entries pre (Do path eff)
+      | Just path' <- pathAppend pre path = [(path', [eff])]
     entries _ _ = error "toProfile: cannot convert model to profile"
 
 -- | Construct a profile dictionary from an association list of models.
@@ -98,12 +102,6 @@ loadModel (Model xs block) args = withArgs xs args (execBlock block)
 -- | Execute a block of statements.
 execBlock :: MonadEval m => Block -> m ()
 execBlock stmts = mapM_ execStmt stmts
-
--- | Convert a path to a resource ID.
-getResID :: MonadEval m => Path -> m ResID
-getResID path = do
-    pre <- getPrefix
-    toResID pre path
 
 -- | Execute a statement.
 execStmt :: MonadEval m => Stmt -> m ()

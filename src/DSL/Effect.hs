@@ -8,7 +8,7 @@ import Control.Monad.Catch (Exception,throwM)
 
 import DSL.Environment
 import DSL.Expression
-import DSL.Name
+import DSL.Path
 import DSL.Resource
 import DSL.Primitive
 

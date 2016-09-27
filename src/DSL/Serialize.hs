@@ -24,6 +24,7 @@ import DSL.Expression
 import DSL.Model
 import DSL.Name
 import DSL.Parser
+import DSL.Path
 import DSL.Pretty
 import DSL.Primitive
 import DSL.Profile
@@ -250,7 +251,7 @@ asEffect = do
 asProfile :: ParseIt Profile
 asProfile = Profile
     <$> key "parameters" (eachInArray asParam)
-    <*> key "effects" (asEnv asResID (eachInArray asEffect))
+    <*> key "effects" (asEnv asPath (eachInArray asEffect))
 
 
 -- ** Statements and Models
