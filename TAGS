@@ -1,0 +1,549 @@
+
+./app/Main.hs,52
+module Main Main0,1
+main main4,5
+main main5,6
+
+./src/DSL/Driver.hs,894
+module DSL.Driver DSL.Driver0,1
+runDriver runDriver29,30
+runDriver runDriver30,31
+runCheck runCheck36,37
+runCheck runCheck37,38
+data CommandCommand63,64
+     = Check Check64,65
+     | Example Example65,66
+data CheckOpts CheckOpts68,69
+data CheckOpts = CheckOptsCheckOpts68,69
+     { noReqs noReqs69,70
+     , configValue configValue70,71
+     , dictFile dictFile71,72
+     , initFile initFile72,73
+     , modelFile modelFile73,74
+     , configFile configFile74,75
+     , reqsFile reqsFile75,76
+     , outputFile outputFile76,77
+data ExampleExample79,80
+     = Location Location80,81
+getCommand getCommand83,84
+getCommand getCommand84,85
+parseCommand parseCommand89,90
+parseCommand parseCommand90,91
+parseExample parseExample99,100
+parseExample parseExample100,101
+parseCheckOpts parseCheckOpts105,106
+parseCheckOpts parseCheckOpts106,107
+
+./src/DSL/Effect.hs,745
+module DSL.Effect DSL.Effect0,1
+data EffectEffect21,22
+     = Create Create22,23
+     | Check Check23,24
+     | Modify Modify24,25
+     | DeleteDelete25,26
+data EffectErrorKindEffectErrorKind32,33
+     = CheckFailureCheckFailure33,34
+     | CheckTypeErrorCheckTypeError34,35
+     | NoSuchResourceNoSuchResource35,36
+     | ResourceAlreadyExistsResourceAlreadyExists36,37
+data EffectError EffectError40,41
+data EffectError = EffectError EffectError40,41
+     errorEffect errorEffect41,42
+     errorKind errorKind42,43
+     errorPath errorPath43,44
+     errorValue errorValue44,45
+checkExists checkExists54,55
+checkExists checkExists55,56
+resolveEffect resolveEffect61,62
+resolveEffect resolveEffect63,64
+
+./src/DSL/Environment.hs,1149
+module DSL.Environment DSL.Environment0,1
+type Name Name23,24
+type Var Var26,27
+type Path Path29,30
+newtype Env Env32,33
+newtype Env k v = Env Env32,33
+newtype Env k v = Env { envAsMap envAsMap32,33
+envOnMap envOnMap36,37
+envOnMap envOnMap37,38
+newtype NotFound NotFound43,44
+newtype NotFound k = NotFound NotFound43,44
+assumeSuccess assumeSuccess49,50
+assumeSuccess assumeSuccess50,51
+envEmpty envEmpty58,59
+envEmpty envEmpty59,60
+envSingle envSingle62,63
+envSingle envSingle63,64
+envFromList envFromList66,67
+envFromList envFromList67,68
+envFromListAcc envFromListAcc70,71
+envFromListAcc envFromListAcc71,72
+class MergeDup MergeDup76,77
+class MergeDup MergeDup76,77
+  mergeDup mergeDup77,78
+instance instance79,80
+envHas envHas86,87
+envHas envHas87,88
+envExtend envExtend90,91
+envExtend envExtend91,92
+envDelete envDelete94,95
+envDelete envDelete95,96
+envUnion envUnion98,99
+envUnion envUnion99,100
+envUnionWith envUnionWith102,103
+envUnionWith envUnionWith103,104
+envLookup envLookup106,107
+envLookup envLookup107,108
+envMapM_ envMapM_111,112
+envMapM_ envMapM_112,113
+
+./src/DSL/Example/Location.hs,1253
+module DSL.Example.Location DSL.Example.Location0,1
+appModel appModel28,29
+locationDFUs locationDFUs41,42
+locationDFUs locationDFUs42,43
+gpsAndroid gpsAndroid51,52
+gpsAndroid gpsAndroid52,53
+gpsBluetooth gpsBluetooth60,61
+gpsBluetooth gpsBluetooth61,62
+gpsUsb gpsUsb68,69
+gpsUsb gpsUsb69,70
+gpsSaasm gpsSaasm76,77
+gpsSaasm gpsSaasm77,78
+deadReck deadReck85,86
+deadReck deadReck86,87
+locationEnvs locationEnvs95,96
+locationEnvs locationEnvs96,97
+lookupLocationEnv lookupLocationEnv103,104
+lookupLocationEnv lookupLocationEnv104,105
+hasLocation hasLocation113,114
+hasLocation hasLocation114,115
+hasSaasm hasSaasm117,118
+hasSaasm hasSaasm118,119
+locationReqs locationReqs124,125
+locationReqs locationReqs125,126
+runLocationTest runLocationTest134,135
+runLocationTest runLocationTest135,136
+data LocationOpts LocationOpts142,143
+data LocationOpts = LocationOptsLocationOpts142,143
+     { genDict genDict143,144
+     , genModel genModel144,145
+     , genReqs genReqs145,146
+     , genSaasm genSaasm146,147
+     , genInit genInit147,148
+parseLocationOpts parseLocationOpts150,151
+parseLocationOpts parseLocationOpts151,152
+runLocation runLocation174,175
+runLocation runLocation175,176
+
+./src/DSL/Expression.hs,558
+module DSL.Expression DSL.Expression0,1
+data Param Param22,23
+data Param = P P22,23
+data Fun Fun26,27
+data Fun = Fun Fun26,27
+data ExprExpr30,31
+     = Ref Ref31,32
+     | Lit Lit32,33
+     | P1 P133,34
+     | P2 P234,35
+data ArgTypeError ArgTypeError39,40
+data ArgTypeError = ArgTypeError ArgTypeError39,40
+instance instance45,46
+evalExpr evalExpr83,84
+evalExpr evalExpr84,85
+checkArg checkArg93,94
+checkArg checkArg94,95
+evalFun evalFun98,99
+evalFun evalFun99,100
+withArgs withArgs104,105
+withArgs withArgs105,106
+
+./src/DSL/Model.hs,850
+module DSL.Model DSL.Model0,1
+data Model Model23,24
+data Model = Model Model23,24
+type Block Block27,28
+data StmtStmt30,31
+     = Do Do31,32
+     | In In32,33
+     | If If33,34
+     | Let Let34,35
+     | Load Load35,36
+data StmtError StmtError39,40
+data StmtError = IfTypeError IfTypeError39,40
+checkUnit checkUnit45,46
+checkUnit checkUnit46,47
+provideUnit provideUnit49,50
+provideUnit provideUnit50,51
+caseOf caseOf55,56
+caseOf caseOf56,57
+toProfile toProfile66,67
+toProfile toProfile67,68
+profileDict profileDict74,75
+profileDict profileDict75,76
+composeModels composeModels79,80
+composeModels composeModels80,81
+instance instance83,84
+loadModel loadModel92,93
+loadModel loadModel93,94
+execBlock execBlock96,97
+execBlock execBlock97,98
+execStmt execStmt100,101
+execStmt execStmt102,103
+
+./src/DSL/Parser.hs,635
+module DSL.ParserDSL.Parser0,1
+parseExprText parseExprText28,29
+parseExprText parseExprText29,30
+parseExprString parseExprString32,33
+parseExprString parseExprString33,34
+spaceConsumer spaceConsumer42,43
+spaceConsumer spaceConsumer43,44
+lexeme lexeme45,46
+lexeme lexeme46,47
+symbol symbol48,49
+symbol symbol49,50
+reserved reserved51,52
+reserved reserved52,53
+unit unit57,58
+unit unit58,59
+bool bool60,61
+bool bool61,62
+int int66,67
+int int67,68
+var var69,70
+var var70,71
+parens parens75,76
+parens parens76,77
+opTable opTable78,79
+opTable opTable79,80
+expr expr95,96
+expr expr96,97
+
+./src/DSL/Predicate.hs,976
+module DSL.Predicate DSL.Predicate0,1
+data PredPred25,26
+     = UPred UPred26,27
+     | BPred BPred27,28
+     | IPred IPred28,29
+data BExprBExpr32,33
+     = BLit BLit33,34
+     | BRef BRef34,35
+     | OpB OpB35,36
+     | OpBB OpBB36,37
+     | OpIB OpIB37,38
+data IExprIExpr41,42
+     = ILit ILit42,43
+     | IRef IRef43,44
+     | OpI OpI44,45
+     | OpII OpII45,46
+boolVars boolVars49,50
+boolVars boolVars50,51
+intVars intVars56,57
+intVars intVars57,58
+renameVar renameVar69,70
+renameVar renameVar70,71
+instance instance85,86
+substB substB123,124
+substB substB124,125
+substI substI130,131
+substI substI131,132
+symEnv symEnv146,147
+symEnv symEnv147,148
+evalPred evalPred151,152
+evalPred evalPred152,153
+evalBExpr evalBExpr159,160
+evalBExpr evalBExpr160,161
+evalIExpr evalIExpr168,169
+evalIExpr evalIExpr169,170
+toBool toBool175,176
+toBool toBool176,177
+toSBool toSBool179,180
+toSBool toSBool180,181
+
+./src/DSL/Pretty.hs,1004
+module DSL.Pretty DSL.Pretty0,1
+prettyPath prettyPath16,17
+prettyPath prettyPath17,18
+prettyEffect prettyEffect19,20
+prettyEffect prettyEffect20,21
+prettyEffectErrorKind prettyEffectErrorKind25,26
+prettyEffectErrorKind prettyEffectErrorKind26,27
+prettyEffectError prettyEffectError31,32
+prettyEffectError prettyEffectError32,33
+prettyPType prettyPType45,46
+prettyPType prettyPType46,47
+prettyPVal prettyPVal50,51
+prettyPVal prettyPVal51,52
+prettyOp2 prettyOp259,60
+prettyOp2 prettyOp260,61
+prettyBB_B prettyBB_B64,65
+prettyBB_B prettyBB_B65,66
+prettyII_B prettyII_B71,72
+prettyII_B prettyII_B72,73
+prettyII_I prettyII_I79,80
+prettyII_I prettyII_I80,81
+prettyTerm prettyTerm89,90
+prettyTerm prettyTerm90,91
+prettyExpr prettyExpr94,95
+prettyExpr prettyExpr95,96
+prettyParens prettyParens103,104
+prettyParens prettyParens104,105
+prettyParam prettyParam109,110
+prettyParam prettyParam110,111
+prettyFun prettyFun112,113
+prettyFun prettyFun113,114
+
+./src/DSL/Primitive.hs,2246
+module DSL.PrimitiveDSL.Primitive0,1
+data PType PType31,32
+data PType = TUnit TUnit31,32
+data PType = TUnit | TBool TBool31,32
+data PType = TUnit | TBool | TIntTInt31,32
+data PValPVal35,36
+     = UnitUnit36,37
+     | B B37,38
+     | I I38,39
+primType primType42,43
+primType primType43,44
+data Op1Op153,54
+     = U_U U_U54,55
+     | B_B B_B55,56
+     | I_I I_I56,57
+data Op2Op260,61
+     = BB_B BB_B61,62
+     | II_I II_I62,63
+     | II_B II_B63,64
+data B_B B_B67,68
+data B_B = NotNot67,68
+data I_I I_I71,72
+data I_I = Abs Abs71,72
+data I_I = Abs | Neg Neg71,72
+data I_I = Abs | Neg | SignSign71,72
+data BB_B BB_B75,76
+data BB_B = And And75,76
+data BB_B = And | Or Or75,76
+data BB_B = And | Or | XOr XOr75,76
+data BB_B = And | Or | XOr | Imp Imp75,76
+data BB_B = And | Or | XOr | Imp | EqvEqv75,76
+data II_B II_B79,80
+data II_B = LT LT79,80
+data II_B = LT | LTE LTE79,80
+data II_B = LT | LTE | Equ Equ79,80
+data II_B = LT | LTE | Equ | Neq Neq79,80
+data II_B = LT | LTE | Equ | Neq | GTE GTE79,80
+data II_B = LT | LTE | Equ | Neq | GTE | GTGT79,80
+data II_I II_I83,84
+data II_I = Add Add83,84
+data II_I = Add | Sub Sub83,84
+data II_I = Add | Sub | Mul Mul83,84
+data II_I = Add | Sub | Mul | Div Div83,84
+data II_I = Add | Sub | Mul | Div | ModMod83,84
+data PrimTypeErrorPrimTypeError87,88
+     = ErrorOp1 ErrorOp188,89
+     | ErrorOp2 ErrorOp289,90
+primOp1 primOp195,96
+primOp1 primOp196,97
+primOp2 primOp2102,103
+primOp2 primOp2103,104
+opB_B opB_B109,110
+opB_B opB_B110,111
+opI_I opI_I113,114
+opI_I opI_I114,115
+opBB_B opBB_B119,120
+opBB_B opBB_B120,121
+opII_B opII_B127,128
+opII_B opII_B128,129
+opII_I opII_I136,137
+opII_I opII_I137,138
+class Num i => PrimI PrimI144,145
+class Num i => PrimI PrimI144,145
+  (./), (.%).%145,146
+  (./)./145,146
+class (Boolean b, PrimI i) => Prim Prim148,149
+class (Boolean b, PrimI i) => Prim Prim148,149
+  (.(149,150
+  (.<), (.<=), (.==), (./=), (.>=), (.>).>149,150
+  (.<), (.<=), (.==), (./=), (.>=.>=149,150
+  (.<), (.<=), (.==), (./=./=149,150
+  (.<), (.<=), (.=.==149,150
+  (.<), (.<=.<=149,150
+  (.<).<149,150
+infix infix151,152
+instance instance156,157
+
+./src/DSL/Profile.hs,313
+module DSL.Profile DSL.Profile0,1
+data Profile Profile21,22
+data Profile = Profile Profile21,22
+profile profile25,26
+profile profile26,27
+loadProfile loadProfile29,30
+loadProfile loadProfile30,31
+composeProfiles composeProfiles34,35
+composeProfiles composeProfiles35,36
+instance instance38,39
+
+./src/DSL/Resource.hs,1325
+module DSL.Resource DSL.Resource2,3
+data EntryEntry24,25
+     = ProEntry ProEntry25,26
+     | ModEntry ModEntry26,27
+type Dictionary Dictionary30,31
+instance instance34,35
+type VarEnv VarEnv45,46
+type ResEnv ResEnv48,49
+data Context Context51,52
+data Context = Ctx Ctx51,52
+    prefix prefix52,53
+    environment environment53,54
+    dictionary dictionary54,55
+  => MonadEval MonadEval64,65
+type EvalM EvalM69,70
+type EvalM a a69,70
+runInContext runInContext72,73
+runInContext runInContext73,74
+runWithDict runWithDict77,78
+runWithDict runWithDict78,79
+runInEmptyContext runInEmptyContext81,82
+runInEmptyContext runInEmptyContext82,83
+getPrefix getPrefix85,86
+getPrefix getPrefix86,87
+getDict getDict89,90
+getDict getDict90,91
+getVarEnv getVarEnv93,94
+getVarEnv getVarEnv94,95
+getResEnv getResEnv97,98
+getResEnv getResEnv98,99
+queryDict queryDict101,102
+queryDict queryDict102,103
+queryVarEnv queryVarEnv105,106
+queryVarEnv queryVarEnv106,107
+queryResEnv queryResEnv109,110
+queryResEnv queryResEnv110,111
+withPrefix withPrefix113,114
+withPrefix withPrefix114,115
+withDict withDict117,118
+withDict withDict118,119
+withVarEnv withVarEnv121,122
+withVarEnv withVarEnv122,123
+updateResEnv updateResEnv125,126
+updateResEnv updateResEnv126,127
+
+./src/DSL/SAT.hs,290
+module DSL.SAT DSL.SAT0,1
+class Boolean b => SAT SAT9,10
+class Boolean b => SAT SAT9,10
+  toSymbolic toSymbolic10,11
+sat sat13,14
+sat sat14,15
+unsat unsat19,20
+unsat unsat20,21
+taut taut23,24
+taut taut24,25
+equiv equiv27,28
+equiv equiv28,29
+instance instance33,34
+
+./src/DSL/Serialize.hs,1795
+module DSL.Serialize DSL.Serialize2,3
+defaultDict defaultDict36,37
+defaultInit defaultInit37,38
+defaultModel defaultModel38,39
+defaultConfig defaultConfig39,40
+defaultReqs defaultReqs40,41
+defaultOutput defaultOutput41,42
+decodeJSON decodeJSON49,50
+decodeJSON decodeJSON50,51
+readJSON readJSON53,54
+readJSON readJSON54,55
+writeJSON writeJSON59,60
+writeJSON writeJSON60,61
+handleParseError handleParseError66,67
+handleParseError handleParseError67,68
+type ParseIt ParseIt80,81
+type ParseIt a a80,81
+data SchemaViolationSchemaViolation82,83
+     = BadCase BadCase83,84
+     | BadPVal BadPVal84,85
+     | ExprParseError ExprParseError85,86
+prettySchemaViolation prettySchemaViolation88,89
+prettySchemaViolation prettySchemaViolation89,90
+printParseError printParseError98,99
+printParseError printParseError99,100
+instance instance104,105
+asPType asPType114,115
+asPType asPType115,116
+asPVal asPVal123,124
+asPVal asPVal124,125
+asConfig asConfig132,133
+asConfig asConfig133,134
+asParam asParam151,152
+asParam asParam152,153
+asFun asFun154,155
+asFun asFun155,156
+asExpr asExpr157,158
+asExpr asExpr158,159
+asName asName179,180
+asName asName180,181
+asPath asPath182,183
+asPath asPath183,184
+asEnv asEnv185,186
+asEnv asEnv186,187
+asEntry asEntry189,190
+asEntry asEntry190,191
+asVarEnv asVarEnv197,198
+asVarEnv asVarEnv198,199
+asResEnv asResEnv200,201
+asResEnv asResEnv201,202
+asDictionary asDictionary203,204
+asDictionary asDictionary204,205
+asEffect asEffect227,228
+asEffect asEffect228,229
+asProfile asProfile237,238
+asProfile asProfile238,239
+asBlock asBlock274,275
+asBlock asBlock275,276
+asStmt asStmt277,278
+asStmt asStmt278,279
+asModel asModel295,296
+asModel asModel296,297
+
+./src/DSL/Value.hs,323
+module DSL.Value DSL.Value0,1
+data ValueValue17,18
+     = Prim Prim18,19
+     | ChcV ChcV19,20
+allPrims allPrims24,25
+allPrims allPrims25,26
+valIsTrue valIsTrue30,31
+valIsTrue valIsTrue31,32
+applyPrim1 applyPrim136,37
+applyPrim1 applyPrim137,38
+applyPrim2 applyPrim241,42
+applyPrim2 applyPrim242,43
+
+./test/DSL/Test/Effect.hs,362
+module DSL.Test.Effect DSL.Test.Effect0,1
+funEq funEq15,16
+funEq funEq16,17
+runEffect runEffect18,19
+runEffect runEffect19,20
+assertEffectError assertEffectError21,22
+assertEffectError assertEffectError22,23
+testCases testCases29,30
+testCases testCases30,31
+testResolveEffect testResolveEffect35,36
+testResolveEffect testResolveEffect36,37
+
+./test/DSL/Test/Serialize.hs,104
+module DSL.Test.Serialize DSL.Test.Serialize0,1
+roundTrip roundTrip12,13
+roundTrip roundTrip13,14
+
+./test/Tests.hs,52
+module Main Main0,1
+main main6,7
+main main7,8
