@@ -7,6 +7,7 @@ import Test.Tasty.HUnit
 import DSL.Effect
 import DSL.Environment
 import DSL.Expression
+import DSL.Path
 import DSL.Primitive
 import DSL.Resource
 
@@ -14,10 +15,10 @@ import DSL.Resource
 -- ** Helper functions
 
 funEq :: Int -> Fun
-funEq n = Fun (P "x" TInt) (Ref "x" .== Lit (I n))
+funEq n = Fun (Param "x" TInt) (Ref "x" .== Lit (I n))
 
-runEffect :: Path -> Effect -> ResEnv -> IO ResEnv
-runEffect path eff env = snd <$> runInEmptyContext env (resolveEffect path eff)
+runEffect :: ResID -> Effect -> ResEnv -> IO ResEnv
+runEffect rID eff env = snd <$> runInEmptyContext env (resolveEffect rID eff)
 
 assertEffectError :: EffectErrorKind -> IO a -> Assertion
 assertEffectError k act = (act >> failure "no error") `catch` \err ->
@@ -37,9 +38,10 @@ testResolveEffect :: TestTree
 testResolveEffect = testGroup "resolveEffect"
     [ testGroup "create" $ testCases
       
-      [ do out <- runEffect ["foo"] (Create 3) envEmpty
-           envFromList [(["foo"], I 3)] @=? out
+      [ do out <- runEffect "foo" (Create 3) envEmpty
+           envFromList [("foo", I 3)] @=? out
       
+<<<<<<< HEAD
       , do out <- runEffect ["foo"] (Create 3) envEmpty
              >>= runEffect ["bar"] (Create 4)
            envFromList [(["foo"], I 3), (["bar"], I 4)] @=? out
@@ -51,13 +53,15 @@ testResolveEffect = testGroup "resolveEffect"
       , assertEffectError ResourceAlreadyExists
           (runEffect ["foo"] (Create 3) envEmpty
              >>= runEffect ["foo"] (Create 4))
+>>>>>>> 8649d13441523538463430f2208608209abd3b31
       ]
 
     , testGroup "delete" $ testCases
 
-      [ do out <- runEffect ["foo"] Delete (envFromList [(["foo"], B True)])
+      [ do out <- runEffect "foo" Delete (envFromList [("foo", B True)])
            envEmpty @=? out
       
+<<<<<<< HEAD
       , do out <- runEffect ["foo"] Delete (envFromList [(["foo"], B True)
                                                         , (["bar"], Unit)])
            envFromList [(["bar"], Unit)] @=? out
@@ -65,14 +69,15 @@ testResolveEffect = testGroup "resolveEffect"
       , do out <- runEffect ["foo"] Delete (envFromList [(["foo"], B True)
                                                         , (["foo","bar"], Unit)])
            envFromList [(["foo","bar"], Unit)] @=? out
+>>>>>>> 8649d13441523538463430f2208608209abd3b31
       
       , assertEffectError NoSuchResource
-           (runEffect ["foo"] Delete envEmpty)
+           (runEffect "foo" Delete envEmpty)
       
       , assertEffectError NoSuchResource
-           (runEffect ["foo"] (Create 3) envEmpty
-             >>= runEffect ["foo"] Delete
-             >>= runEffect ["foo"] Delete)
+           (runEffect "foo" (Create 3) envEmpty
+             >>= runEffect "foo" Delete
+             >>= runEffect "foo" Delete)
       ]
 
      , testGroup "check" $ testCases

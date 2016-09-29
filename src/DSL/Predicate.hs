@@ -12,6 +12,7 @@ import qualified Data.Set as Set
 import Data.SBV
 
 import DSL.Environment
+import DSL.Name
 import DSL.Primitive
 import DSL.SAT
 

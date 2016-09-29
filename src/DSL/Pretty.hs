@@ -7,6 +7,7 @@ import Data.List (intercalate)
 import DSL.Effect
 import DSL.Environment
 import DSL.Expression
+import DSL.Path
 import DSL.Primitive
 
 
@@ -15,7 +16,13 @@ import DSL.Primitive
 --
 
 prettyPath :: Path -> String
-prettyPath = intercalate "."
+prettyPath (Path k p) = case k of
+    Absolute -> '/' : path
+    Relative -> path
+  where path = intercalate "/" p
+
+prettyResID :: ResID -> String
+prettyResID (ResID p) = intercalate "/" p
 
 prettyEffect :: Effect -> String
 prettyEffect (Create e) = "create " ++ prettyExpr e
@@ -32,7 +39,7 @@ prettyEffectErrorKind ResourceAlreadyExists = "Resource already exists"
 prettyEffectError :: EffectError -> String
 prettyEffectError err = unlines $
     [ prettyEffectErrorKind (errorKind err) ++ ":"
-    , "  At path: " ++ prettyPath (errorPath err)
+    , "  On resource: " ++ prettyResID (errorResID err)
     , "  While executing: " ++ prettyEffect (errorEffect err) ]
     ++ maybe [] (\v -> ["  Resource value: " ++ prettyPVal v]) (errorValue err)
 
@@ -108,7 +115,7 @@ prettyParens s = "(" ++ s ++ ")"
 -- ** Functions
 
 prettyParam :: Param -> String
-prettyParam (P x t) = x ++ ":" ++ prettyPType t
+prettyParam (Param x t) = x ++ ":" ++ prettyPType t
 
 prettyFun :: Fun -> String
 prettyFun (Fun p e) = "λ" ++ prettyParam p ++ "." ++ prettyExpr e
