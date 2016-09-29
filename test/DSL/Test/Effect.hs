@@ -72,13 +72,11 @@ testResolveEffect = testGroup "resolveEffect"
 
     , testGroup "Check" $ testCases
 
-      [ do out <- runEffect ["foo"] (Check (funEq 1729)) envEmpty
-           envFromList [(["foo"], B False)] @=? out
+      [ assertEffectError NoSuchResource (runEffect ["foo"]
+                                          (Check (funEq 1729)) envEmpty)
 
-      , do out <- runEffect ["foo"] (Check (funEq 1729)) (envFromList [(["foo"], (I 1729))]) 
+      , do out <- runEffect ["foo"] (Check (funEq 1729)) (envFromList [(["foo"], I 1729)]) 
            envFromList [(["foo"], I 1729)] @=? out -- why does this work?
 
-      , assertEffectError NoSuchResource
-           (runEffect ["foo"] (Check (funEq 1)) envEmpty)
       ] 
     ]
