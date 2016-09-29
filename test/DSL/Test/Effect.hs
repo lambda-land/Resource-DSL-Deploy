@@ -16,6 +16,9 @@ import DSL.Resource
 funEq :: Int -> Fun
 funEq n = Fun (P "x" TInt) (Ref "x" .== Lit (I n))
 
+funAddThree :: Int -> Fun
+funAddThree n = Fun (P "x" TInt) (Lit (I 3) + Lit (I n))
+
 runEffect :: Path -> Effect -> ResEnv -> IO ResEnv
 runEffect path eff env = snd <$> runInEmptyContext env (resolveEffect path eff)
 
@@ -72,11 +75,36 @@ testResolveEffect = testGroup "resolveEffect"
 
     , testGroup "Check" $ testCases
 
-      [ assertEffectError NoSuchResource (runEffect ["foo"]
+      [ do out <- runEffect ["foo"] (Check (funEq 1729)) 
+             (envFromList [(["foo"], I 1729)]) 
+           envFromList [(["foo"], I 1729)] @=? out
+
+      , do out <- runEffect ["foo"] (Check (funEq 1729)) 
+             (envFromList [(["foo"], I 1729), (["bar"], I 2)]) 
+           envFromList [(["foo"], I 1729), (["bar"], I 2)] @=? out
+
+           -- is it worthwhile to add a Create check test? or a Create Delete
+           -- test? I don't think so, it may be bad testing design
+
+      , assertEffectError
+          NoSuchResource (runEffect ["foo"]
+                          (Check (funEq 1729))
+                          (envFromList [(["foo", "bar"], I 1729)]))
+
+      , assertEffectError NoSuchResource (runEffect ["foo"]
                                           (Check (funEq 1729)) envEmpty)
+      ]
 
-      , do out <- runEffect ["foo"] (Check (funEq 1729)) (envFromList [(["foo"], I 1729)]) 
-           envFromList [(["foo"], I 1729)] @=? out -- why does this work?
+      , testGroup "Modify" $ testCases
 
-      ] 
+      [ do out <- runEffect ["foo"] (Modify (funAddThree 3))
+             (envFromList [(["foo"], I 0)])
+           envFromList [(["foo"], I 6)] @=? out
+
+      , do out <- runEffect ["foo"] (Modify (funAddThree 3))
+             (envFromList [(["foo"], I 3), (["bar"], I 1729)])
+           envFromList [(["foo"], I 6), (["bar"], I 1729)] @=? out
+
+
+      ]
     ]
