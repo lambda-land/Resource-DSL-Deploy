@@ -78,6 +78,10 @@ runInContext ctx init mx = runReaderT (runStateT mx init) ctx
 runWithDict :: Dictionary -> ResEnv -> EvalM a -> IO (a, ResEnv)
 runWithDict dict = runInContext (Ctx [] envEmpty dict)
 
+-- | Execute a computation in the empty context.
+runInEmptyContext :: ResEnv -> EvalM a -> IO (a, ResEnv)
+runInEmptyContext = runWithDict envEmpty
+
 -- | Get the current resource path prefix.
 getPrefix :: MonadEval m => m Path
 getPrefix = asks prefix

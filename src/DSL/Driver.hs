@@ -20,7 +20,7 @@ import DSL.Resource
 import DSL.Serialize
 import DSL.Pretty
 
-import Example.Location
+import DSL.Example.Location
 
 
 --

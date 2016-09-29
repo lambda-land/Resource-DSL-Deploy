@@ -1,4 +1,4 @@
-module Example.Location where
+module DSL.Example.Location where
 
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
@@ -181,4 +181,3 @@ runLocation opts = do
     case genInit opts of
       Just k  -> lookupLocationEnv k >>= writeJSON defaultInit
       Nothing -> return ()
-
