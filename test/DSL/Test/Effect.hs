@@ -41,42 +41,48 @@ testCases = zipWith (testCase . show) [1..]
 
 testResolveEffect :: TestTree
 testResolveEffect = testGroup "resolveEffect"
-    [ testGroup "Create" $ testCases
+    [ testGroup "Create" 
       
-      [ do out <- runEffect ["foo"] (Create 3) envEmpty
+      [ testCase "Create with an empty Env" $
+        do out <- runEffect ["foo"] (Create 3) envEmpty
            envFromList [(["foo"], I 3)] @=? out
       
-      , do out <- runEffect ["foo"]
-             (Create 3) envEmpty >>= runEffect ["bar"] (Create 4)
+      , testCase "Create two Refs in ResEnv" $
+        do out <- runEffect ["foo"] (Create 3) envEmpty >>= runEffect ["bar"] (Create 4)
            envFromList [(["foo"], I 3), (["bar"], I 4)] @=? out
       
-      , do out <- runEffect ["foo"]
-             (Create 3) envEmpty >>= runEffect ["foo","bar"] (Create 4)
+      , testCase "Create two Refs, /foo, and /foo/bar" $
+        do out <- runEffect ["foo"] (Create 3) envEmpty >>= runEffect ["foo","bar"] (Create 4)
            envFromList [(["foo"], I 3), (["foo","bar"], I 4)] @=? out
       
-      , assertEffectError
+      , testCase "Create throws error if resource already exists" $
+        assertEffectError
           ResourceAlreadyExists
           (runEffect ["foo"] (Create 3) envEmpty
             >>= runEffect ["foo"] (Create 4))
       ]
 
-    , testGroup "delete" $ testCases
+    , testGroup "delete"
 
-      [ do out <- runEffect ["foo"] Delete (envFromList [(["foo"], B True)])
+      [ testCase "Delete deletes path at ResEnv" $
+        do out <- runEffect ["foo"] Delete (envFromList [(["foo"], B True)])
            envEmpty @=? out
       
-      , do out <- runEffect ["foo"]
+      , testCase "Delete deletes at path with ResEnv with two Refs" $
+        do out <- runEffect ["foo"]
              Delete (envFromList [(["foo"], B True), (["bar"], Unit)])
            envFromList [(["bar"], Unit)] @=? out
       
-      , do out <- runEffect ["foo"]
-             Delete (envFromList [(["foo"], B True), (["foo","bar"], Unit)])
+      , testCase "Delete deletes foo when ResEnv has /foo and /foo/bar" $
+        do out <- runEffect ["foo"] Delete (envFromList [(["foo"], B True), (["foo","bar"], Unit)])
            envFromList [(["foo","bar"], Unit)] @=? out
       
-      , assertEffectError NoSuchResource
+      , testCase "Delete throws NoSuchResource on empty Env" $
+        assertEffectError NoSuchResource
            (runEffect ["foo"] Delete envEmpty)
       
-      , assertEffectError NoSuchResource
+      , testCase "Delete throws NoSuchResource when deleting foo twice" $
+        assertEffectError NoSuchResource
            (runEffect ["foo"] (Create 3) envEmpty
              >>= runEffect ["foo"] Delete
              >>= runEffect ["foo"] Delete)
@@ -84,7 +90,7 @@ testResolveEffect = testGroup "resolveEffect"
 
     , testGroup "Check"
 
-      [ testCase "Cheack a path exists in ResEnv" $
+      [ testCase "Check a path exists in ResEnv" $
         do out <- runEffect ["foo"] (Check (funEq 1729)) 
              (envFromList [(["foo"], I 1729)]) 
            envFromList [(["foo"], I 1729)] @=? out
