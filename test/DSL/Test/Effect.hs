@@ -82,61 +82,76 @@ testResolveEffect = testGroup "resolveEffect"
              >>= runEffect ["foo"] Delete)
       ]
 
-    , testGroup "Check" $ testCases
+    , testGroup "Check"
 
-      -- check that check Checks a path exists in Resource Env
-      [ do out <- runEffect ["foo"] (Check (funEq 1729)) 
+      [ testCase "Cheack a path exists in ResEnv" $
+        do out <- runEffect ["foo"] (Check (funEq 1729)) 
              (envFromList [(["foo"], I 1729)]) 
            envFromList [(["foo"], I 1729)] @=? out
 
-      -- check that check, checks a path exists in ResEnv with two paths
-      , do out <- runEffect ["foo"] (Check (funEq 1729)) 
+      , testCase "Check a path exists in ResEnv with two paths" $
+        do out <- runEffect ["foo"] (Check (funEq 1729)) 
              (envFromList [(["foo"], I 1729), (["bar"], I 2)]) 
            envFromList [(["foo"], I 1729), (["bar"], I 2)] @=? out
 
-      -- check that check, checks a path that is created by running Create
-      , do out <- runEffect ["foo"] (Create 3) envEmpty
+      , testCase "Check a created path" $
+        do out <- runEffect ["foo"] (Create 3) envEmpty
              >>= runEffect ["foo"] (Check (funEq 3)) 
            envFromList [(["foo"], I 3)] @=? out
            
-      -- check that check, checks a path that is created and return a False
-      , assertEffectError
+      , testCase "Check a created path and return a False" $
+        assertEffectError
           CheckFailure (runEffect ["foo"]
                         (Create 3) envEmpty
                         >>= runEffect ["foo"] (Check (funEq 1)))
                         
-           
-      -- check that check doesn't find a mismatched path in ResEnv
-      , assertEffectError
+      , testCase "Check created path, throw type error" $
+        assertEffectError
+          CheckTypeError (runEffect ["foo"] (Check (funEq 3))
+                          (envFromList [(["foo"], B True)]))
+
+      , testCase "Check fails to check /foo/bar when checking /foo" $
+        assertEffectError
           NoSuchResource (runEffect ["foo"]
                           (Check (funEq 1729))
                           (envFromList [(["foo", "bar"], I 1729)]))
 
-      -- check that check fails to find a path in an empty ResEnv
-      , assertEffectError NoSuchResource (runEffect ["foo"]
+      , testCase "Check fails to check with empty ResEnv" $
+          assertEffectError NoSuchResource (runEffect ["foo"]
                                           (Check (funEq 1729)) envEmpty)
       ]
 
-      , testGroup "Modify" $ testCases
+      , testGroup "Modify"
 
-      -- check that Modify can modify in ResEnv with a Ref in VarEnv
-      [ do out <- runEffect ["foo"] (Modify funAddThree)
-             (envFromList [(["foo"], I 0)])
-           envFromList [(["foo"], I 3)] @=? out
+      [ testCase "Modify can modify in ResEnv with a Ref in VarEnv" $
+          do out <- runEffect ["foo"] (Modify funAddThree) (envFromList [(["foo"], I 0)])
+             envFromList [(["foo"], I 3)] @=? out
 
-      -- check that Modify can modify in env with two Refs
-      , do out <- runEffect ["foo"] (Modify funAddThree)
+      , testCase "Modify a created path" $
+          do
+            out <- runEffect ["foo"] (Create 3) envEmpty >>= runEffect ["foo"] (Modify  funAddThree)
+            envFromList [(["foo"], I 6)] @=? out
+
+      , testCase "Modify, modifies in ResEnv with two Refs" $
+        do
+          out <- runEffect ["foo"]
+             (Modify funAddThree)
              (envFromList [(["foo"], I 3), (["bar"], I 1729)])
-           envFromList [(["foo"], I 6), (["bar"], I 1729)] @=? out
+          (envFromList [(["foo"], I 6), (["bar"], I 1729)]) @=? out
 
-      -- check that Modify can modify in env with two Refs, twice
-      , do out <- runEffect ["foo"] (Modify funAddThree)
-             (envFromList [(["foo"], I 3), (["bar"], I 1729)])
-               >>= runEffect ["foo"] (Modify funAddThree)
-           envFromList [(["foo"], I 9), (["bar"], I 1729)] @=? out
+      , testCase "Modify can modify in env with two Refs, twice" $
+        do out <- runEffect ["foo"] (Modify funAddThree) (envFromList [(["foo"], I 3), (["bar"], I 1729)]) >>= runEffect ["bar"] (Modify funAddThree)
+           envFromList [(["foo"], I 6), (["bar"], I 1732)] @=? out
       
-      -- check that Modify fails to modify on evn with list Ref
-      , assertEffectError
+      -- check that Modify fails to Modify if type error
+      -- How to check this? There is no ModifyTypeError EffectErrorKind
+      --, assertEffectError
+      --    ArgTypeError (runEffect ["foo"]
+      --                  (Modify funAddThree)
+      --                  (envFromList [(["foo"], B True)])) (B True)
+
+      , testCase "Modify fails to modify on Evn with path foo/bar" $
+        assertEffectError
           NoSuchResource (runEffect ["foo"]
                           (Modify funAddThree)
                           (envFromList [(["foo", "bar"], I 1729)]))
