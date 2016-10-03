@@ -4,14 +4,10 @@ import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
 import Data.Composition ((.:))
-import Control.Monad (foldM)
-import Control.Monad.Catch (Exception,MonadCatch,MonadThrow,catch,throwM)
+import Control.Monad.Catch (Exception,MonadThrow,throwM)
 
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-
-import Data.Set (Set)
-import qualified Data.Set as Set
 
 
 --
@@ -51,7 +47,7 @@ envEmpty :: Env k v
 envEmpty = Env Map.empty
 
 -- | Singleton environment.
-envSingle :: Ord k => k -> v -> Env k v
+envSingle :: k -> v -> Env k v
 envSingle = Env .: Map.singleton
 
 -- | Construct an environment from an association list.

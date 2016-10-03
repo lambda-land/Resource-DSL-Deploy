@@ -5,7 +5,6 @@ import Prelude hiding (LT,GT)
 import Data.List (intercalate)
 
 import DSL.Effect
-import DSL.Environment
 import DSL.Expression
 import DSL.Name
 import DSL.Path
@@ -108,7 +107,7 @@ prettyExpr (Lit v)           = prettyPVal v
 prettyExpr (P1 (B_B Not) e)  = "!" ++ prettyTerm e
 prettyExpr (P1 (I_I Neg) e)  = "-" ++ prettyTerm e
 prettyExpr (P2 (II_I o) l r) = concat [prettyTerm l, prettyII_I o, prettyTerm r]
-prettyExpr (P2 o l r)        = intercalate " " [prettyTerm l, prettyOp2 o, prettyTerm r]
+prettyExpr (P2 o l r)        = unwords [prettyTerm l, prettyOp2 o, prettyTerm r]
 prettyExpr e = error $ "Couldn't pretty print expression: " ++ show e
 
 prettyParens :: String -> String

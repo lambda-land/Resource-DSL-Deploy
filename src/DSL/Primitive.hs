@@ -19,7 +19,6 @@ import GHC.Generics (Generic)
 
 import Control.Monad.Catch (Exception,MonadThrow,throwM)
 
-import Data.Bits
 import Data.SBV (Boolean(..),SBool,SInteger,SInt8,SInt16,SInt32,SInt64)
 import qualified Data.SBV as SBV
 

@@ -1,6 +1,6 @@
 module DSL.SAT where
 
-import Control.Monad (liftM,liftM2)
+import Control.Monad (liftM2)
 import Data.SBV (Boolean(..),SBool,Symbolic,isSatisfiable)
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -34,7 +34,7 @@ equiv a b = taut (a <=> b)
 instance Boolean b => Boolean (Symbolic b) where
   true  = return true
   false = return false
-  bnot  = liftM bnot
+  bnot  = fmap bnot
   (&&&) = liftM2 (&&&)
   (|||) = liftM2 (|||)
 

@@ -4,7 +4,6 @@ import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
 import Data.Aeson
-import Data.Aeson.Types hiding (parse)
 import Data.Aeson.BetterErrors
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Map.Strict (toAscList)
@@ -131,8 +130,8 @@ asPVal = do
     case v of
       Null     -> pure Unit
       Bool b   -> pure (B b)
-      Number n -> I <$> asIntegral
-      String n -> S <$> asSymbol
+      Number _ -> I <$> asIntegral
+      String _ -> S <$> asSymbol
       _ -> throwCustomError (BadPVal v)
 
 asConfig :: ParseIt [PVal]

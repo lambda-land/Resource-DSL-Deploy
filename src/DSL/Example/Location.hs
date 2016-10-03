@@ -34,7 +34,7 @@ appModel = Model [Param "provider" TSymbol]
 
 -- | A dictionary of all the location DFUs with associated names.
 locationDFUs :: Dictionary
-locationDFUs = profileDict $
+locationDFUs = profileDict
     [ ("gps-android",    gpsAndroid)
     , ("gps-bluetooth",  gpsBluetooth)
     , ("gps-usb",        gpsUsb)
@@ -129,7 +129,7 @@ locationReqs = [("location", hasLocation), ("saasm", hasSaasm)]
 runLocationTest :: String -> Int -> IO ResEnv
 runLocationTest initID dfuID = do
     init <- lookupLocationEnv initID
-    fmap snd $ runWithDict locationDFUs init (loadModel appModel [Lit (I dfuID)])
+    snd <$> runWithDict locationDFUs init (loadModel appModel [Lit (I dfuID)])
 
 
 -- ** Driver Plugin

@@ -5,7 +5,7 @@ import Prelude hiding (LT,GT)
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
-import Control.Monad (liftM2,zipWithM)
+import Control.Monad (zipWithM)
 import Control.Monad.Catch (Exception,throwM)
 
 import DSL.Environment

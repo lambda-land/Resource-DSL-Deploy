@@ -14,7 +14,6 @@ import DSL.Name
 import DSL.Path
 import DSL.Primitive
 
-import {-# SOURCE #-} DSL.Effect  (Effect)
 import {-# SOURCE #-} DSL.Model   (Model)
 import {-# SOURCE #-} DSL.Profile (Profile)
 
@@ -37,7 +36,7 @@ type Dictionary = Env CompID Entry
 instance MergeDup Entry where
   mergeDup (ProEntry l) (ProEntry r) = ProEntry (mergeDup l r)
   mergeDup (ModEntry l) (ModEntry r) = ModEntry (mergeDup l r)
-  mergeDup l r = error "mergeDup (Entry): cannot merge profile and model"
+  mergeDup _ _ = error "mergeDup (Entry): cannot merge profile and model"
 
 
 -- 
@@ -59,7 +58,7 @@ data Context = Ctx {
 
 -- Throw an error if we attempt to merge two primitive values.
 instance MergeDup PVal where
-  mergeDup r1 r2 = error "mergeDup (PVal): attempted to merge duplicate entries"
+  mergeDup _ _ = error "mergeDup (PVal): attempted to merge duplicate entries"
 
 -- | A class of monads for computations that affect a resource environment,
 --   given an evaluation context, and which may throw/catch exceptions.

@@ -5,7 +5,6 @@ import GHC.Generics (Generic)
 
 import Control.Monad.Catch (Exception,throwM)
 import Data.List (union)
-import Data.Monoid ((<>))
 
 import DSL.Effect
 import DSL.Environment
@@ -94,7 +93,7 @@ loadComp cid args = do
 
 -- | Execute a block of statements.
 execBlock :: MonadEval m => Block -> m ()
-execBlock stmts = mapM_ execStmt stmts
+execBlock = mapM_ execStmt
 
 -- | Execute a statement.
 execStmt :: MonadEval m => Stmt -> m ()
