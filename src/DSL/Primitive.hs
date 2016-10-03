@@ -23,13 +23,17 @@ import Data.Bits
 import Data.SBV (Boolean(..),SBool,SInteger,SInt8,SInt16,SInt32,SInt64)
 import qualified Data.SBV as SBV
 
+import DSL.Name
+
 
 --
 -- * Base types and values
 --
 
+-- | Symbols.
+
 -- | Primitive base types.
-data PType = TUnit | TBool | TInt
+data PType = TUnit | TBool | TInt | TSymbol
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Primitive values.
@@ -37,6 +41,7 @@ data PVal
      = Unit
      | B Bool
      | I Int
+     | S Symbol
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Type of primitive value.
@@ -44,6 +49,7 @@ primType :: PVal -> PType
 primType Unit  = TUnit
 primType (B _) = TBool
 primType (I _) = TInt
+primType (S _) = TSymbol
 
 
 --

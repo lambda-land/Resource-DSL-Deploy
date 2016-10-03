@@ -37,12 +37,6 @@ data Expr
 --     | Chc BExpr Expr Expr  -- ^ choice constructor
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
--- | Type error caused by passing argument of the wrong type.
-data ArgTypeError = ArgTypeError Param PVal
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
-
-instance Exception ArgTypeError
-
 -- Use SBV's Boolean type class for boolean predicates.
 instance Boolean Expr where
   true  = Lit (B True)
@@ -77,6 +71,15 @@ instance Prim Expr Expr where
   (./=) = P2 (II_B Neq)
   (.>=) = P2 (II_B GTE)
   (.>)  = P2 (II_B GT)
+
+
+-- ** Errors
+
+-- | Type error caused by passing argument of the wrong type.
+data ArgTypeError = ArgTypeError Param PVal
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
+
+instance Exception ArgTypeError
 
 
 -- ** Semantics

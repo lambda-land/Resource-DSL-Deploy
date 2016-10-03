@@ -61,6 +61,7 @@ library
     DSL.Resource,
     DSL.SAT,
     DSL.Serialize,
+    DSL.Sugar,
     DSL.Value,
     DSL.Example.Location
 

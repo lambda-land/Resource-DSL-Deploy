@@ -138,7 +138,7 @@
       "type": "object",
       "properties": {
         "statement": { "enum": [ "load" ] },
-        "name": { "type": "string" },
+        "component": { "$ref": "#/definitions/expression" },
         "arguments": { 
           "type": "array",
           "items": { "$ref": "#/definitions/expression" }

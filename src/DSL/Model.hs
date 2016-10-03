@@ -36,31 +36,16 @@ data Stmt
      | In Path Block        -- ^ do work in a sub-environment
      | If Expr Block Block  -- ^ conditional statement
      | Let Var Expr Block   -- ^ extend the variable environment
-     | Load Name [Expr]     -- ^ load a sub-model or profile
+     | Load Expr [Expr]     -- ^ load a sub-model or profile
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
--- | Type error caused by non-boolean condition.
-data StmtError = IfTypeError Expr
+-- | Type errors in statements.
+data StmtError
+     = IfTypeError Expr     -- ^ non-boolean condition
+     | LoadTypeError Expr   -- ^ not a component ID
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 instance Exception StmtError
-
--- | Check whether a unit-valued resource is present.
-checkUnit :: Path -> Stmt
-checkUnit p = Do p (Check (Fun (Param "x" TUnit) true))
-
--- | Provide a unit-valued resource.
-provideUnit :: Path -> Stmt
-provideUnit p = Do p (Create (Lit Unit))
-
--- | Macro for an integer-case construct. Evaluates the expression, then
---   compares the resulting integer value against each case in turn, executing
---   the first matching block, otherwise executes the final block arugment.
-caseOf :: Expr -> [(Int,Block)] -> Block -> Stmt
-caseOf expr cases other = Let x expr (foldr ifs other cases)
-  where
-    ifs (i,thn) els = [If (Ref x .== Lit (I i)) thn els]
-    x = "$case"
 
 
 -- ** Operations
@@ -79,7 +64,7 @@ toProfile (Model xs stmts) =
 
 -- | Construct a profile dictionary from an association list of models.
 profileDict :: [(Name,Model)] -> Dictionary
-profileDict l = envFromList [(n, ProEntry (toProfile m)) | (n,m) <- l]
+profileDict l = envFromList [(Symbol n, ProEntry (toProfile m)) | (n,m) <- l]
 
 -- | Compose two models by sequencing the statements in their bodies.
 --   Merges parameters by name.
@@ -98,6 +83,14 @@ instance MergeDup Model where
 -- | Load a model into the current environment, prefixed by the given path.
 loadModel :: MonadEval m => Model -> [Expr] -> m ()
 loadModel (Model xs block) args = withArgs xs args (execBlock block)
+
+-- | Load a component by ID.
+loadComp :: MonadEval m => CompID -> [Expr] -> m ()
+loadComp cid args = do
+    def <- getDict >>= envLookup cid
+    case def of
+      ProEntry profile -> loadProfile profile args
+      ModEntry model   -> loadModel model args
 
 -- | Execute a block of statements.
 execBlock :: MonadEval m => Block -> m ()
@@ -125,8 +118,8 @@ execStmt (Let var expr block) = do
     val <- evalExpr expr
     withVarEnv (envExtend var val) (execBlock block)
 -- load a sub-module or profile
-execStmt (Load name args) = do
-    def <- getDict >>= envLookup name
-    case def of
-      ProEntry profile -> loadProfile profile args
-      ModEntry model   -> loadModel model args
+execStmt (Load comp args) = do
+    res <- evalExpr comp
+    case res of
+      S cid -> loadComp cid args
+      _ -> throwM (LoadTypeError comp)

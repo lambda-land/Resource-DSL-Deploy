@@ -7,6 +7,7 @@ import Data.List (intercalate)
 import DSL.Effect
 import DSL.Environment
 import DSL.Expression
+import DSL.Name
 import DSL.Path
 import DSL.Primitive
 
@@ -51,18 +52,20 @@ prettyEffectError err = unlines $
 -- ** Primitives
 
 prettyPType :: PType -> String
-prettyPType TUnit = "unit"
-prettyPType TBool = "bool"
-prettyPType TInt  = "int"
+prettyPType TUnit   = "unit"
+prettyPType TBool   = "bool"
+prettyPType TInt    = "int"
+prettyPType TSymbol = "symbol"
 
 prettyPVal :: PVal -> String
 prettyPVal Unit      = "()"
 prettyPVal (B True)  = "true"
 prettyPVal (B False) = "false"
 prettyPVal (I i)     = show i
+prettyPVal (S s)     = toName s
 
 
--- ** Symbol Names
+-- ** Operator Names
 
 prettyOp2 :: Op2 -> String
 prettyOp2 (BB_B o) = prettyBB_B o

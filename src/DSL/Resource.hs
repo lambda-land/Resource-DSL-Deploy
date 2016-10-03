@@ -30,7 +30,7 @@ data Entry
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Dictionary of profiles and models.
-type Dictionary = Env Name Entry
+type Dictionary = Env CompID Entry
 
 -- Merge duplicate dictionary entries. For now, merges profiles w/ profiles
 -- and models w/ models, otherwise throws an error.
