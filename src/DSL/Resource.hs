@@ -8,6 +8,7 @@ import GHC.Generics (Generic)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Reader
 import Control.Monad.State
+import Data.Composition ((.:))
 
 import DSL.Environment
 import DSL.Name
@@ -124,6 +125,10 @@ withPrefix p = local (\(Ctx _ m d) -> Ctx p m d)
 -- | Execute a computation with an updated value environment.
 withVarEnv :: MonadEval m => (VarEnv -> VarEnv) -> m a -> m a
 withVarEnv f = local (\(Ctx p m d) -> Ctx p (f m) d)
+
+-- | Execute a computation with an extended value environment.
+withNewVar :: MonadEval m => Var -> PVal -> m a -> m a
+withNewVar = withVarEnv .: envExtend
 
 -- | Update the resource environment.
 updateResEnv :: MonadEval m => (ResEnv -> ResEnv) -> m ()

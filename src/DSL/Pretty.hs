@@ -6,6 +6,7 @@ import Data.List (intercalate)
 
 import DSL.Effect
 import DSL.Expression
+import DSL.Model
 import DSL.Name
 import DSL.Path
 import DSL.Primitive
@@ -47,6 +48,20 @@ prettyEffectError (EffectError eff kind rID mval) = unlines $
     , "  On resource: " ++ prettyResID rID
     , "  While executing: " ++ prettyEffect eff ]
     ++ maybe [] (\v -> ["  Resource value: " ++ prettyPVal v]) mval
+
+
+-- ** Models
+
+prettyStmtErrorKind :: StmtErrorKind -> String
+prettyStmtErrorKind IfTypeError   = "Non-Boolean condition"
+prettyStmtErrorKind ForTypeError  = "Non-integer range bound"
+prettyStmtErrorKind LoadTypeError = "Not a component ID"
+
+prettyStmtError :: StmtError -> String
+prettyStmtError (StmtError stmt kind val) = unlines
+    [ prettyStmtErrorKind kind ++ ":"
+    , "  In statement: " ++ show stmt  -- TODO: pretty print statements
+    , "  Offending value: " ++ prettyPVal val ]
 
 
 --

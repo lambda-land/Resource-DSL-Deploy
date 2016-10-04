@@ -40,11 +40,21 @@ data Stmt
      | Load Expr [Expr]     -- ^ load a sub-model or profile
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
--- | Type errors in statements.
-data StmtTypeError = StmtTypeError Stmt PType PVal
+-- | Kinds of errors that can occur in statements.
+data StmtErrorKind
+     = IfTypeError    -- ^ non-boolean condition
+     | ForTypeError   -- ^ non-integer range bound
+     | LoadTypeError  -- ^ not a component ID
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
-instance Exception StmtTypeError
+-- | Errors in statements.
+data StmtError = StmtError {
+     stmtErrorStmt  :: Stmt,
+     stmtErrorKind  :: StmtErrorKind,
+     stmtErrorValue :: PVal
+} deriving (Data,Eq,Generic,Read,Show,Typeable)
+
+instance Exception StmtError
 
 
 -- ** Operations
@@ -113,24 +123,23 @@ execStmt stmt@(If cond tru fls) = do
     case val of
       B True  -> execBlock tru
       B False -> execBlock fls
-      _ -> throwM (StmtTypeError stmt TBool val)
+      _ -> throwM (StmtError stmt IfTypeError val)
 -- do work in sub-environment
-execStmt (In path block) = execInSub path (execBlock block)
+execStmt (In path body) = execInSub path (execBlock body)
 -- loop over indexed sub-environments
-execStmt stmt@(For var expr block) = do
+execStmt stmt@(For var expr body) = do
+    let iter i = execInSub (pathFor i) (withNewVar var (I i) (execBlock body))
     val <- evalExpr expr
     case val of
-      I n -> forM_ [1..n] $ \i ->
-             execInSub (pathFor i)
-               (withVarEnv (envExtend var val) (execBlock block))
-      _ -> throwM (StmtTypeError stmt TInt val)
+      I n -> forM_ [1..n] iter
+      _ -> throwM (StmtError stmt ForTypeError val)
 -- extend the variable environment
-execStmt (Let var expr block) = do
+execStmt (Let var expr body) = do
     val <- evalExpr expr
-    withVarEnv (envExtend var val) (execBlock block)
+    withNewVar var val (execBlock body)
 -- load a sub-module or profile
 execStmt stmt@(Load comp args) = do
     res <- evalExpr comp
     case res of
       S cid -> loadComp cid args
-      _ -> throwM (StmtTypeError stmt TSymbol res)
+      _ -> throwM (StmtError stmt LoadTypeError res)

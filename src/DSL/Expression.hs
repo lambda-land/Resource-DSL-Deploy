@@ -104,7 +104,7 @@ checkArg p@(Param x t) v
 evalFun :: MonadEval m => Fun -> PVal -> m PVal
 evalFun (Fun p@(Param x _) e) v = do
     checkArg p v
-    withVarEnv (envExtend x v) (evalExpr e)
+    withNewVar x v (evalExpr e)
 
 -- | Run a computation in a variable environment extended by new arguments.
 withArgs :: MonadEval m => [Param] -> [Expr] -> m a -> m a
