@@ -40,10 +40,10 @@ data EffectErrorKind
 
 -- | An error resulting from applying a resource effect.
 data EffectError = EffectError {
-     errorEffect :: Effect,
-     errorKind   :: EffectErrorKind,
-     errorResID  :: ResID,
-     errorValue  :: Maybe PVal
+     effectErrorEffect :: Effect,
+     effectErrorKind   :: EffectErrorKind,
+     effectErrorResID  :: ResID,
+     effectErrorValue  :: Maybe PVal
 } deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 instance Exception EffectError

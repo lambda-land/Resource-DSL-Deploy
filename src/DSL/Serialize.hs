@@ -270,15 +270,20 @@ instance ToJSON Stmt where
     [ "statement" .= String "do"
     , "path"      .= toJSON path
     , "effect"    .= toJSON eff ]
-  toJSON (In ctx body) = object
-    [ "statement" .= String "in"
-    , "context"   .= toJSON ctx
-    , "body"      .= toJSON body ]
   toJSON (If cond tru fls) = object
     [ "statement" .= String "if"
     , "condition" .= toJSON cond
     , "then"      .= toJSON tru
     , "else"      .= toJSON fls ]
+  toJSON (In ctx body) = object
+    [ "statement" .= String "in"
+    , "context"   .= toJSON ctx
+    , "body"      .= toJSON body ]
+  toJSON (For x expr body) = object
+    [ "statement" .= String "for"
+    , "variable"  .= String (pack x)
+    , "maximum"   .= toJSON expr
+    , "body"      .= toJSON body ]
   toJSON (Let x bound body) = object
     [ "statement" .= String "let"
     , "variable"  .= String (pack x)
@@ -303,11 +308,14 @@ asStmt = do
     case stmt of
       "do"   -> Do   <$> key "path"      asPath
                      <*> key "effect"    asEffect
-      "in"   -> In   <$> key "context"   asPath
-                     <*> key "body"      asBlock
       "if"   -> If   <$> key "condition" asExpr
                      <*> key "then"      asBlock
                      <*> key "else"      asBlock
+      "in"   -> In   <$> key "context"   asPath
+                     <*> key "body"      asBlock
+      "for"  -> For  <$> key "variable"  asName
+                     <*> key "maximum"   asExpr
+                     <*> key "body"      asBlock
       "let"  -> Let  <$> key "variable"  asName
                      <*> key "bound"     asExpr
                      <*> key "body"      asBlock

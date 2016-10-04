@@ -15,6 +15,8 @@ import DSL.Primitive
 -- * Resources
 --
 
+-- ** Paths and Resource IDs
+
 prettyPath :: Path -> String
 prettyPath (Path k p) = case k of
     Absolute -> '/' : path
@@ -23,6 +25,9 @@ prettyPath (Path k p) = case k of
 
 prettyResID :: ResID -> String
 prettyResID (ResID p) = intercalate "/" p
+
+
+-- ** Effects
 
 prettyEffect :: Effect -> String
 prettyEffect (Create e) = "create " ++ prettyExpr e
@@ -37,11 +42,11 @@ prettyEffectErrorKind NoSuchResource        = "No such resource"
 prettyEffectErrorKind ResourceAlreadyExists = "Resource already exists"
 
 prettyEffectError :: EffectError -> String
-prettyEffectError err = unlines $
-    [ prettyEffectErrorKind (errorKind err) ++ ":"
-    , "  On resource: " ++ prettyResID (errorResID err)
-    , "  While executing: " ++ prettyEffect (errorEffect err) ]
-    ++ maybe [] (\v -> ["  Resource value: " ++ prettyPVal v]) (errorValue err)
+prettyEffectError (EffectError eff kind rID mval) = unlines $
+    [ prettyEffectErrorKind kind ++ ":"
+    , "  On resource: " ++ prettyResID rID
+    , "  While executing: " ++ prettyEffect eff ]
+    ++ maybe [] (\v -> ["  Resource value: " ++ prettyPVal v]) mval
 
 
 --

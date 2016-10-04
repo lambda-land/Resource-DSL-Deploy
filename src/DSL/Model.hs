@@ -3,6 +3,7 @@ module DSL.Model where
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
+import Control.Monad (forM_)
 import Control.Monad.Catch (Exception,throwM)
 import Data.List (union)
 
@@ -32,19 +33,18 @@ type Block = [Stmt]
 -- | Statement in an application model.
 data Stmt
      = Do Path Effect       -- ^ apply an effect
-     | In Path Block        -- ^ do work in a sub-environment
      | If Expr Block Block  -- ^ conditional statement
+     | In Path Block        -- ^ do work in a sub-environment
+     | For Var Expr Block   -- ^ loop over indexed sub-environments
      | Let Var Expr Block   -- ^ extend the variable environment
      | Load Expr [Expr]     -- ^ load a sub-model or profile
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Type errors in statements.
-data StmtError
-     = IfTypeError Expr     -- ^ non-boolean condition
-     | LoadTypeError Expr   -- ^ not a component ID
+data StmtTypeError = StmtTypeError Stmt PType PVal
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
-instance Exception StmtError
+instance Exception StmtTypeError
 
 
 -- ** Operations
@@ -95,30 +95,42 @@ loadComp cid args = do
 execBlock :: MonadEval m => Block -> m ()
 execBlock = mapM_ execStmt
 
+-- | Execute a command in a sub-environment.
+execInSub :: MonadEval m => Path -> m a -> m a
+execInSub path mx = do
+    rID <- getResID path
+    withPrefix rID mx
+
 -- | Execute a statement.
 execStmt :: MonadEval m => Stmt -> m ()
 -- apply an effect
 execStmt (Do path eff) = do
     rID <- getResID path
     resolveEffect rID eff
--- do work in sub-environment
-execStmt (In path block) = do
-    rID <- getResID path
-    withPrefix rID (execBlock block)
 -- conditional statement
-execStmt (If cond tru fls) = do
+execStmt stmt@(If cond tru fls) = do
     val <- evalExpr cond
     case val of
       B True  -> execBlock tru
       B False -> execBlock fls
-      _ -> throwM (IfTypeError cond)
+      _ -> throwM (StmtTypeError stmt TBool val)
+-- do work in sub-environment
+execStmt (In path block) = execInSub path (execBlock block)
+-- loop over indexed sub-environments
+execStmt stmt@(For var expr block) = do
+    val <- evalExpr expr
+    case val of
+      I n -> forM_ [1..n] $ \i ->
+             execInSub (pathFor i)
+               (withVarEnv (envExtend var val) (execBlock block))
+      _ -> throwM (StmtTypeError stmt TInt val)
 -- extend the variable environment
 execStmt (Let var expr block) = do
     val <- evalExpr expr
     withVarEnv (envExtend var val) (execBlock block)
 -- load a sub-module or profile
-execStmt (Load comp args) = do
+execStmt stmt@(Load comp args) = do
     res <- evalExpr comp
     case res of
       S cid -> loadComp cid args
-      _ -> throwM (LoadTypeError comp)
+      _ -> throwM (StmtTypeError stmt TSymbol res)
