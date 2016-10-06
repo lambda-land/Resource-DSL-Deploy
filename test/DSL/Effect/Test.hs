@@ -1,4 +1,4 @@
-module DSL.Test.Effect where
+module DSL.Effect.Test where
 
 import Control.Exception.Base (catch)
 import Test.Tasty
@@ -32,6 +32,14 @@ assertEffectError k act = (act >> failure "no error") `catch` \err ->
       else failure (show err)
   where
     failure got = assertFailure ("expected " ++ show k ++ " error, got: " ++ got)
+
+assertArgTypeError :: IO a -> Assertion
+assertArgTypeError act = (act >> failure "no error") `catch` \err ->
+  if isArgTypeError err == True
+     then return ()
+     else failure (show err)
+  where
+    failure got = assertFailure ("Expected argType error " ++ "got: " ++ got)
 
 testCases :: [Assertion] -> [TestTree]
 testCases = zipWith (testCase . show) [1..]
@@ -112,8 +120,7 @@ testResolveEffect = testGroup "resolveEffect"
                         >>= runEffect ["foo"] (Check (funEq 1)))
                         
       , testCase "Check created path, throw type error" $
-        assertEffectError
-          CheckTypeError (runEffect ["foo"] (Check (funEq 3))
+        assertArgTypeError (runEffect ["foo"] (Check (funEq 3))
                           (envFromList [(["foo"], B True)]))
 
       , testCase "Check fails to check /foo/bar when checking /foo" $
@@ -149,12 +156,10 @@ testResolveEffect = testGroup "resolveEffect"
         do out <- runEffect ["foo"] (Modify funAddThree) (envFromList [(["foo"], I 3), (["bar"], I 1729)]) >>= runEffect ["bar"] (Modify funAddThree)
            envFromList [(["foo"], I 6), (["bar"], I 1732)] @=? out
       
-      -- check that Modify fails to Modify if type error
-      -- How to check this? There is no ModifyTypeError EffectErrorKind
-      --, assertEffectError
-      --    ArgTypeError (runEffect ["foo"]
-      --                  (Modify funAddThree)
-      --                  (envFromList [(["foo"], B True)])) (B True)
+      , testCase "Throw an ArgTypeError when trying to mod a boolean with an int" $
+        assertArgTypeError (runEffect ["foo"]
+                            (Modify funAddThree)
+                            (envFromList [(["foo"], B True)]))
 
       , testCase "Modify fails to modify on Evn with path foo/bar" $
         assertEffectError
@@ -162,8 +167,12 @@ testResolveEffect = testGroup "resolveEffect"
                           (Modify funAddThree)
                           (envFromList [(["foo", "bar"], I 1729)]))
 
-      -- check that Modify fails on empty evn
-      -- check that Modify can apply a Fun to an env ref    
+      , testCase "Modify fails to modify on an empty ResEnv" $
+        assertEffectError
+          NoSuchResource (runEffect ["foo"]
+                          (Modify funAddThree)
+                          envEmpty)
+        
 
       ]
     ]

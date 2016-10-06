@@ -1,4 +1,4 @@
-module DSL.Test.Serialize where
+module DSL.Serialize.Test where
 
 import Data.Aeson
 import Data.Aeson.BetterErrors

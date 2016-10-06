@@ -2,7 +2,7 @@ module Main where
 
 import Test.Tasty
 
-import DSL.Test.Effect
+import DSL.Effect.Test
 
 main :: IO ()
 main = defaultMain $ testGroup ""
