@@ -45,7 +45,6 @@ instance Exception ArgTypeError
 -- function to test for ArgTypeError Constructor
 isArgTypeError :: ArgTypeError -> Bool
 isArgTypeError (ArgTypeError _ _) = True
-isArgTypeError _                  = False
 
 -- Use SBV's Boolean type class for boolean predicates.
 instance Boolean Expr where
