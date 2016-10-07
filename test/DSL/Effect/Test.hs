@@ -34,12 +34,10 @@ assertEffectError k act = (act >> failure "no error") `catch` \err ->
     failure got = assertFailure ("expected " ++ show k ++ " error, got: " ++ got)
 
 assertArgTypeError :: IO a -> Assertion
-assertArgTypeError act = (act >> failure "no error") `catch` \err ->
-  if isArgTypeError err == True
-     then return ()
-     else failure (show err)
+assertArgTypeError act = (act >> failure "no error") `catch` \(ArgTypeError _ _) -> return ()
   where
-    failure got = assertFailure ("Expected argType error " ++ "got: " ++ got)
+    failure got = assertFailure ("expected ArgTypeError" ++ " error, got: " ++ got)
+
 
 testCases :: [Assertion] -> [TestTree]
 testCases = zipWith (testCase . show) [1..]
@@ -172,7 +170,5 @@ testResolveEffect = testGroup "resolveEffect"
           NoSuchResource (runEffect ["foo"]
                           (Modify funAddThree)
                           envEmpty)
-        
-
       ]
     ]
