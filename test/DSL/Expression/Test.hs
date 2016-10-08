@@ -17,6 +17,18 @@ testCases = zipWith (testCase . show) [1..]
 runExpr :: Expr -> ResEnv -> IO PVal
 runExpr epr env =  fst <$> runInEmptyContext env (evalExpr epr)
 
+runCheck :: Param -> PVal -> ResEnv -> IO (Var, PVal)
+runCheck param pval env = fst <$> runInEmptyContext env (checkArg param pval)
+
+runEvalFun :: Fun -> PVal -> ResEnv -> IO PVal
+runEvalFun f v env = fst <$> runInEmptyContext env (evalFun f v)
+
+funEq :: Int -> Fun
+funEq n = Fun (P "x" TInt) (Ref "x" .== Lit (I n))
+
+funAddThree :: Fun
+funAddThree = Fun (P "x" TInt) (Lit (I 3) + Ref "x")
+
 -- ** Tests
 testExpression :: TestTree
 testExpression = testGroup "Expressions Tests"
@@ -72,4 +84,36 @@ testExpression = testGroup "Expressions Tests"
          let y = I (-1)
          y @=? out
     ]
+
+    , testGroup "checkArgs"
+
+      [ testCase "Checking Bools" $
+        do out <- runCheck (P "x" TBool) (B True) envEmpty
+           let y = ("x", B True)
+           y @=? out
+
+      , testCase "Checking Ints" $
+        do out <- runCheck (P "x" TInt) (I 496) envEmpty
+           let y = ("x", I 496)
+           y @=? out
+
+      , testCase "Checking Units" $
+        do out <- runCheck (P "x" TUnit) Unit envEmpty
+           let y = ("x", Unit)
+           y @=? out
+      ]
+
+    , testGroup "evalFun"
+
+      [ testCase "a Fun with Ints" $
+        do out <- runEvalFun funAddThree (I 3) envEmpty
+           let y = (I 6)
+           y @=? out
+
+      , testCase "a Fun with Refs" $
+        do out <- runEvalFun (funEq 3) (I 3) envEmpty
+           let y = (B True)
+           y @=? out
+
+      ]
   ]
