@@ -41,6 +41,8 @@ data Expr
 (??) :: Expr -> (Expr,Expr) -> Expr
 c ?? (t,e) = P3 Cond c t e
 
+infix 1 ??
+
 -- Use SBV's Boolean type class for boolean predicates.
 instance Boolean Expr where
   true  = Lit (B True)
