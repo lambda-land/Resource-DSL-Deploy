@@ -1,8 +1,8 @@
 module DSL.Primitive 
   ( PType(..), PVal(..)
   , primType
-  , Op1(..), Op2(..)
-  , primOp1, primOp2
+  , Op1(..), Op2(..), Op3(..)
+  , primOp1, primOp2, primOp3
   , B_B(..), opB_B
   , I_I(..), opI_I
   , BB_B(..), opBB_B
@@ -69,6 +69,10 @@ data Op2
      | II_B II_B  -- ^ integer comparison operator
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
+-- | Primitive ternary operator.
+data Op3 = Cond
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
+
 -- | Boolean negation.
 data B_B = Not
   deriving (Data,Eq,Generic,Read,Show,Typeable)
@@ -93,6 +97,7 @@ data II_I = Add | Sub | Mul | Div | Mod
 data PrimTypeError
      = ErrorOp1 Op1 PVal
      | ErrorOp2 Op2 PVal PVal
+     | ErrorOp3 Op3 PVal PVal PVal
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 instance Exception PrimTypeError
@@ -110,6 +115,11 @@ primOp2 (BB_B o) (B l) (B r) = return (B (opBB_B o l r))
 primOp2 (II_I o) (I l) (I r) = return (I (opII_I o l r))
 primOp2 (II_B o) (I l) (I r) = return (B (opII_B o l r))
 primOp2 o l r = throwM (ErrorOp2 o l r)
+
+-- | Evaluate a primitive ternary operator.
+primOp3 :: MonadThrow m => Op3 -> PVal -> PVal -> PVal -> m PVal
+primOp3 Cond (B c) t e = return (if c then t else e)
+primOp3 o c t e = throwM (ErrorOp3 o c t e)
 
 -- | Lookup unary boolean operator.
 opB_B :: Boolean b => B_B -> b -> b
