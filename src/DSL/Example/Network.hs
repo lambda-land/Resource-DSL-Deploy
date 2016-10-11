@@ -32,19 +32,23 @@ imageParams :: [Param]
 imageParams = 
     [ Param "resX" TInt
     , Param "resY" TInt
-    , Param "scale" TInt
+    , Param "scale" TInt  -- 1/scale
     , Param "color" TBool
     , Param "compress" TBool
     ]
 
 imageSize :: Expr
-imageSize = (resX * resY) * scale * (color ?? (3,1)) ./ (compress ?? (2,1))
-  where
-    resX     = Ref "resX"
-    resY     = Ref "resY"
-    scale    = Ref "scale"
-    color    = Ref "color"
-    compress = Ref "compress"
+imageSize = resX * resY * (color ?? (3,1)) ./ (scale * (compress ?? (2,1)))
+
+cpuCost :: Expr
+cpuCost = resX * resY * ((compress ?? (1,0)) + (scale .> 1 ?? (1,0)))
+
+resX     = Ref "resX"
+resY     = Ref "resY"
+scale    = Ref "scale"
+color    = Ref "color"
+compress = Ref "compress"
+
 
 
 --
