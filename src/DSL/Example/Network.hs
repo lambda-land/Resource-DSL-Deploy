@@ -3,6 +3,7 @@ module DSL.Example.Network where
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
+import Control.Monad (when)
 import Options.Applicative
 
 import DSL.Effect
@@ -11,6 +12,8 @@ import DSL.Model
 import DSL.Name ()
 import DSL.Path ()
 import DSL.Primitive
+import DSL.Resource
+import DSL.Serialize
 import DSL.Sugar
 
 
@@ -114,8 +117,8 @@ parseNetworkOpts = NetworkOpts
        ( long "reqs"
       <> help "Generate mission requirements" )
 
-runNetwork :: NetworkOpts
+runNetwork :: NetworkOpts -> IO ()
 runNetwork opts = do
     when (genDict opts)  (writeJSON defaultDict networkDFUs)
-    when (genModel opts) (writeJSON defaultModel undefined)
-    when (genReqs opts)  (writeJSON defaultReqs undefined)
+    -- when (genModel opts) (writeJSON defaultModel undefined)
+    -- when (genReqs opts)  (writeJSON defaultReqs undefined)
