@@ -128,6 +128,7 @@ prettyExpr (P1 (B_B Not) e)  = "!" ++ prettyTerm e
 prettyExpr (P1 (I_I Neg) e)  = "-" ++ prettyTerm e
 prettyExpr (P2 (II_I o) l r) = concat [prettyTerm l, prettyII_I o, prettyTerm r]
 prettyExpr (P2 o l r)        = unwords [prettyTerm l, prettyOp2 o, prettyTerm r]
+prettyExpr (P3 Cond c l r)   = unwords [prettyTerm c, "?", prettyTerm l, ":", prettyTerm r]
 prettyExpr e = error $ "Couldn't pretty print expression: " ++ show e
 
 prettyParens :: String -> String

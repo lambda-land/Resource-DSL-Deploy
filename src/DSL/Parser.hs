@@ -103,8 +103,16 @@ opTable =
     inBB_B o = op InfixR (opBB_B o) (prettyBB_B o)
 
 expr :: Parser Expr
-expr = makeExprParser term opTable <?> "expression"
+expr = do
+    c <- simple
+    option c $ do
+      lexeme (char '?')
+      t <- simple
+      lexeme (char ':')
+      e <- simple
+      return (P3 Cond c t e)
   where
+    simple = makeExprParser term opTable
     term = Lit Unit <$ unit
        <|> fmap (Lit . I) int
        <|> fmap (Lit . S) symbol
