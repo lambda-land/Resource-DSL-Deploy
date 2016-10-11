@@ -35,7 +35,14 @@ imageParams =
     , Param "compress" TBool
     ]
 
--- | Image producer.
+networkDFUs :: Dictionary
+networkDFUs = profileDict
+    [ ("image-producer", imageProducer)
+    , ("image-producer-scale", imageScale)
+    , ("image-producer-compress", imageCompress)
+    ]
+
+-- | Base image producer.
 imageProducer :: Model
 imageProducer = Model imageParams
     [ provideUnit "Image"
@@ -106,3 +113,9 @@ parseNetworkOpts = NetworkOpts
   <*> switch
        ( long "reqs"
       <> help "Generate mission requirements" )
+
+runNetwork :: NetworkOpts
+runNetwork opts = do
+    when (genDict opts)  (writeJSON defaultDict networkDFUs)
+    when (genModel opts) (writeJSON defaultModel undefined)
+    when (genReqs opts)  (writeJSON defaultReqs undefined)
