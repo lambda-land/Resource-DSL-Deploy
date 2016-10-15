@@ -144,21 +144,21 @@ GPS.SAT and Ext.USB:
 ```
 
 Next, we want to check loading the application model with various input
-configurations. The application model takes an integer input that is used to
-select between the various location provider DFUs:
+configurations. The application model takes as input the ID of a DFU to load.
+The following DFUs are defined in the default dictionary:
 
- * 1: load `gps-android`
- * 2: load `gps-bluetooth`
- * 3: load `gps-usb`
- * 4: load `gps-saasm`
- * otherwise: load `dead-reckoning`
+ * `gps-android`
+ * `gps-bluetooth`
+ * `gps-usb`
+ * `gps-saasm`
+ * `dead-reckoning`
 
 For example, we can try to load the `gps-bluetooth` DFU into the resource
 environment we generated above, which fails on loading the application model
 (exit code 2) since the required `Ext.BT` resource is missing:
 
 ```bash
-> stack exec resource-dsl -- check --config [2]
+> stack exec resource-dsl -- check --config [\"gps-bluetooth\"]
 ```
 
 Alternatively, we can load the `gps-usb` DFU, which loads successfully but
@@ -166,14 +166,14 @@ fails the mission requirements check (exit code 3) since the SAASM feature is
 not supported:
 
 ```bash
-> stack exec resource-dsl -- check --config [3]
+> stack exec resource-dsl -- check --config [\"gps-usb\"]
 ```
 
 Finally, we can load the `gps-saasm` DFU, which loads successfully and passes
 the mission requirements (exit code 0):
 
 ```bash
-> stack exec resource-dsl -- check --config [4]
+> stack exec resource-dsl -- check --config [\"gps-saasm\"]
 ```
 
 

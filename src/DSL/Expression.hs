@@ -5,7 +5,7 @@ import Prelude hiding (LT,GT)
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
-import Control.Monad (liftM2,zipWithM)
+import Control.Monad (zipWithM)
 import Control.Monad.Catch (Exception,throwM)
 
 import DSL.Environment
@@ -30,18 +30,18 @@ data Fun = Fun Param Expr
 
 -- | Expressions.
 data Expr
-     = Ref Var              -- ^ variable reference
-     | Lit PVal             -- ^ primitive literal
-     | P1  Op1 Expr         -- ^ primitive unary function
-     | P2  Op2 Expr Expr    -- ^ primitive binary function
---     | Chc BExpr Expr Expr  -- ^ choice constructor
+     = Ref Var                 -- ^ variable reference
+     | Lit PVal                -- ^ primitive literal
+     | P1  Op1 Expr            -- ^ primitive unary function
+     | P2  Op2 Expr Expr       -- ^ primitive binary function
+     | P3  Op3 Expr Expr Expr  -- ^ conditional expression
+--     | Chc BExpr Expr Expr     -- ^ choice constructor
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
--- | Type error caused by passing argument of the wrong type.
-data ArgTypeError = ArgTypeError Param PVal
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
+(??) :: Expr -> (Expr,Expr) -> Expr
+c ?? (t,e) = P3 Cond c t e
 
-instance Exception ArgTypeError
+infix 1 ??
 
 -- Use SBV's Boolean type class for boolean predicates.
 instance Boolean Expr where
@@ -79,17 +79,30 @@ instance Prim Expr Expr where
   (.>)  = P2 (II_B GT)
 
 
+-- ** Errors
+
+-- | Type error caused by passing argument of the wrong type.
+data ArgTypeError = ArgTypeError Param PVal
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
+
+instance Exception ArgTypeError
+
+
 -- ** Semantics
 
 -- | Evaluate an expression.
 evalExpr :: MonadEval m => Expr -> m PVal
-evalExpr (Ref x)     = getVarEnv >>= envLookup x
-evalExpr (Lit v)     = return v
-evalExpr (P1 o e)    = evalExpr e >>= primOp1 o
-evalExpr (P2 o l r)  = do l' <- evalExpr l
-                          r' <- evalExpr r
-                          primOp2 o l' r'
--- evalExpr (Chc p l r) = liftM2 (ChcV p) (evalExpr l) (evalExpr r)
+evalExpr (Ref x)      = getVarEnv >>= envLookup x
+evalExpr (Lit v)      = return v
+evalExpr (P1 o e)     = evalExpr e >>= primOp1 o
+evalExpr (P2 o l r)   = do l' <- evalExpr l
+                           r' <- evalExpr r
+                           primOp2 o l' r'
+evalExpr (P3 o c t e) = do c' <- evalExpr c
+                           t' <- evalExpr t
+                           e' <- evalExpr e
+                           primOp3 o c' t' e'
+-- evalExpr (Chc p l r)  = liftM2 (ChcV p) (evalExpr l) (evalExpr r)
 
 -- | Check the type of an argument.
 checkArg :: MonadEval m => Param -> PVal -> m (Var,PVal)
@@ -101,7 +114,7 @@ checkArg p@(Param x t) v
 evalFun :: MonadEval m => Fun -> PVal -> m PVal
 evalFun (Fun p@(Param x _) e) v = do
     checkArg p v
-    withVarEnv (envExtend x v) (evalExpr e)
+    withNewVar x v (evalExpr e)
 
 -- | Run a computation in a variable environment extended by new arguments.
 withArgs :: MonadEval m => [Param] -> [Expr] -> m a -> m a

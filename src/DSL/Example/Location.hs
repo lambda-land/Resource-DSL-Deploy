@@ -15,6 +15,7 @@ import DSL.Primitive
 import DSL.Profile
 import DSL.Resource
 import DSL.Serialize
+import DSL.Sugar
 
 
 --
@@ -23,25 +24,17 @@ import DSL.Serialize
 
 -- ** Application model
 
--- | Location-provider application model. The input parameter selects which
---   location provider to use. NOTE: This is the only thing that is currently
---   required to be written in the DSL directly. Everything else can be passed
---   in via the JSON interface.
-appModel = Model [Param "provider" TInt]
-    [ caseOf (Ref "provider")
-      [ (1, [Load "gps-android" []])
-      , (2, [Load "gps-bluetooth" []])
-      , (3, [Load "gps-usb" []])
-      , (4, [Load "gps-saasm" []])
-      ] [Load "dead-reckoning" []]
-    ]
+-- | Location-provider application model. The input parameter is the ID of the
+--   location provider to use.
+appModel = Model [Param "provider" TSymbol]
+    [ Load (Ref "provider") [] ]
 
 
 -- ** DFUs
 
 -- | A dictionary of all the location DFUs with associated names.
 locationDFUs :: Dictionary
-locationDFUs = profileDict $
+locationDFUs = profileDict
     [ ("gps-android",    gpsAndroid)
     , ("gps-bluetooth",  gpsBluetooth)
     , ("gps-usb",        gpsUsb)
@@ -136,7 +129,7 @@ locationReqs = [("location", hasLocation), ("saasm", hasSaasm)]
 runLocationTest :: String -> Int -> IO ResEnv
 runLocationTest initID dfuID = do
     init <- lookupLocationEnv initID
-    fmap snd $ runWithDict locationDFUs init (loadModel appModel [Lit (I dfuID)])
+    snd <$> runWithDict locationDFUs init (loadModel appModel [Lit (I dfuID)])
 
 
 -- ** Driver Plugin

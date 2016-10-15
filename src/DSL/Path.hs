@@ -66,6 +66,10 @@ pathThis = Path Relative ["."]
 pathParent :: Path
 pathParent = Path Relative [".."]
 
+-- | A relative path from a for-loop index.
+pathFor :: Int -> Path
+pathFor i = Path Relative [show i]
+
 -- | Append two paths.
 pathAppend :: MonadThrow m => Path -> Path -> m Path
 pathAppend p1@(Path k1 l) p2@(Path k2 r) = case k2 of

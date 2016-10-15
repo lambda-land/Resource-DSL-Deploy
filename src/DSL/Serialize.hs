@@ -4,7 +4,6 @@ import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
 import Data.Aeson
-import Data.Aeson.Types hiding (parse)
 import Data.Aeson.BetterErrors
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Map.Strict (toAscList)
@@ -104,23 +103,26 @@ printParseError = mapM_ (putStrLn . unpack) . displayError prettySchemaViolation
 -- ** Primitives
 
 instance ToJSON PType where
-  toJSON TUnit = String "unit"
-  toJSON TBool = String "bool"
-  toJSON TInt  = String "int"
+  toJSON TUnit   = String "unit"
+  toJSON TBool   = String "bool"
+  toJSON TInt    = String "int"
+  toJSON TSymbol = String "symbol"
 
 instance ToJSON PVal where
   toJSON Unit  = Null
   toJSON (B b) = Bool b
   toJSON (I i) = Number (fromInteger (toInteger i))
+  toJSON (S s) = String (pack (toName s))
 
 asPType :: ParseIt PType
 asPType = do
     t <- asText
     case t of
-      "unit" -> pure TUnit
-      "bool" -> pure TBool
-      "int"  -> pure TInt
-      _ -> throwCustomError (BadCase "primitive type" ["unit","bool","int"] t)
+      "unit"   -> pure TUnit
+      "bool"   -> pure TBool
+      "int"    -> pure TInt
+      "symbol" -> pure TSymbol
+      _ -> throwCustomError (BadCase "primitive type" ["unit","bool","int","symbol"] t)
 
 asPVal :: ParseIt PVal
 asPVal = do
@@ -128,7 +130,8 @@ asPVal = do
     case v of
       Null     -> pure Unit
       Bool b   -> pure (B b)
-      Number n -> I <$> asIntegral
+      Number _ -> I <$> asIntegral
+      String _ -> S <$> asSymbol
       _ -> throwCustomError (BadPVal v)
 
 asConfig :: ParseIt [PVal]
@@ -166,6 +169,9 @@ asExpr = do
 
 -- ** Names and Paths
 
+instance ToJSON Symbol where
+  toJSON (Symbol n) = toJSON n
+
 instance ToJSON ResID where
   toJSON (ResID p) = toJSON p
 
@@ -174,6 +180,9 @@ instance ToJSON Path where
 
 asName :: ParseIt Name
 asName = asString
+
+asSymbol :: ParseIt Symbol
+asSymbol = mkSymbol <$> asName
 
 asResID :: ParseIt ResID
 asResID = ResID <$> eachInArray asName
@@ -215,7 +224,7 @@ asResEnv :: ParseIt ResEnv
 asResEnv = asEnv asResID asPVal
 
 asDictionary :: ParseIt Dictionary
-asDictionary = asEnv asName asEntry
+asDictionary = asEnv asSymbol asEntry
 
 
 -- ** Effects and Profiles
@@ -261,23 +270,28 @@ instance ToJSON Stmt where
     [ "statement" .= String "do"
     , "path"      .= toJSON path
     , "effect"    .= toJSON eff ]
-  toJSON (In ctx body) = object
-    [ "statement" .= String "in"
-    , "context"   .= toJSON ctx
-    , "body"      .= toJSON body ]
   toJSON (If cond tru fls) = object
     [ "statement" .= String "if"
     , "condition" .= toJSON cond
     , "then"      .= toJSON tru
     , "else"      .= toJSON fls ]
+  toJSON (In ctx body) = object
+    [ "statement" .= String "in"
+    , "context"   .= toJSON ctx
+    , "body"      .= toJSON body ]
+  toJSON (For x expr body) = object
+    [ "statement" .= String "for"
+    , "variable"  .= String (pack x)
+    , "maximum"   .= toJSON expr
+    , "body"      .= toJSON body ]
   toJSON (Let x bound body) = object
     [ "statement" .= String "let"
     , "variable"  .= String (pack x)
     , "bound"     .= toJSON bound
     , "body"      .= toJSON body ]
-  toJSON (Load name args) = object
+  toJSON (Load comp args) = object
     [ "statement" .= String "load"
-    , "name"      .= String (pack name)
+    , "component" .= toJSON comp
     , "arguments" .= toJSON args ]
 
 instance ToJSON Model where
@@ -294,15 +308,18 @@ asStmt = do
     case stmt of
       "do"   -> Do   <$> key "path"      asPath
                      <*> key "effect"    asEffect
-      "in"   -> In   <$> key "context"   asPath
-                     <*> key "body"      asBlock
       "if"   -> If   <$> key "condition" asExpr
                      <*> key "then"      asBlock
                      <*> key "else"      asBlock
+      "in"   -> In   <$> key "context"   asPath
+                     <*> key "body"      asBlock
+      "for"  -> For  <$> key "variable"  asName
+                     <*> key "maximum"   asExpr
+                     <*> key "body"      asBlock
       "let"  -> Let  <$> key "variable"  asName
                      <*> key "bound"     asExpr
                      <*> key "body"      asBlock
-      "load" -> Load <$> key "name"      asName
+      "load" -> Load <$> key "component" asExpr
                      <*> key "arguments" (eachInArray asExpr)
       _ -> throwCustomError (BadCase "stmt" ["do","in","if","let","load"] stmt)
 

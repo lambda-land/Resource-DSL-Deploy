@@ -3,9 +3,9 @@ module DSL.Model where
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
+import Control.Monad (forM_)
 import Control.Monad.Catch (Exception,throwM)
 import Data.List (union)
-import Data.Monoid ((<>))
 
 import DSL.Effect
 import DSL.Environment
@@ -33,34 +33,28 @@ type Block = [Stmt]
 -- | Statement in an application model.
 data Stmt
      = Do Path Effect       -- ^ apply an effect
-     | In Path Block        -- ^ do work in a sub-environment
      | If Expr Block Block  -- ^ conditional statement
+     | In Path Block        -- ^ do work in a sub-environment
+     | For Var Expr Block   -- ^ loop over indexed sub-environments
      | Let Var Expr Block   -- ^ extend the variable environment
-     | Load Name [Expr]     -- ^ load a sub-model or profile
+     | Load Expr [Expr]     -- ^ load a sub-model or profile
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
--- | Type error caused by non-boolean condition.
-data StmtError = IfTypeError Expr
+-- | Kinds of errors that can occur in statements.
+data StmtErrorKind
+     = IfTypeError    -- ^ non-boolean condition
+     | ForTypeError   -- ^ non-integer range bound
+     | LoadTypeError  -- ^ not a component ID
   deriving (Data,Eq,Generic,Read,Show,Typeable)
+
+-- | Errors in statements.
+data StmtError = StmtError {
+     stmtErrorStmt  :: Stmt,
+     stmtErrorKind  :: StmtErrorKind,
+     stmtErrorValue :: PVal
+} deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 instance Exception StmtError
-
--- | Check whether a unit-valued resource is present.
-checkUnit :: Path -> Stmt
-checkUnit p = Do p (Check (Fun (Param "x" TUnit) true))
-
--- | Provide a unit-valued resource.
-provideUnit :: Path -> Stmt
-provideUnit p = Do p (Create (Lit Unit))
-
--- | Macro for an integer-case construct. Evaluates the expression, then
---   compares the resulting integer value against each case in turn, executing
---   the first matching block, otherwise executes the final block arugment.
-caseOf :: Expr -> [(Int,Block)] -> Block -> Stmt
-caseOf expr cases other = Let x expr (foldr ifs other cases)
-  where
-    ifs (i,thn) els = [If (Ref x .== Lit (I i)) thn els]
-    x = "$case"
 
 
 -- ** Operations
@@ -79,7 +73,7 @@ toProfile (Model xs stmts) =
 
 -- | Construct a profile dictionary from an association list of models.
 profileDict :: [(Name,Model)] -> Dictionary
-profileDict l = envFromList [(n, ProEntry (toProfile m)) | (n,m) <- l]
+profileDict l = envFromList [(Symbol n, ProEntry (toProfile m)) | (n,m) <- l]
 
 -- | Compose two models by sequencing the statements in their bodies.
 --   Merges parameters by name.
@@ -99,9 +93,23 @@ instance MergeDup Model where
 loadModel :: MonadEval m => Model -> [Expr] -> m ()
 loadModel (Model xs block) args = withArgs xs args (execBlock block)
 
+-- | Load a component by ID.
+loadComp :: MonadEval m => CompID -> [Expr] -> m ()
+loadComp cid args = do
+    def <- getDict >>= envLookup cid
+    case def of
+      ProEntry profile -> loadProfile profile args
+      ModEntry model   -> loadModel model args
+
 -- | Execute a block of statements.
 execBlock :: MonadEval m => Block -> m ()
-execBlock stmts = mapM_ execStmt stmts
+execBlock = mapM_ execStmt
+
+-- | Execute a command in a sub-environment.
+execInSub :: MonadEval m => Path -> m a -> m a
+execInSub path mx = do
+    rID <- getResID path
+    withPrefix rID mx
 
 -- | Execute a statement.
 execStmt :: MonadEval m => Stmt -> m ()
@@ -109,24 +117,29 @@ execStmt :: MonadEval m => Stmt -> m ()
 execStmt (Do path eff) = do
     rID <- getResID path
     resolveEffect rID eff
--- do work in sub-environment
-execStmt (In path block) = do
-    rID <- getResID path
-    withPrefix rID (execBlock block)
 -- conditional statement
-execStmt (If cond tru fls) = do
+execStmt stmt@(If cond tru fls) = do
     val <- evalExpr cond
     case val of
       B True  -> execBlock tru
       B False -> execBlock fls
-      _ -> throwM (IfTypeError cond)
--- extend the variable environment
-execStmt (Let var expr block) = do
+      _ -> throwM (StmtError stmt IfTypeError val)
+-- do work in sub-environment
+execStmt (In path body) = execInSub path (execBlock body)
+-- loop over indexed sub-environments
+execStmt stmt@(For var expr body) = do
+    let iter i = execInSub (pathFor i) (withNewVar var (I i) (execBlock body))
     val <- evalExpr expr
-    withVarEnv (envExtend var val) (execBlock block)
+    case val of
+      I n -> forM_ [1..n] iter
+      _ -> throwM (StmtError stmt ForTypeError val)
+-- extend the variable environment
+execStmt (Let var expr body) = do
+    val <- evalExpr expr
+    withNewVar var val (execBlock body)
 -- load a sub-module or profile
-execStmt (Load name args) = do
-    def <- getDict >>= envLookup name
-    case def of
-      ProEntry profile -> loadProfile profile args
-      ModEntry model   -> loadModel model args
+execStmt stmt@(Load comp args) = do
+    res <- evalExpr comp
+    case res of
+      S cid -> loadComp cid args
+      _ -> throwM (StmtError stmt LoadTypeError res)

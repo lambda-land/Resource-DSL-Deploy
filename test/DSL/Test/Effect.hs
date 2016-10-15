@@ -22,7 +22,7 @@ runEffect rID eff env = snd <$> runInEmptyContext env (resolveEffect rID eff)
 
 assertEffectError :: EffectErrorKind -> IO a -> Assertion
 assertEffectError k act = (act >> failure "no error") `catch` \err ->
-    if errorKind err == k
+    if effectErrorKind err == k
       then return ()
       else failure (show err)
   where
