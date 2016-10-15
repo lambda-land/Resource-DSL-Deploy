@@ -121,9 +121,9 @@ testExpression = testGroup "Expressions Tests"
 
         [ testCase "how does withArgs work" $
         do out <- runInContext (Ctx [""] envEmpty
-                                (envSingle "x"
+                                (envSingle "y"
                                  (ProEntry
-                                  (Profile [P "x" TInt]
+                                  (Profile [P "z" TInt]
                                    (envSingle ["foo"] [Create (Ref "x")])))))
              envEmpty (withArgs
                        [(P "x" TInt)]
