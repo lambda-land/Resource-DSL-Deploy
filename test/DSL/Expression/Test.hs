@@ -1,14 +1,15 @@
 module DSL.Expression.Test where
 
-import Control.Exception.Base (catch)
-import Test.Tasty
-import Test.Tasty.HUnit
+import           Control.Exception.Base (catch)
+import           Test.Tasty
+import           Test.Tasty.HUnit
 
-import DSL.Effect
-import DSL.Environment
-import DSL.Expression
-import DSL.Primitive
-import DSL.Resource
+import           DSL.Effect
+import           DSL.Environment
+import           DSL.Expression
+import           DSL.Primitive
+import           DSL.Profile
+import           DSL.Resource
 
 -- ** Helper functions
 testCases :: [Assertion] -> [TestTree]
@@ -39,10 +40,10 @@ testExpression = testGroup "Expressions Tests"
          let y = I 3
          y @=? out
 
-    , testCase "Evaluate a Reference" $
-      do out <- runExpr (Ref "x") envEmpty
-         let y = Unit
-         y @=? out
+    -- , testCase "Evaluate a Reference" $
+    --   do out <- runExpr (Ref "x") envEmpty
+    --      let y = envFromList [(["foo"], (Ref "x"))]
+    --      y @=? out
 
     , testCase "Absolute value of a positive num is just the num" $
       do out <- runExpr (P1 (I_I Abs) (Lit (I 1))) envEmpty
@@ -114,6 +115,21 @@ testExpression = testGroup "Expressions Tests"
         do out <- runEvalFun (funEq 3) (I 3) envEmpty
            let y = (B True)
            y @=? out
-
       ]
+
+      , testGroup "evalWithArgs" $
+
+        [ testCase "how does withArgs work" $
+        do out <- runInContext (Ctx [""] envEmpty
+                                (envSingle "x"
+                                 (ProEntry
+                                  (Profile [P "x" TInt]
+                                   (envSingle ["foo"] [Create (Ref "x")])))))
+             envEmpty (withArgs
+                       [(P "x" TInt)]
+                       [Lit (I 3)]
+                       (evalExpr (Ref "x")))   -- should return 3
+           let y = (I 3)
+           y @=? fst out
+        ]
   ]
