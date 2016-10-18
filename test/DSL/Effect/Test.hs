@@ -47,7 +47,7 @@ testCases = zipWith (testCase . show) [1..]
 
 testResolveEffect :: TestTree
 testResolveEffect = testGroup "resolveEffect"
-    [ testGroup "Create" 
+    [ testGroup "Create"
       
       [ testCase "Create with an empty Env" $
         do out <- runEffect ["foo"] (Create 3) envEmpty
