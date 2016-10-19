@@ -12,7 +12,7 @@ import           DSL.Profile
 import           DSL.Resource
 import           DSL.Model
 
--- ** Helper functions
+-- ** Helper functions s
 
 
 
