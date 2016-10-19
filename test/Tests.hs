@@ -5,6 +5,7 @@ import Test.Tasty
 import DSL.Effect.Test
 import DSL.Expression.Test
 import DSL.Model.Test
+import DSL.Profile.Test
 
 main :: IO ()
 main = defaultMain $ testGroup ""
@@ -12,4 +13,5 @@ main = defaultMain $ testGroup ""
     testResolveEffect
   , testExpression
   , testModel
+  , testProfile
   ]
