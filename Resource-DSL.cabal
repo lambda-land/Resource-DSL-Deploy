@@ -95,3 +95,6 @@ test-suite test
   other-modules:
     DSL.Effect.Test,
     DSL.Serialize.Test
+    DSL.Expression.Test
+    DSL.Model.Test
+    DSL.Profile.Test

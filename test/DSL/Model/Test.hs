@@ -49,7 +49,7 @@ ctx = Ctx ["foo"]
 
 ctx' :: Context
 ctx' = Ctx ["foo"]
-  (envFromList [("s", I 15)])
+  (envFromList [("s", I 15), ("xx", B False)])
   (envSingle "subprofile" (ProEntry (profile [P "p" TInt ,P "s" TBool]
                                      [(["foo"], [Create (Ref "xx")])])))
 --
@@ -177,7 +177,9 @@ testModel = testGroup "Model Tests"
                                                     [(+) (Lit $ I 3)
                                                      (Lit $ I 3)]])
            [Lit (I 1), Lit (B True)])
-         envFromList [(["foo","x"], Unit) ,(["x"],Unit) ,(["subprofile"],I 23)]
-           @=? out 
+         envFromList [(["foo"], B False)
+                     , (["foo", "y"], Unit)
+                     , (["subprofile"],I 23)]
+           @=? out
     ]
   ]
