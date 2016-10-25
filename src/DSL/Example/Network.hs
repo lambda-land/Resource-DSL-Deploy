@@ -50,19 +50,21 @@ imageProducer :: Model
 imageProducer = Model imageParams
     [ provideUnit "Image"
     , In "Image"
-      [ Do "ResX" (Create resX)
-      , Do "ResY" (Create resY)
+      [ Do "ResX"  (Create resX)
+      , Do "ResY"  (Create resY)
       , Do "Color" (Create color)
-      , Do "Size" (Create (resX * resY * color ?? (3,1))) ]
+      , Do "Size"  (Create (resX * resY * (color ?? (3,1)))) ]
     , If (scale .> 1)
         [ Load (Ref "image-producer-scale") [scale] ]
         []
     , If compress
         [ Load (Ref "image-producer-compress") [] ]
         []
-    -- TODO network
+    , In "/Network"
+      [ Do "Bandwidth" (Modify (Fun (Param "b" TInt) (Ref "b" - Res "Image/Size"))) ]
     ]
 
+-- | Image scaling DFU.
 imageScale :: Model
 imageScale = Model [Param "scale" TInt]
     [ In "Image"
@@ -70,21 +72,16 @@ imageScale = Model [Param "scale" TInt]
       , Do "ResY" (Modify (Fun (Param "y" TInt) (Ref "y" ./ scale)))
       , Do "Size" (Modify (Fun (Param "s" TInt) (Ref "s" ./ (scale * scale))))
       ]
-      -- TODO modify network and CPU
+    , Do "CPU" (Modify (Fun (Param "c" TInt) (Ref "c" - Ref "x" * Ref "y")))
     ]
 
+-- | Image compression DFU.
 imageCompress :: Model
 imageCompress = Model []
     [ In "Image"
       [ Do "Size" (Modify (Fun (Param "s" TInt) (Ref "s" ./ 2))) ]
-      -- TODO modify network and CPU
+    , Do "CPU" (Modify (Fun (Param "c" TInt) (Ref "c" - Ref "x" * Ref "y")))
     ]
-
-imageSize :: Expr
-imageSize = resX * resY * (color ?? (3,1)) ./ (scale * (compress ?? (2,1)))
-
-cpuCost :: Expr
-cpuCost = resX * resY * ((compress ?? (1,0)) + (scale .> 1 ?? (1,0)))
 
 resX     = Ref "resX"
 resY     = Ref "resY"
