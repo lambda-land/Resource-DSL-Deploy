@@ -10,6 +10,7 @@ import Control.Monad.Catch (Exception,throwM)
 
 import DSL.Environment
 import DSL.Name
+import DSL.Path
 import DSL.Primitive
 import DSL.Resource
 
@@ -31,6 +32,7 @@ data Fun = Fun Param Expr
 -- | Expressions.
 data Expr
      = Ref Var                 -- ^ variable reference
+     | Res Path                -- ^ resource reference
      | Lit PVal                -- ^ primitive literal
      | P1  Op1 Expr            -- ^ primitive unary function
      | P2  Op2 Expr Expr       -- ^ primitive binary function
@@ -93,6 +95,9 @@ instance Exception ArgTypeError
 -- | Evaluate an expression.
 evalExpr :: MonadEval m => Expr -> m PVal
 evalExpr (Ref x)      = getVarEnv >>= envLookup x
+evalExpr (Res p)      = do rID <- getResID p
+                           env <- getResEnv
+                           envLookup rID env
 evalExpr (Lit v)      = return v
 evalExpr (P1 o e)     = evalExpr e >>= primOp1 o
 evalExpr (P2 o l r)   = do l' <- evalExpr l
