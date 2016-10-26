@@ -48,7 +48,7 @@ gpsAndroid = Model []
     [ In "GPS"
       [ checkUnit "SAT"
       , checkUnit "Dev" ]
-    , provideUnit "Location"
+    , createUnit "Location"
     ]
 
 -- | Bluetooth-based GPS.
@@ -56,7 +56,7 @@ gpsBluetooth :: Model
 gpsBluetooth = Model []
     [ In "GPS" [checkUnit "SAT"]
     , In "Ext" [checkUnit "BT"]
-    , provideUnit "Location"
+    , createUnit "Location"
     ]
 
 -- | Generic USB-based GPS.
@@ -64,7 +64,7 @@ gpsUsb :: Model
 gpsUsb = Model []
     [ In "GPS" [checkUnit "SAT"]
     , In "Ext" [checkUnit "USB"]
-    , provideUnit "Location"
+    , createUnit "Location"
     ]
 
 -- | USB-based SAASM GPS.
@@ -72,15 +72,15 @@ gpsSaasm :: Model
 gpsSaasm = Model []
     [ In "GPS" [checkUnit "SAT"]
     , In "Ext" [checkUnit "USB"]
-    , provideUnit "Location"
-    , In "Location" [provideUnit "SAASM"]
+    , createUnit "Location"
+    , In "Location" [createUnit "SAASM"]
     ]
 
 -- | Manual / dead reckoning location capability.
 deadReck :: Model
 deadReck = Model []
     [ checkUnit "UI"
-    , provideUnit "Location"
+    , createUnit "Location"
     ]
 
 
