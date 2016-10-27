@@ -123,6 +123,7 @@ prettyTerm e       = prettyParens (prettyExpr e)
 
 prettyExpr :: Expr -> String
 prettyExpr (Ref x)           = x
+prettyExpr (Res p)           = "@" ++ prettyPath p
 prettyExpr (Lit v)           = prettyPVal v
 prettyExpr (P1 (B_B Not) e)  = "!" ++ prettyTerm e
 prettyExpr (P1 (I_I Neg) e)  = "-" ++ prettyTerm e

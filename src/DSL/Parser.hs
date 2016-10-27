@@ -17,6 +17,7 @@ import qualified Text.Megaparsec.Lexer as L
 
 import DSL.Expression
 import DSL.Name
+import DSL.Path
 import DSL.Pretty
 import DSL.Primitive
 
@@ -82,6 +83,14 @@ var = name start rest <?> "variable name"
     start = char '$' <|> char '_' <|> letterChar
     rest  = char '$' <|> char '_' <|> alphaNumChar
 
+path :: Parser Path
+path = char '@' >> absolute <|> relative <?> "resource path"
+  where
+    absolute = char '/' >> Path Absolute <$> steps
+    relative = Path Relative <$> steps
+    steps = sepBy step (char '/')
+    step = verbatim "." <|> verbatim ".." <|> many (char '_' <|> alphaNumChar)
+
 parens :: Parser a -> Parser a
 parens = between (char '(') (char ')')
 
@@ -118,4 +127,5 @@ expr = do
        <|> fmap (Lit . S) symbol
        <|> try (fmap (Lit . B) bool)
        <|> fmap Ref var
+       <|> fmap Res path
        <|> parens expr

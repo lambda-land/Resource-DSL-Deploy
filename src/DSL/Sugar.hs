@@ -21,13 +21,30 @@ dfu = Lit . S . mkSymbol
 
 -- ** Statements
 
+-- | Create a resource.
+create :: Path -> Expr -> Stmt
+create p e = Do p (Create e)
+
+-- | Check a resource.
+check :: Path -> PType -> Expr -> Stmt
+check p t e = Do p (Check (Fun (Param "$val" t) e))
+
+-- | Modify a resource.
+modify :: Path -> PType -> Expr -> Stmt
+modify p t e = Do p (Modify (Fun (Param "$val" t) e))
+
+-- | Reference the current value of a resource.
+--   For use with the 'check' and 'modify' smart constructors.
+val :: Expr
+val = Ref "$val"
+
 -- | Check whether a unit-valued resource is present.
 checkUnit :: Path -> Stmt
-checkUnit p = Do p (Check (Fun (Param "x" TUnit) true))
+checkUnit p = Do p (Check (Fun (Param "$val" TUnit) true))
 
--- | Provide a unit-valued resource.
-provideUnit :: Path -> Stmt
-provideUnit p = Do p (Create (Lit Unit))
+-- | Create a unit-valued resource.
+createUnit :: Path -> Stmt
+createUnit p = Do p (Create (Lit Unit))
 
 -- | Macro for an integer-case construct. Evaluates the expression, then
 --   compares the resulting integer value against each case in turn, executing

@@ -22,20 +22,21 @@ import DSL.Sugar
 --
 
 -- ** Application model
-    
-otherParams =
-    [ Param "clients" TInt
-    , Param "pliRate" TInt
-    , Param "imageRate" TInt
-    ]
 
 imageParams :: [Param]
 imageParams = 
-    [ Param "resX" TInt
+    [ Param "imageRate" TInt
+    , Param "resX" TInt
     , Param "resY" TInt
     , Param "scale" TInt  -- 1/scale
     , Param "color" TBool
     , Param "compress" TBool
+    ]
+
+saParams :: [Param]
+saParams =
+    [ Param "pliRate" TInt  -- position location information
+    , Param "logging" TBool
     ]
 
 networkDFUs :: Dictionary
@@ -45,52 +46,61 @@ networkDFUs = profileDict
     , ("image-producer-compress", imageCompress)
     ]
 
+-- | Application model.
+appModel :: Model
+appModel = Model (Param "clients" TInt : imageParams ++ saParams) []
+
 -- | Base image producer.
 imageProducer :: Model
 imageProducer = Model imageParams
-    [ provideUnit "Image"
+    [ createUnit "Image"
     , In "Image"
-      [ Do "ResX" (Create resX)
-      , Do "ResY" (Create resY)
-      , Do "Color" (Create color)
-      , Do "Size" (Create (resX * resY * color ?? (3,1))) ]
+      [ create "Rate"  imageRate
+      , create "ResX"  resX
+      , create "ResY"  resY
+      , create "Color" color
+      , create "Size"  $ resX * resY * (color ?? (3,1)) ]
     , If (scale .> 1)
         [ Load (Ref "image-producer-scale") [scale] ]
         []
     , If compress
         [ Load (Ref "image-producer-compress") [] ]
         []
-    -- TODO network
+    , modify "/Network/Bandwidth" TInt  -- modifies global network bandwidth
+        $ val - imageRate * Res "Image/Size"
     ]
 
+-- | Image scaling DFU.
 imageScale :: Model
 imageScale = Model [Param "scale" TInt]
-    [ In "Image"
-      [ Do "ResX" (Modify (Fun (Param "x" TInt) (Ref "x" ./ scale)))
-      , Do "ResY" (Modify (Fun (Param "y" TInt) (Ref "y" ./ scale)))
-      , Do "Size" (Modify (Fun (Param "s" TInt) (Ref "s" ./ (scale * scale))))
+    [ modify "CPU" TInt  -- modifies local CPU
+        $ val - Res "Image/ResX" * Res "Image/ResY"
+    , In "Image"
+      [ modify "ResX" TInt $ val ./ scale
+      , modify "ResY" TInt $ val ./ scale
+      , modify "Size" TInt $ val ./ (scale * scale)
       ]
-      -- TODO modify network and CPU
     ]
 
+-- | Image compression DFU.
 imageCompress :: Model
 imageCompress = Model []
-    [ In "Image"
-      [ Do "Size" (Modify (Fun (Param "s" TInt) (Ref "s" ./ 2))) ]
-      -- TODO modify network and CPU
+    [ modify "Image/Size" TInt $ val ./ 2
+    , modify "CPU" TInt $ val - Res "Image/ResX" * Res "Image/ResY"
     ]
 
-imageSize :: Expr
-imageSize = resX * resY * (color ?? (3,1)) ./ (scale * (compress ?? (2,1)))
+-- | Situational awareness producer.
+saProducer :: Model
+saProducer = Model [] []
 
-cpuCost :: Expr
-cpuCost = resX * resY * ((compress ?? (1,0)) + (scale .> 1 ?? (1,0)))
-
-resX     = Ref "resX"
-resY     = Ref "resY"
-scale    = Ref "scale"
-color    = Ref "color"
-compress = Ref "compress"
+imageRate = Ref "imageRate"
+resX      = Ref "resX"
+resY      = Ref "resY"
+scale     = Ref "scale"
+color     = Ref "color"
+compress  = Ref "compress"
+pliRate   = Ref "pliRate"
+logging   = Ref "logging"
 
 
 --
