@@ -5,14 +5,12 @@ import Prelude hiding (init)
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
-import Data.Aeson (parseJSON)
 import Control.Monad (unless,void)
 import Control.Monad.Catch (catch)
 import Options.Applicative
-import System.Environment (getArgs,withArgs)
+import System.Environment (getArgs)
 import System.Exit
 
-import DSL.Effect hiding (Check)
 import DSL.Expression
 import DSL.Model
 import DSL.Profile
@@ -21,6 +19,7 @@ import DSL.Serialize
 import DSL.Pretty
 
 import DSL.Example.Location
+import DSL.Example.Network
 
 
 --
@@ -33,6 +32,7 @@ runDriver = do
     case cmd of
       Check opts -> runCheck opts
       Example (Location opts) -> runLocation opts
+      Example (Network opts)  -> runNetwork opts
 
 runCheck :: CheckOpts -> IO ()
 runCheck opts = do
@@ -79,6 +79,7 @@ data CheckOpts = CheckOpts
 
 data Example
      = Location LocationOpts
+     | Network  NetworkOpts
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 getCommand :: IO Command
@@ -95,13 +96,16 @@ parseCommand = subparser
           ++ "optionally check result against given mission requirements")))
     <> command "example" 
         (info (Example <$> (helper <*> parseExample))
-        (progDesc ("Generate example inputs and put them in the inbox"))) )
+        (progDesc "Generate example inputs and put them in the inbox")) )
 
 parseExample :: Parser Example
 parseExample = subparser
      ( command "location"
         (info (Location <$> (helper <*> parseLocationOpts))
-        (progDesc ("Location provider example"))) )
+        (progDesc "Location provider example"))
+    <> command "network"
+        (info (Network <$> (helper <*> parseNetworkOpts))
+        (progDesc "Network / image provider example")) )
 
 parseCheckOpts :: Parser CheckOpts
 parseCheckOpts = CheckOpts

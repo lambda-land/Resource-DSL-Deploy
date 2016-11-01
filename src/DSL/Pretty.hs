@@ -5,8 +5,10 @@ import Prelude hiding (LT,GT)
 import Data.List (intercalate)
 
 import DSL.Effect
-import DSL.Environment
 import DSL.Expression
+import DSL.Model
+import DSL.Name
+import DSL.Path
 import DSL.Primitive
 
 
@@ -14,8 +16,19 @@ import DSL.Primitive
 -- * Resources
 --
 
+-- ** Paths and Resource IDs
+
 prettyPath :: Path -> String
-prettyPath = intercalate "."
+prettyPath (Path k p) = case k of
+    Absolute -> '/' : path
+    Relative -> path
+  where path = intercalate "/" p
+
+prettyResID :: ResID -> String
+prettyResID (ResID p) = intercalate "/" p
+
+
+-- ** Effects
 
 prettyEffect :: Effect -> String
 prettyEffect (Create e) = "create " ++ prettyExpr e
@@ -30,11 +43,25 @@ prettyEffectErrorKind NoSuchResource        = "No such resource"
 prettyEffectErrorKind ResourceAlreadyExists = "Resource already exists"
 
 prettyEffectError :: EffectError -> String
-prettyEffectError err = unlines $
-    [ prettyEffectErrorKind (errorKind err) ++ ":"
-    , "  At path: " ++ prettyPath (errorPath err)
-    , "  While executing: " ++ prettyEffect (errorEffect err) ]
-    ++ maybe [] (\v -> ["  Resource value: " ++ prettyPVal v]) (errorValue err)
+prettyEffectError (EffectError eff kind rID mval) = unlines $
+    [ prettyEffectErrorKind kind ++ ":"
+    , "  On resource: " ++ prettyResID rID
+    , "  While executing: " ++ prettyEffect eff ]
+    ++ maybe [] (\v -> ["  Resource value: " ++ prettyPVal v]) mval
+
+
+-- ** Models
+
+prettyStmtErrorKind :: StmtErrorKind -> String
+prettyStmtErrorKind IfTypeError   = "Non-Boolean condition"
+prettyStmtErrorKind ForTypeError  = "Non-integer range bound"
+prettyStmtErrorKind LoadTypeError = "Not a component ID"
+
+prettyStmtError :: StmtError -> String
+prettyStmtError (StmtError stmt kind val) = unlines
+    [ prettyStmtErrorKind kind ++ ":"
+    , "  In statement: " ++ show stmt  -- TODO: pretty print statements
+    , "  Offending value: " ++ prettyPVal val ]
 
 
 --
@@ -44,18 +71,20 @@ prettyEffectError err = unlines $
 -- ** Primitives
 
 prettyPType :: PType -> String
-prettyPType TUnit = "unit"
-prettyPType TBool = "bool"
-prettyPType TInt  = "int"
+prettyPType TUnit   = "unit"
+prettyPType TBool   = "bool"
+prettyPType TInt    = "int"
+prettyPType TSymbol = "symbol"
 
 prettyPVal :: PVal -> String
 prettyPVal Unit      = "()"
 prettyPVal (B True)  = "true"
 prettyPVal (B False) = "false"
 prettyPVal (I i)     = show i
+prettyPVal (S s)     = toName s
 
 
--- ** Symbol Names
+-- ** Operator Names
 
 prettyOp2 :: Op2 -> String
 prettyOp2 (BB_B o) = prettyBB_B o
@@ -94,11 +123,13 @@ prettyTerm e       = prettyParens (prettyExpr e)
 
 prettyExpr :: Expr -> String
 prettyExpr (Ref x)           = x
+prettyExpr (Res p)           = "@" ++ prettyPath p
 prettyExpr (Lit v)           = prettyPVal v
 prettyExpr (P1 (B_B Not) e)  = "!" ++ prettyTerm e
 prettyExpr (P1 (I_I Neg) e)  = "-" ++ prettyTerm e
 prettyExpr (P2 (II_I o) l r) = concat [prettyTerm l, prettyII_I o, prettyTerm r]
-prettyExpr (P2 o l r)        = intercalate " " [prettyTerm l, prettyOp2 o, prettyTerm r]
+prettyExpr (P2 o l r)        = unwords [prettyTerm l, prettyOp2 o, prettyTerm r]
+prettyExpr (P3 Cond c l r)   = unwords [prettyTerm c, "?", prettyTerm l, ":", prettyTerm r]
 prettyExpr e = error $ "Couldn't pretty print expression: " ++ show e
 
 prettyParens :: String -> String
@@ -108,7 +139,7 @@ prettyParens s = "(" ++ s ++ ")"
 -- ** Functions
 
 prettyParam :: Param -> String
-prettyParam (P x t) = x ++ ":" ++ prettyPType t
+prettyParam (Param x t) = x ++ ":" ++ prettyPType t
 
 prettyFun :: Fun -> String
 prettyFun (Fun p e) = "λ" ++ prettyParam p ++ "." ++ prettyExpr e

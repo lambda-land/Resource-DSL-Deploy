@@ -10,10 +10,12 @@ import Options.Applicative
 import DSL.Environment
 import DSL.Expression
 import DSL.Model
+import DSL.Path
 import DSL.Primitive
 import DSL.Profile
 import DSL.Resource
 import DSL.Serialize
+import DSL.Sugar
 
 
 --
@@ -22,25 +24,17 @@ import DSL.Serialize
 
 -- ** Application model
 
--- | Location-provider application model. The input parameter selects which
---   location provider to use. NOTE: This is the only thing that is currently
---   required to be written in the DSL directly. Everything else can be passed
---   in via the JSON interface.
-appModel = Model [P "provider" TInt]
-    [ caseOf (Ref "provider")
-      [ (1, [Load "gps-android" []])
-      , (2, [Load "gps-bluetooth" []])
-      , (3, [Load "gps-usb" []])
-      , (4, [Load "gps-saasm" []])
-      ] [Load "dead-reckoning" []]
-    ]
+-- | Location-provider application model. The input parameter is the ID of the
+--   location provider to use.
+appModel = Model [Param "provider" TSymbol]
+    [ Load (Ref "provider") [] ]
 
 
 -- ** DFUs
 
 -- | A dictionary of all the location DFUs with associated names.
 locationDFUs :: Dictionary
-locationDFUs = profileDict $
+locationDFUs = profileDict
     [ ("gps-android",    gpsAndroid)
     , ("gps-bluetooth",  gpsBluetooth)
     , ("gps-usb",        gpsUsb)
@@ -51,42 +45,42 @@ locationDFUs = profileDict $
 -- | Use built-in android GPS API.
 gpsAndroid :: Model
 gpsAndroid = Model []
-    [ In ["GPS"]
+    [ In "GPS"
       [ checkUnit "SAT"
       , checkUnit "Dev" ]
-    , provideUnit "Location"
+    , createUnit "Location"
     ]
 
 -- | Bluetooth-based GPS.
 gpsBluetooth :: Model
 gpsBluetooth = Model []
-    [ In ["GPS"] [checkUnit "SAT"]
-    , In ["Ext"] [checkUnit "BT"]
-    , provideUnit "Location"
+    [ In "GPS" [checkUnit "SAT"]
+    , In "Ext" [checkUnit "BT"]
+    , createUnit "Location"
     ]
 
 -- | Generic USB-based GPS.
 gpsUsb :: Model
 gpsUsb = Model []
-    [ In ["GPS"] [checkUnit "SAT"]
-    , In ["Ext"] [checkUnit "USB"]
-    , provideUnit "Location"
+    [ In "GPS" [checkUnit "SAT"]
+    , In "Ext" [checkUnit "USB"]
+    , createUnit "Location"
     ]
 
 -- | USB-based SAASM GPS.
 gpsSaasm :: Model
 gpsSaasm = Model []
-    [ In ["GPS"] [checkUnit "SAT"]
-    , In ["Ext"] [checkUnit "USB"]
-    , provideUnit "Location"
-    , In ["Location"] [provideUnit "SAASM"]
+    [ In "GPS" [checkUnit "SAT"]
+    , In "Ext" [checkUnit "USB"]
+    , createUnit "Location"
+    , In "Location" [createUnit "SAASM"]
     ]
 
 -- | Manual / dead reckoning location capability.
 deadReck :: Model
 deadReck = Model []
     [ checkUnit "UI"
-    , provideUnit "Location"
+    , createUnit "Location"
     ]
 
 
@@ -96,7 +90,7 @@ deadReck = Model []
 locationEnvs :: [(String, ResEnv)]
 locationEnvs = [(toID ps, toEnv ps) | ps <- tail (subsequences paths)]
   where
-    toEnv = envFromList . map (\p -> (p,Unit))
+    toEnv = envFromList . map (\p -> (ResID p, Unit))
     toID  = intercalate "+" . map (intercalate ".")
     paths = [["GPS","SAT"],["GPS","Dev"],["Ext","USB"],["Ext","BT"],["UI"]]
 
@@ -118,7 +112,7 @@ hasLocation = toProfile $ Model [] [checkUnit "Location"]
 hasSaasm :: Profile
 hasSaasm = toProfile $ Model []
     [ checkUnit "Location"
-    , In ["Location"] [checkUnit "SAASM"]
+    , In "Location" [checkUnit "SAASM"]
     ]
 
 -- | All relevant mission requirements for the location scenario.
@@ -135,7 +129,7 @@ locationReqs = [("location", hasLocation), ("saasm", hasSaasm)]
 runLocationTest :: String -> Int -> IO ResEnv
 runLocationTest initID dfuID = do
     init <- lookupLocationEnv initID
-    fmap snd $ runWithDict locationDFUs init (loadModel appModel [Lit (I dfuID)])
+    snd <$> runWithDict locationDFUs init (loadModel appModel [Lit (I dfuID)])
 
 
 -- ** Driver Plugin

@@ -12,6 +12,7 @@ import qualified Data.Set as Set
 import Data.SBV
 
 import DSL.Environment
+import DSL.Name
 import DSL.Primitive
 import DSL.SAT
 
@@ -153,6 +154,10 @@ evalPred :: Env Var Bool -> Env Var Int -> Pred -> PVal -> Bool
 evalPred _  _  UPred       Unit  = true
 evalPred mb mi (BPred x e) (B b) = evalBExpr (envExtend x b mb) mi e
 evalPred mb mi (IPred x e) (I i) = evalBExpr mb (envExtend x i mi) e
+evalPred _ _ p v = error $ unlines
+    [ "evalPred: type error"
+    , "  predicate: " ++ show p
+    , "  value: " ++ show v ]
 
 -- | Evaluate a boolean expression to either a ground or symbolic boolean,
 --   given a corresponding dictionary of comparison operators and
@@ -162,7 +167,7 @@ evalBExpr _  _  (BLit b)     = fromBool b
 evalBExpr mb _  (BRef v)     = assumeSuccess (envLookup v mb)
 evalBExpr mb mi (OpB o e)    = opB_B o (evalBExpr mb mi e)
 evalBExpr mb mi (OpBB o l r) = (opBB_B o `on` evalBExpr mb mi) l r
-evalBExpr mb mi (OpIB o l r) = (opII_B o `on` evalIExpr mi) l r
+evalBExpr _  mi (OpIB o l r) = (opII_B o `on` evalIExpr mi) l r
 
 -- | Evaluate an integer expression to either a ground or symbolic integer,
 --   given an environment binding all of the variables.

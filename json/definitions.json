@@ -16,8 +16,12 @@
         { "type": "null" }
       ]
     },
-    
+
     "path": {
+      "type": "string"
+    },
+
+    "resourceID": {
       "type": "array",
       "items": { "type": "string" }
     },
@@ -92,10 +96,21 @@
       "type": "object",
       "properties": {
         "statement": { "enum": [ "do" ] },
-        "name": { "type": "string" },
+        "path": { "$ref": "#/definitions/path" },
         "effect": { "$ref": "#/definitions/effect" }
       },
       "required": [ "statement", "name", "effect" ]
+    },
+    
+    "ifStatement": {
+      "type": "object",
+      "properties": {
+        "statement": { "enum": [ "if" ] },
+        "condition": { "$ref": "#/definitions/expression" },
+        "then": { "$ref": "#/definitions/block" },
+        "else": { "$ref": "#/definitions/block" }
+      },
+      "required": [ "statement", "condition", "then", "else" ]
     },
     
     "inStatement": {
@@ -108,15 +123,15 @@
       "required": [ "statement", "context", "body" ]
     },
     
-    "ifStatement": {
+    "forStatement": {
       "type": "object",
       "properties": {
-        "statement": { "enum": [ "if" ] },
-        "condition": { "$ref": "#/definitions/expression" },
-        "then": { "$ref": "#/definitions/block" },
-        "else": { "$ref": "#/definitions/block" }
+        "statement": { "enum": [ "for" ] },
+        "variable": { "type": "string" },
+        "maximum": { "$ref": "#/definitions/expression" },
+        "body": { "$ref": "#/definitions/block" }
       },
-      "required": [ "statement", "condition", "then", "else" ]
+      "required": [ "statement", "variable", "maximum", "body" ]
     },
     
     "letStatement": {
@@ -134,7 +149,7 @@
       "type": "object",
       "properties": {
         "statement": { "enum": [ "load" ] },
-        "name": { "type": "string" },
+        "component": { "$ref": "#/definitions/expression" },
         "arguments": { 
           "type": "array",
           "items": { "$ref": "#/definitions/expression" }
@@ -146,8 +161,9 @@
     "statement": {
       "anyOf": [
         { "$ref": "#/definitions/doStatement" },
-        { "$ref": "#/definitions/inStatement" },
         { "$ref": "#/definitions/ifStatement" },
+        { "$ref": "#/definitions/inStatement" },
+        { "$ref": "#/definitions/forStatement" },
         { "$ref": "#/definitions/letStatement" },
         { "$ref": "#/definitions/loadStatement" }
       ]
@@ -239,7 +255,7 @@
       "items": {
         "type": "object",
         "properties": {
-          "key": { "$ref": "#/definitions/path" },
+          "key": { "$ref": "#/definitions/resourceID" },
           "value": { "$ref": "#/definitions/primValue" }
         },
         "required": [ "key", "value" ]
