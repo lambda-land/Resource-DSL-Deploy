@@ -6,6 +6,7 @@ import DSL.Effect.Test
 import DSL.Expression.Test
 import DSL.Model.Test
 import DSL.Profile.Test
+import DSL.Serialize.Test
 
 main :: IO ()
 main = defaultMain $ testGroup ""
