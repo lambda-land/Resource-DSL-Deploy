@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PolyKinds #-}
 
 module DSL.Schemas where
 
@@ -29,10 +28,9 @@ schemaContext :: D4.SchemaWithURI D4.Schema
 schemaContext = D4.SchemaWithURI
                 { D4._swSchema = primitives
                 , D4._swURI    = Just ".json/configuration-schema.json"
-
                 }
 
 instance JSONSchema PType where
-  schema (TUnit :: Proxy) = Constant A.Null
+  schema (TUnit) = Constant A.Null -- stuck on Proxies again
   schema (TBool) = Boolean
   schema TInt  = Number unbounded
