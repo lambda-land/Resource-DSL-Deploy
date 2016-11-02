@@ -15,4 +15,5 @@ main = defaultMain $ testGroup ""
   , testExpression
   , testModel
   , testProfile
+  , testSerialize
   ]

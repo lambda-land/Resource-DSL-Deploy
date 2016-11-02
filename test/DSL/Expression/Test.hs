@@ -10,6 +10,8 @@ import           DSL.Expression
 import           DSL.Primitive
 import           DSL.Profile
 import           DSL.Resource
+import           DSL.Name
+import           DSL.Path
 
 -- ** Helper functions
 testCases :: [Assertion] -> [TestTree]
@@ -25,10 +27,10 @@ runEvalFun :: Fun -> PVal -> ResEnv -> IO PVal
 runEvalFun f v env = fst <$> runInEmptyContext env (evalFun f v)
 
 funEq :: Int -> Fun
-funEq n = Fun (P "x" TInt) (Ref "x" .== Lit (I n))
+funEq n = Fun (Param "x" TInt) (Ref "x" .== Lit (I n))
 
 funAddThree :: Fun
-funAddThree = Fun (P "x" TInt) (Lit (I 3) + Ref "x")
+funAddThree = Fun (Param "x" TInt) (Lit (I 3) + Ref "x")
 
 -- ** Tests
 testExpression :: TestTree
@@ -89,17 +91,17 @@ testExpression = testGroup "Expressions Tests"
     , testGroup "checkArgs"
 
       [ testCase "Checking Bools" $
-        do out <- runCheck (P "x" TBool) (B True) envEmpty
+        do out <- runCheck (Param "x" TBool) (B True) envEmpty
            let y = ("x", B True)
            y @=? out
 
       , testCase "Checking Ints" $
-        do out <- runCheck (P "x" TInt) (I 496) envEmpty
+        do out <- runCheck (Param "x" TInt) (I 496) envEmpty
            let y = ("x", I 496)
            y @=? out
 
       , testCase "Checking Units" $
-        do out <- runCheck (P "x" TUnit) Unit envEmpty
+        do out <- runCheck (Param "x" TUnit) Unit envEmpty
            let y = ("x", Unit)
            y @=? out
       ]
@@ -120,13 +122,13 @@ testExpression = testGroup "Expressions Tests"
       , testGroup "evalWithArgs" $
 
         [ testCase "how does withArgs work" $
-        do out <- runInContext (Ctx [""] envEmpty
+        do out <- runInContext (Ctx (ResID [""]) envEmpty
                                 (envSingle "y"
                                  (ProEntry
-                                  (Profile [P "z" TInt]
-                                   (envSingle ["foo"] [Create (Ref "x")])))))
+                                  (Profile [Param "z" TInt]
+                                   (envSingle (Path Absolute ["foo"]) [Create (Ref "x")])))))
              envEmpty (withArgs
-                       [(P "x" TInt)]
+                       [(Param "x" TInt)]
                        [Lit (I 3)]
                        (evalExpr (Ref "x")))   -- should return 3
            let y = (I 3)
