@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module DSL.Schemas where
 
@@ -16,21 +17,13 @@ import qualified Data.Aeson             as A
 import qualified Data.ByteString.Lazy   as LBS
 import qualified Data.List.NonEmpty     as NE
 import           Data.Maybe                (fromMaybe)
-import qualified Data.JsonSchema.Draft4 as D4
 import           Data.JSON.Schema
+import           Data.Proxy
 
 -- Primitives
+instance JSONSchema PVal where
+-- schema (Proxy :: Proxy Unit) = Constant A.Null -- stuck on Proxies again
+--   schema (TBool) = Boolean
+--   schema TInt  = Number unbounded
 
-primitives :: D4.Schema
-primitives = D4.emptySchema { D4._schemaRef = Just "./configuration-schema.json" }
-
-schemaContext :: D4.SchemaWithURI D4.Schema
-schemaContext = D4.SchemaWithURI
-                { D4._swSchema = primitives
-                , D4._swURI    = Just ".json/configuration-schema.json"
-                }
-
-instance JSONSchema PType where
-  schema (TUnit) = Constant A.Null -- stuck on Proxies again
-  schema (TBool) = Boolean
-  schema TInt  = Number unbounded
+schemaOf (v :: x) = schema (Proxy :: Proxy x)

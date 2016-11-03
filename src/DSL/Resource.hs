@@ -8,11 +8,13 @@ import GHC.Generics (Generic)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Reader
 import Control.Monad.State
+import Data.Composition ((.:))
 
 import DSL.Environment
+import DSL.Name
+import DSL.Path
 import DSL.Primitive
 
-import {-# SOURCE #-} DSL.Effect  (Effect)
 import {-# SOURCE #-} DSL.Model   (Model)
 import {-# SOURCE #-} DSL.Profile (Profile)
 
@@ -28,14 +30,14 @@ data Entry
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Dictionary of profiles and models.
-type Dictionary = Env Var Entry
+type Dictionary = Env CompID Entry
 
 -- Merge duplicate dictionary entries. For now, merges profiles w/ profiles
 -- and models w/ models, otherwise throws an error.
 instance MergeDup Entry where
   mergeDup (ProEntry l) (ProEntry r) = ProEntry (mergeDup l r)
   mergeDup (ModEntry l) (ModEntry r) = ModEntry (mergeDup l r)
-  mergeDup l r = error "mergeDup (Entry): cannot merge profile and model"
+  mergeDup _ _ = error "mergeDup (Entry): cannot merge profile and model"
 
 
 -- 
@@ -46,18 +48,18 @@ instance MergeDup Entry where
 type VarEnv = Env Var PVal
 
 -- | Resource environment.
-type ResEnv = Env Path PVal -- TODO make variational
+type ResEnv = Env ResID PVal  -- TODO make variational
 
 -- | Reader context for evaluation.
 data Context = Ctx {
-    prefix      :: Path,       -- ^ resource path prefix
+    prefix      :: ResID,      -- ^ resource ID prefix
     environment :: VarEnv,     -- ^ variable environment
     dictionary  :: Dictionary  -- ^ dictionary of profiles and models
 } deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- Throw an error if we attempt to merge two primitive values.
 instance MergeDup PVal where
-  mergeDup r1 r2 = error "mergeDup (PVal): attempted to merge duplicate entries"
+  mergeDup _ _ = error "mergeDup (PVal): attempted to merge duplicate entries"
 
 -- | A class of monads for computations that affect a resource environment,
 --   given an evaluation context, and which may throw/catch exceptions.
@@ -76,15 +78,21 @@ runInContext ctx init mx = runReaderT (runStateT mx init) ctx
 -- | Execute a computation with a given dictionary and an empty variable
 --   environment and prefix.
 runWithDict :: Dictionary -> ResEnv -> EvalM a -> IO (a, ResEnv)
-runWithDict dict = runInContext (Ctx [] envEmpty dict)
+runWithDict dict = runInContext (Ctx (ResID []) envEmpty dict)
 
 -- | Execute a computation in the empty context.
 runInEmptyContext :: ResEnv -> EvalM a -> IO (a, ResEnv)
 runInEmptyContext = runWithDict envEmpty
 
--- | Get the current resource path prefix.
-getPrefix :: MonadEval m => m Path
+-- | Get the current resource ID prefix.
+getPrefix :: MonadEval m => m ResID
 getPrefix = asks prefix
+
+-- | Convert a path to a resource ID, using the prefix if the path is relative.
+getResID :: MonadEval m => Path -> m ResID
+getResID path = do
+    pre <- getPrefix
+    toResID pre path
 
 -- | Get the current dictionary of profiles and models.
 getDict :: MonadEval m => m Dictionary
@@ -110,17 +118,17 @@ queryVarEnv f = fmap f getVarEnv
 queryResEnv :: MonadEval m => (ResEnv -> a) -> m a
 queryResEnv = gets
 
--- | Execute a computation with an updated prefix.
-withPrefix :: MonadEval m => (Path -> Path) -> m a -> m a
-withPrefix f = local (\(Ctx p m d) -> Ctx (f p) m d)
-
--- | Execute a computation with an updated value environment.
-withDict :: MonadEval m => (Dictionary -> Dictionary) -> m a -> m a
-withDict f = local (\(Ctx p m d) -> Ctx p m (f d))
+-- | Execute a computation with a specific prefix.
+withPrefix :: MonadEval m => ResID -> m a -> m a
+withPrefix p = local (\(Ctx _ m d) -> Ctx p m d)
 
 -- | Execute a computation with an updated value environment.
 withVarEnv :: MonadEval m => (VarEnv -> VarEnv) -> m a -> m a
 withVarEnv f = local (\(Ctx p m d) -> Ctx p (f m) d)
+
+-- | Execute a computation with an extended value environment.
+withNewVar :: MonadEval m => Var -> PVal -> m a -> m a
+withNewVar = withVarEnv .: envExtend
 
 -- | Update the resource environment.
 updateResEnv :: MonadEval m => (ResEnv -> ResEnv) -> m ()
