@@ -37,11 +37,11 @@ blockone = [provideUnit "x"
            , In (Path Relative ["foo"]) [checkUnit "x"]]
 
 blocktwo :: Block
-blocktwo = [If ((Lit (B True)) .== (Lit (B True)))
+blocktwo = [If (Lit (B True) .== Lit (B True))
             [Let "x" (Lit (I 1)) []]
             [Let "x" (Lit (I 0)) []]
            , Load (Ref "loading")
-             [Ref "a", Lit (I 1729), (P1 (I_I Neg) (Lit (I 1729)))]]
+             [Ref "a", Lit (I 1729), P1 (I_I Neg) (Lit (I 1729))]]
 
 blockthree :: Block
 blockthree = init blockone
@@ -86,7 +86,7 @@ testModel = testGroup "Model Tests"
     , testCase "toProfile creates a Profile wih an In block" $
       do let out = toProfile (Model [Param "x" TInt] blockone)
          let p = Profile [Param "x" TInt]
-               (envFromList [(Path Relative ["foo", "x"], [checkFor "x"])
+               (envFromList [(Path Relative [".", "foo", "x"], [checkFor "x"])
                             , (Path Relative [".", "x"]
                               , [create , checkFor "x"])])
          p @=? out
@@ -170,9 +170,10 @@ testModel = testGroup "Model Tests"
                                                      blockone])
            [Lit (I 1), Lit (B True)]
            (envFromList [(ResID ["xx"], I 23), (ResID ["foo", "x"], Unit)])
-         envFromList [(ResID ["foo","x"],Unit)
+
+         out @=? envFromList [(ResID ["foo","x"],Unit)
                      , (ResID ["x"],Unit)
-                     , (ResID ["xx"],I 23)] @=? out
+                     , (ResID ["xx"],I 23)]
 
     , testCase "load model loads a model with a Load block, model" $
       do out <- snd <$> runInContext ctx
@@ -180,10 +181,10 @@ testModel = testGroup "Model Tests"
            (loadModel (Model [Param "ref_x" TInt, Param "ref_y" TBool]
                        [Load (Ref "submodel") [(+) (Lit $ I 3) (Lit $ I 3)]])
            [Lit (I 1), Lit (B True)])
-         envFromList [(ResID ["foo","x"], Unit)
+
+         out @=? envFromList [(ResID ["foo","x"], Unit)
                      , (ResID ["x"],Unit)
                      , (ResID ["submodel"],I 23)]
-           @=? out
 
     , testCase "load model loads a model with a Load block, profile" $
       do out <- snd <$> runInContext ctx'
@@ -192,9 +193,8 @@ testModel = testGroup "Model Tests"
            (loadModel (Model [Param "ref_x" TInt, Param "ref_y" TBool]
                        [Load (Ref "subprofile") [(+) (Lit $ I 3) (Lit $ I 3)]])
            [Lit (I 1), Lit (B True)])
-         envFromList [(ResID ["foo"], B False)
+         out @=? envFromList [(ResID ["foo"], B False)
                      , (ResID ["foo", "y"], Unit)
                      , (ResID ["subprofile"],I 23)]
-           @=? out
     ]
   ]
