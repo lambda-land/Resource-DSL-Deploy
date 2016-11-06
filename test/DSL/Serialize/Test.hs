@@ -11,6 +11,7 @@ import DSL.Serialize
 import DSL.Primitive
 import DSL.Expression
 import DSL.Path
+import DSL.Name
 
 -- ** Helper functions
 roundTrip :: (Eq a, Show a, ToJSON a) => String -> a -> ParseIt a -> Assertion
@@ -76,6 +77,10 @@ testSerialize = testGroup "Roundtripping for Serialize"
       roundTrip "Fun with Res Path" (Fun (Param "x" TBool)
                                      (Res (Path Absolute ["foo"]))) asFun
 
+    , testCase "RoundTrip for Function with Res" $
+      roundTrip "Fun with Res Path" (Fun (Param "x" TBool)
+                                     (Res (Path Relative ["foo"]))) asFun
+
     , testCase "RoundTrip for Function with Lit" $
       roundTrip "Fun with Literal" (Fun (Param "x" TInt) (Lit (B True))) asFun
 
@@ -108,5 +113,22 @@ testSerialize = testGroup "Roundtripping for Serialize"
                                           (true ||| false)
                                           (negate 0)
                                           (bnot true))) asFun
+    ]
+
+  , testGroup "Names and Paths roundTrips"
+    [ testCase "Roundtrip for Names" $
+      roundTrip "RoundTrip Name" "Name" asName
+
+    , testCase "Roundtrip for Symbol" $
+      roundTrip "RoundTrip Symbol" (Symbol "Name") asSymbol
+
+    , testCase "Roundtrip for ResID" $
+      roundTrip "RoundTrip ResID" (ResID ["Name"]) asResID
+
+    , testCase "Roundtrip for Path, Absolute" $
+      roundTrip "RoundTrip Path" (Path Absolute ["Name"]) asPath
+
+    , testCase "Roundtrip for Path, Relative" $
+      roundTrip "RoundTrip Path" (Path Relative ["Name"]) asPath
     ]
   ]

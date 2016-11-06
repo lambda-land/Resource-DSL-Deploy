@@ -99,7 +99,7 @@ testResolveEffect = testGroup "resolveEffect"
              >>= runEffect (ResID ["foo"]) Delete
              >>= runEffect (ResID ["foo"]) Delete)
       ]
-      
+
     , testGroup "Check"
 
       [ testCase "Check a path exists in ResEnv" $
@@ -116,13 +116,13 @@ testResolveEffect = testGroup "resolveEffect"
         do out <- runEffect (ResID ["foo"]) (Create 3) envEmpty
              >>= runEffect (ResID ["foo"]) (Check (funEq 3)) 
            envFromList [(ResID ["foo"], I 3)] @=? out
-           
+
       , testCase "Check a created path and return a False" $
         assertEffectError
           CheckFailure (runEffect (ResID ["foo"])
                         (Create 3) envEmpty
                         >>= runEffect (ResID ["foo"]) (Check (funEq 1)))
-                        
+
       , testCase "Check created path, throw type error" $
         assertArgTypeError (runEffect (ResID ["foo"]) (Check (funEq 3))
                           (envFromList [(ResID ["foo"], B True)]))
