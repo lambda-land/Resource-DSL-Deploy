@@ -12,6 +12,10 @@ import DSL.Primitive
 import DSL.Expression
 import DSL.Path
 import DSL.Name
+import DSL.Environment
+import DSL.Effect
+import DSL.Profile
+import DSL.Resource
 
 -- ** Helper functions
 roundTrip :: (Eq a, Show a, ToJSON a) => String -> a -> ParseIt a -> Assertion
@@ -130,5 +134,39 @@ testSerialize = testGroup "Roundtripping for Serialize"
 
     , testCase "Roundtrip for Path, Relative" $
       roundTrip "RoundTrip Path" (Path Relative ["Name"]) asPath
+    ]
+
+  , testGroup "Roundtrip Environments"
+    [ testCase "RoundTrip for Var Environments" $
+      roundTrip "RoundTrip Simple Envrionment with k = path, v = name"
+      (envFromList [((Path Relative ["foo"]), ("Name"))])
+      (asEnv asPath asName)
+
+    , testCase "RoundTrip for Variable Environment" $
+      roundTrip "RoundTrip Variable Environment"
+      (envFromList [("x", (B True))
+                   , ("a", (I 13))
+                   , ("y", Unit)
+                   , ("z", (S "symbol"))]) asVarEnv
+
+    , testCase "RoundTrip for Resource Environment" $
+      roundTrip "Roundtrip Resource Environment"
+      (envFromList [(ResID ["x"], (B True))
+                   , (ResID ["a"], (I 13))
+                   , (ResID ["y"], Unit)
+                   , (ResID ["z"], (S "symbol"))]) asResEnv
+
+    , testCase "RoundTrip for Dictionaries" $
+      roundTrip "RoundTrip Dictionary"
+      (envFromList [("Symbol"
+                    , ProEntry $ profile [Param "x" TInt, Param "y" TBool
+                                         , Param "z" TUnit, Param "s" TSymbol]
+                    [(Path Absolute ["foo"], [Create (bnot true)])
+                                 , (Path Relative ["bar"], [Create (8 .% 4)])
+                                 , (Path Absolute ["foo"], [Delete])
+                                 , (Path Relative ["bar"]
+                                   , [Check (Fun (Param "x" TUnit) (1 + 1))
+                                     , Create (Lit (I 1))])])])
+      asDictionary
     ]
   ]
