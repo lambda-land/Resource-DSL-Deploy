@@ -10,6 +10,7 @@ import Test.Tasty.HUnit
 import DSL.Serialize
 import DSL.Primitive
 import DSL.Expression
+import DSL.Path
 
 -- ** Helper functions
 roundTrip :: (Eq a, Show a, ToJSON a) => String -> a -> ParseIt a -> Assertion
@@ -54,7 +55,58 @@ testSerialize = testGroup "Roundtripping for Serialize"
     ]
 
   , testGroup "RoundTrip for Params"
-    [ testCase "Round Trip Param" $
+    [ testCase "Round Trip Param with an TInt" $
       roundTrip "a Param" (Param "foo" TInt) asParam
+
+    , testCase "Round Trip Param with a TBool" $
+      roundTrip "a Param" (Param "foo" TBool) asParam
+
+    , testCase "Round Trip Param with a TUnit" $
+      roundTrip "a Param" (Param "foo" TUnit) asParam
+
+    , testCase "Round Trip Param with a TSymbol" $
+      roundTrip "a Param" (Param "foo" TSymbol) asParam
+    ]
+
+  , testGroup "RoundTrip for Functions"
+    [ testCase "RoundTrip for Function with Ref" $
+      roundTrip "Fun with Var reference" (Fun (Param "x" TUnit) (Ref "y")) asFun
+
+    , testCase "RoundTrip for Function with Res" $
+      roundTrip "Fun with Res Path" (Fun (Param "x" TBool)
+                                     (Res (Path Absolute ["foo"]))) asFun
+
+    , testCase "RoundTrip for Function with Lit" $
+      roundTrip "Fun with Literal" (Fun (Param "x" TInt) (Lit (B True))) asFun
+
+    , testCase "RoundTrip for Function with unary func 1" $
+      roundTrip "Fun with unary func 1" (Fun (Param "x" TUnit) (abs 4)) asFun
+
+    , testCase "RoundTrip for Function with unary func 2" $
+      roundTrip "Fun with unary func 2" (Fun (Param "x" TUnit)
+                                         (negate 5)) asFun
+
+    , testCase "RoundTrip for Function with unary func 3" $
+      roundTrip "Fun with unary func 3" (Fun (Param "x" TUnit)
+                                         (bnot false)) asFun
+
+    , testCase "RoundTrip for Function with binary func 1" $
+      roundTrip "Fun with binary func 1" (Fun (Param "x" TUnit)
+                                         (true &&& false)) asFun
+
+    , testCase "RoundTrip for Function with binary func 2" $
+      roundTrip "Fun with binary func 2" (Fun (Param "x" TInt)
+                                         (8 ./ 4)) asFun
+
+    , testCase "RoundTrip for Function with binary func 3" $
+      roundTrip "Fun with binary func 3" (Fun (Param "x" TBool)
+                                         (8 .% 4)) asFun
+
+    , testCase "RoundTrip for Function with ternary func" $
+      roundTrip "Fun with ternary func" (Fun (Param "x" TBool)
+                                         (P3 Cond
+                                          (true ||| false)
+                                          (negate 0)
+                                          (bnot true))) asFun
     ]
   ]
