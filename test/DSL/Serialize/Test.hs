@@ -16,6 +16,7 @@ import DSL.Environment
 import DSL.Effect
 import DSL.Profile
 import DSL.Resource
+import DSL.Model
 
 -- ** Helper functions
 roundTrip :: (Eq a, Show a, ToJSON a) => String -> a -> ParseIt a -> Assertion
@@ -156,7 +157,7 @@ testSerialize = testGroup "Roundtripping for Serialize"
                    , (ResID ["y"], Unit)
                    , (ResID ["z"], (S "symbol"))]) asResEnv
 
-    , testCase "RoundTrip for Dictionaries" $
+    , testCase "RoundTrip for Dictionaries with profile" $
       roundTrip "RoundTrip Dictionary"
       (envFromList [("Symbol"
                     , ProEntry $ profile [Param "x" TInt, Param "y" TBool
@@ -168,5 +169,18 @@ testSerialize = testGroup "Roundtripping for Serialize"
                                    , [Check (Fun (Param "x" TUnit) (1 + 1))
                                      , Create (Lit (I 1))])])])
       asDictionary
+
+    , testCase "RoundTrip for Dictionaries with model" $
+      roundTrip "RoundTrip Dictionary"
+      (envFromList [("CompID"
+                    , ModEntry $ Model [Param "x" TInt, Param "y" TBool
+                                       , Param "z" TUnit , Param "s" TSymbol]
+                      [Do (Path Absolute ["foo"])
+                       (Create (Res (Path Relative ["foo", "bar"])))
+                      , If (true ||| false) [Let "gambino" (Ref "worldstar")
+                                            [In (Path Absolute ["bar"]) []]]
+                        []])])
+      asDictionary
+                   
     ]
   ]

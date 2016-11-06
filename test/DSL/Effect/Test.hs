@@ -163,7 +163,7 @@ testResolveEffect = testGroup "resolveEffect"
              (envFromList [(ResID ["foo"], I 3), (ResID ["bar"], I 1729)])
                   >>= runEffect (ResID ["bar"]) (Modify funAddThree)
            envFromList [(ResID ["foo"], I 6), (ResID ["bar"], I 1732)] @=? out
-      
+
       , testCase "Throw an ArgTypeError when trying to mod a boolean with an int" $
         assertArgTypeError (runEffect (ResID ["foo"])
                             (Modify funAddThree)
