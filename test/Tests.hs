@@ -10,8 +10,7 @@ import DSL.Serialize.Test
 
 main :: IO ()
 main = defaultMain $ testGroup ""
-  [
-    testResolveEffect
+  [testResolveEffect
   , testExpression
   , testModel
   , testProfile
