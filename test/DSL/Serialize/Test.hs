@@ -181,6 +181,26 @@ testSerialize = testGroup "Roundtripping for Serialize"
                                             [In (Path Absolute ["bar"]) []]]
                         []])])
       asDictionary
-                   
+    ]
+
+  , testGroup "RoundTrip Effects"
+    [ testCase "Roundtripping modify effect" $
+      roundTrip "Roundtripping for modify"
+      (Modify (Fun (Param "x" TUnit) (Lit (I 0)))) asEffect
+    ]
+
+  , testGroup "RoundTrip Blocks"
+    [ testCase "Roundtripping block" $
+      roundTrip "block" [Do (Path Absolute ["foo"]) (Create (Ref "x"))
+                        , If (true &&& false)
+                          [Do (Path Relative ["bar"]) (Create (Lit (I 6)))]
+                          [Load (negate 31) [Lit (I 10)]]
+                        , In (Path Absolute ["foo"])
+                          [Let "y" (Res (Path Relative ["bar"]))
+                           [Do (Path Relative ["bar"]) (Delete)]]
+                        , For "x" (Lit (I 1000))
+                          [Do (Path Relative ["bar"])
+                           (Create (Res (Path Relative ["foo"])))]]
+      asBlock
     ]
   ]
