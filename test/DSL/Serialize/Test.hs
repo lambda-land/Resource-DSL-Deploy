@@ -173,12 +173,12 @@ testSerialize = testGroup "Roundtripping for Serialize"
     , testCase "RoundTrip for Dictionaries with model" $
       roundTrip "RoundTrip Dictionary"
       (envFromList [("CompID"
-                    , ModEntry $ Model [Param "x" TInt, Param "y" TBool
-                                       , Param "z" TUnit , Param "s" TSymbol]
-                      [Do (Path Absolute ["foo"])
-                       (Create (Res (Path Relative ["foo", "bar"])))
-                      , If (true ||| false) [Let "gambino" (Ref "worldstar")
-                                            [In (Path Absolute ["bar"]) []]]
+                    , ModEntry $ model [param "x" tint, param "y" tbool
+                                       , param "z" tunit , param "s" tsymbol]
+                      [Do (path absolute ["foo"])
+                       (create (res (path relative ["foo", "bar"])))
+                      , if (true ||| false) [let "gambino" (ref "worldstar")
+                                            [in (path absolute ["bar"]) []]]
                         []])])
       asDictionary
     ]
