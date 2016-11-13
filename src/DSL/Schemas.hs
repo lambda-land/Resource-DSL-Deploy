@@ -124,3 +124,58 @@ stmtSchema = Choice [doStmtSchema, ifStmtSchema, inStmtSchema
 
 blockSchema :: Schema
 blockSchema = Array unboundedLength False stmtSchema
+
+-- Profiles 
+profileEffectSchema :: Schema
+profileEffectSchema = Object [Field {key="key", required=True
+                                    , content=pathSchema}
+                             , Field {key = "value", required=True,
+                                     content=Array
+                                     unboundedLength
+                                     False effectSchema}
+                             ]
+
+profileSchema :: Schema
+profileSchema = Object [Field {key="parameters", required=True
+                              , content=Array unboundedLength False paramSchema}
+                       , Field {key="effects", required=True
+                               , content=Array unboundedLength False
+                                 profileEffectSchema}
+                       ]
+
+profileEntrySchema :: Schema
+profileEntrySchema = Object [Field {key="type", required=True
+                                   , content=string}
+                            , Field {key="entry", required=True
+                                    , content=profileSchema}]
+
+-- Models
+modelSchema :: Schema
+modelSchema = Object [Field {key="parameters", required=True
+                            , content=Array unboundedLength False paramSchema}
+                     , Field {key="block", required=False, content=blockSchema}
+                     ]
+
+modelEntrySchema :: Schema
+modelEntrySchema = Object [Field {key="type", required=True
+                                   , content=string}
+                          , Field {key="entry", required=True
+                                   , content=modelSchema}
+                          ]
+
+-- Dictionaries
+entrySchema :: Schema
+entrySchema = Choice [profileEntrySchema, modelEntrySchema]
+
+dictSchema :: Schema
+dictSchema = Array unboundedLength False $
+  Object [Field {key="key", required=True, content=string}
+         , Field {key="value", required=True, content=entrySchema}
+         ]
+
+resourceSchema :: Schema
+resourceSchema = Array unboundedLength False $
+  Object [Field {key="key", required=True, content=resIDSchema}
+         , Field {key="value", required=True, content=pTypeSchema}
+         ]
+
