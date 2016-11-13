@@ -75,4 +75,46 @@ effectSchema = Choice [createSchema, checkSchema, modifySchema, deleteSchema]
 
 -- Statements
 doStmtSchema :: Schema
-doStmtSchema = undefined
+doStmtSchema = Object [Field {key="statment", required=True
+                             , content=string}
+                      ,Field {key="path", required=True, content=pathSchema}
+                      ,Field {key="effect", required=True, content=effectSchema}
+                      ]
+
+ifStmtSchema :: Schema
+ifStmtSchema = Object [Field {key="statement", required=True, content=string}
+                      , Field {key="condition", required=True
+                              , content=exprSchema}
+                      , Field {key="then", required=True, content=blockExpr}
+                      , Field {key="else", required=True, content=blockExpr}
+                      ]
+
+inStmtSchema :: Schema
+inStmtSchema = Object [Field {key="statement", required=True, content=string}
+                      , Field {key="variable", required=True, content=string}
+                      , Field {key="maximum", required=True, content=exprSchema}
+                      , Field {key="body", required=True, content=blockExpr}
+                      ]
+
+letStmtSchema :: Schema
+letStmtSchema = Object [Field {key="statement", required=True, content=string}
+                       , Field {key="variable", required=True, content=string}
+                       , Field {key="bound", required=True, content=exprSchema}
+                       , Field {key="body", required=True, content=blockExpr}
+                       ]
+
+loadStmtSchema :: Schema
+loadStmtSchema = Object [Field {key="statement", required=True, content=string}
+                        , Field {key="component", required=True
+                                , content=exprSchema}
+                        , Field {key="arguments", required=True
+                                , content=Array unboundedLength False exprSchema}
+                        ]
+
+stmtSchema :: Schema
+stmtSchema = Choice [doStmtSchema, ifStmtSchema, inStmtSchema
+                    , letStmtSchema, loadStmtSchema
+                    ]
+
+blockSchema :: Schema
+blockSchema = Array unboundedLength False stmtSchema
