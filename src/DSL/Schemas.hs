@@ -75,7 +75,7 @@ effectSchema = Choice [createSchema, checkSchema, modifySchema, deleteSchema]
 
 -- Statements
 doStmtSchema :: Schema
-doStmtSchema = Object [Field {key="statment", required=True
+doStmtSchema = Object [Field {key="statement", required=True
                              , content=string}
                       ,Field {key="path", required=True, content=pathSchema}
                       ,Field {key="effect", required=True, content=effectSchema}
@@ -85,22 +85,28 @@ ifStmtSchema :: Schema
 ifStmtSchema = Object [Field {key="statement", required=True, content=string}
                       , Field {key="condition", required=True
                               , content=exprSchema}
-                      , Field {key="then", required=True, content=blockExpr}
-                      , Field {key="else", required=True, content=blockExpr}
+                      , Field {key="then", required=True, content=blockSchema}
+                      , Field {key="else", required=True, content=blockSchema}
                       ]
 
 inStmtSchema :: Schema
 inStmtSchema = Object [Field {key="statement", required=True, content=string}
+                      , Field {key="context", required=True, content=pathSchema}
+                      , Field {key="body", required=True, content=blockSchema}
+                      ]
+
+forStmtSchema :: Schema
+forStmtSchema = Object [Field {key="statement", required=True, content=string}
                       , Field {key="variable", required=True, content=string}
                       , Field {key="maximum", required=True, content=exprSchema}
-                      , Field {key="body", required=True, content=blockExpr}
+                      , Field {key="body", required=True, content=blockSchema}
                       ]
 
 letStmtSchema :: Schema
 letStmtSchema = Object [Field {key="statement", required=True, content=string}
                        , Field {key="variable", required=True, content=string}
                        , Field {key="bound", required=True, content=exprSchema}
-                       , Field {key="body", required=True, content=blockExpr}
+                       , Field {key="body", required=True, content=blockSchema}
                        ]
 
 loadStmtSchema :: Schema
