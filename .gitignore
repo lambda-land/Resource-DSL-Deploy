@@ -3,4 +3,5 @@ inbox
 outbox
 scratch
 TAGS
-*.tix
+.tix
+.hpc
