@@ -99,7 +99,7 @@
         "path": { "$ref": "#/definitions/path" },
         "effect": { "$ref": "#/definitions/effect" }
       },
-      "required": [ "statement", "name", "effect" ]
+      "required": [ "statement", "path", "effect" ]
     },
     
     "ifStatement": {
