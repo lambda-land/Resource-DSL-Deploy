@@ -136,7 +136,6 @@ asPVal = do
 
 asConfig :: ParseIt [PVal]
 asConfig = eachInArray asPVal
-     
 
 -- ** Functions and Expressions
 

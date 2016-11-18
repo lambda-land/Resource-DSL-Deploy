@@ -45,6 +45,10 @@ c ?? (t,e) = P3 Cond c t e
 
 infix 1 ??
 
+-- function to test for ArgTypeError Constructor
+isArgTypeError :: ArgTypeError -> Bool
+isArgTypeError (ArgTypeError _ _) = True
+
 -- Use SBV's Boolean type class for boolean predicates.
 instance Boolean Expr where
   true  = Lit (B True)

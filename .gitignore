@@ -2,3 +2,7 @@
 inbox
 outbox
 scratch
+TAGS
+*.tix
+.hpc
+.#*
