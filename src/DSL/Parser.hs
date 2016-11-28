@@ -92,7 +92,7 @@ path = char '@' >> absolute <|> relative <?> "resource path"
     step = verbatim "." <|> verbatim ".." <|> many (char '_' <|> alphaNumChar)
 
 parens :: Parser a -> Parser a
-parens = between (char '(') (char ')')
+parens = between (lexeme (char '(')) (lexeme (char ')'))
 
 opTable :: [[Operator Parser Expr]]
 opTable =
