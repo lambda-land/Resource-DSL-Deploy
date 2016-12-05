@@ -144,4 +144,4 @@ prettyParam :: Param -> String
 prettyParam (Param x t) = x ++ ":" ++ prettyPType t
 
 prettyFun :: Fun -> String
-prettyFun (Fun p e) = "λ" ++ prettyParam p ++ "." ++ prettyExpr e
+prettyFun (Fun p e) = "λ" ++ prettyParam p ++ ". " ++ prettyExpr e

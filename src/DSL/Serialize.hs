@@ -44,7 +44,7 @@ defaultOutput = "outbox/resources.json"
 
 --
 -- * Read/Write JSON
--- 
+--
 
 -- | Parse a String containing a JSON value.
 decodeJSON :: String -> ParseIt a -> IO a
@@ -88,7 +88,7 @@ data SchemaViolation
 
 prettySchemaViolation :: SchemaViolation -> Text
 prettySchemaViolation (BadCase typ good bad) =
-    "Invalid " <> typ <> " case: " <> bad 
+    "Invalid " <> typ <> " case: " <> bad
     <> "\nExpected one of: " <> intercalate ", " good
 prettySchemaViolation (BadPVal bad) =
     "Invalid primitive value: " <> pack (show bad)
@@ -136,6 +136,7 @@ asPVal = do
 
 asConfig :: ParseIt [PVal]
 asConfig = eachInArray asPVal
+
 
 -- ** Functions and Expressions
 

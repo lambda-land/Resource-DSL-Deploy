@@ -69,7 +69,7 @@ instance Num Expr where
   (+)    = P2 (II_I Add)
   (-)    = P2 (II_I Sub)
   (*)    = P2 (II_I Mul)
-  
+
 -- Other integer arithmetic primitives.
 instance PrimI Expr where
   (./) = P2 (II_I Div)
