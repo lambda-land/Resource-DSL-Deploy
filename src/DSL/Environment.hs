@@ -28,7 +28,7 @@ envOnMap f (Env m) = Env (f m)
 -- ** Errors
 
 -- | Error thrown when a name is not found in the environment.
-newtype NotFound k = NotFound k
+data NotFound k = NotFound k [k]
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 instance (Show k, Typeable k) => Exception (NotFound k)
@@ -92,8 +92,8 @@ envUnionWith f (Env l) (Env r) = Env (Map.unionWith f l r)
 
 -- | Lookup a binding in an environment.
 envLookup :: (Ord k, Show k, Typeable k, MonadThrow m) => k -> Env k v -> m v
-envLookup k = maybe notFound return . Map.lookup k . envAsMap
-  where notFound = throwM (NotFound k)
+envLookup k (Env m) = (maybe notFound return . Map.lookup k) m
+  where notFound = throwM (NotFound k (Map.keys m))
 
 -- | Apply a result-less monadic action to all key-value pairs.
 envMapM_ :: Monad m => (k -> v -> m ()) -> Env k v -> m ()
