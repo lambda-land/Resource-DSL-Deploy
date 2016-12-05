@@ -46,10 +46,9 @@ data PathKind = Absolute | Relative
 data Path = Path PathKind [Name]
   deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
--- | Errors that can occur when combining or converting paths.
+-- | Error that can occur when converting paths.
 data PathError
-     = CannotAppend Path Path
-     | CannotNormalize Path
+     = CannotNormalize Path
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 instance Exception PathError
@@ -70,14 +69,15 @@ pathParent = Path Relative [".."]
 pathFor :: Int -> Path
 pathFor i = Path Relative [show i]
 
--- | Append two paths.
-pathAppend :: MonadThrow m => Path -> Path -> m Path
-pathAppend p1@(Path k1 l) p2@(Path k2 r) = case k2 of
-    Relative -> pure (Path k1 (l ++ r))
-    Absolute -> throwM (CannotAppend p1 p2)
+-- | Append two paths. If the second path is absolute, instead use it directly.
+pathAppend :: Path -> Path -> Path
+pathAppend _ p2@(Path Absolute _) = p2
+pathAppend (Path k1 l) p2@(Path k2 r) = case k2 of
+    Absolute -> p2
+    Relative -> Path k1 (l ++ r)
 
 -- | Convert a prefix + path into a resource ID. If the path is absolute, the
---   prefix is ignored. If the path is relative, it is appended to the prefix. 
+--   prefix is ignored. If the path is relative, it is appended to the prefix.
 --   The resulting path is normalized (i.e. special path names are eliminated)
 --   to produce a resource ID.
 toResID :: MonadThrow m => ResID -> Path -> m ResID
