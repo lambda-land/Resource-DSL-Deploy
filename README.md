@@ -129,7 +129,7 @@ to the corresponding example subcommand, for example:
 ```
 
 
-## Example usage
+## Location Provider Example
 
 Here is an example sequence of commands for generating example inputs for the
 location provider example and then checking a handful of scenarios.
@@ -176,6 +176,45 @@ the mission requirements (exit code 0):
 > stack exec resource-dsl -- check --config [\"gps-saasm\"]
 ```
 
+
+## Network Example
+
+To see the inputs that can be generated for this example, pass `--help` to the
+`network` example subcommand:
+
+```bash
+> stack exec resource-dsl -- example network --help
+```
+
+First, generate some input files. The following command generates the network
+example dictionary, application model, the mission requirements, an initial
+resource environment with 1000 kb/s of bandwidth, and configures the
+application to send 30 PLI reports and 10 images per minute.
+
+```bash
+> stack exec resource-dsl -- example network --dict --model --reqs --init 1000 --config \(30,10\)
+```
+
+We can check this configuration by executing the following command:
+
+```bash
+> stack exec resource-dsl -- check
+```
+
+However, this fails when checking the mission requirements (exit code 3) since
+the bandwidth is insufficient for the configured PLI and image report rate.
+
+The following command will reconfigure to only send 5 images per minute:
+
+```bash
+> stack exec resource-dsl -- example network --config \(30,5\)
+```
+
+This configuration passes the mission requirements (exit code 0):
+
+```bash
+> stack exec resource-dsl -- check
+```
 
 [Stack]: http://docs.haskellstack.org/en/stable/README/
 [Z3]: https://github.com/Z3Prover/z3/releases
