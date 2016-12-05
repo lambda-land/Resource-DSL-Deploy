@@ -59,21 +59,23 @@ instance Exception StmtError
 
 -- ** Operations
 
+-- | Construct a model dictionary from an association list of models.
+modelDict :: [(Name,Model)] -> Dictionary
+modelDict l = envFromList [(Symbol n, ModEntry m) | (n,m) <- l]
+
+-- | Construct a profile dictionary from an association list of models.
+profileDict :: [(Name,Model)] -> Dictionary
+profileDict l = envFromList [(Symbol n, ProEntry (toProfile m)) | (n,m) <- l]
+
 -- | Convert a simple model into a profile. This allows writing profiles
 --   with nicer syntax. Fails with a runtime error on a Load or If statement.
 toProfile :: Model -> Profile
 toProfile (Model xs stmts) =
     Profile xs (envFromListAcc (concatMap (entries pathThis) stmts))
   where
-    entries pre (In path blk)
-      | Just path' <- pathAppend pre path = concatMap (entries path') blk
-    entries pre (Do path eff)
-      | Just path' <- pathAppend pre path = [(path', [eff])]
+    entries pre (In path blk) = concatMap (entries (pathAppend pre path)) blk
+    entries pre (Do path eff) = [(pathAppend pre path, [eff])]
     entries _ _ = error "toProfile: cannot convert model to profile"
-
--- | Construct a profile dictionary from an association list of models.
-profileDict :: [(Name,Model)] -> Dictionary
-profileDict l = envFromList [(Symbol n, ProEntry (toProfile m)) | (n,m) <- l]
 
 -- | Compose two models by sequencing the statements in their bodies.
 --   Merges parameters by name.
