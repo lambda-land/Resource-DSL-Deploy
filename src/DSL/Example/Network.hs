@@ -6,12 +6,13 @@ import GHC.Generics (Generic)
 import Control.Monad (when)
 import Options.Applicative
 
-import DSL.Effect
+import DSL.Environment
 import DSL.Expression
 import DSL.Model
 import DSL.Name ()
 import DSL.Path ()
 import DSL.Primitive
+import DSL.Profile
 import DSL.Resource
 import DSL.Serialize
 import DSL.Sugar
@@ -24,31 +25,43 @@ import DSL.Sugar
 -- ** Application model
 
 imageParams :: [Param]
-imageParams = 
+imageParams =
     [ Param "imageRate" TInt
-    , Param "resX" TInt
-    , Param "resY" TInt
-    , Param "scale" TInt  -- 1/scale
-    , Param "color" TBool
-    , Param "compress" TBool
+    , Param "resX"      TInt
+    , Param "resY"      TInt
+    , Param "scale"     TInt -- 1/scale
+    , Param "color"     TBool
+    , Param "compress"  TBool
     ]
 
 saParams :: [Param]
 saParams =
-    [ Param "pliRate" TInt  -- position location information
-    , Param "logging" TBool
-    ]
-
-networkDFUs :: Dictionary
-networkDFUs = profileDict
-    [ ("image-producer", imageProducer)
-    , ("image-producer-scale", imageScale)
-    , ("image-producer-compress", imageCompress)
+    [ Param "pliRate"   TInt  -- position location information
+    -- , Param "logging" TBool
     ]
 
 -- | Application model.
 appModel :: Model
-appModel = Model (Param "clients" TInt : imageParams ++ saParams) []
+appModel = Model (Param "clients" TInt : imageParams ++ saParams)
+    [ Load (dfu "image-producer") [imageRate, resX, resY, scale, color, compress]
+    , Load (dfu "situational-awareness-producer") [pliRate]
+    , modify "/Network/Bandwidth" TInt
+        (val - imageRate * Res "Image/Size")
+    , modify "/Network/Bandwidth" TInt
+        (val - pliRate * Res "SA/Size")
+    ]
+
+
+-- ** DFUs
+
+-- | A dictionary of all the network DFUs with associated names.
+networkDFUs :: Dictionary
+networkDFUs = modelDict
+    [ ("image-producer", imageProducer)
+    , ("image-producer-scale", imageScale)
+    , ("image-producer-compress", imageCompress)
+    , ("situational-awareness-producer", saProducer)
+    ]
 
 -- | Base image producer.
 imageProducer :: Model
@@ -59,48 +72,86 @@ imageProducer = Model imageParams
       , create "ResX"  resX
       , create "ResY"  resY
       , create "Color" color
-      , create "Size"  $ resX * resY * (color ?? (3,1)) ]
+      , create "Size"  (resX * resY * (color ?? (24,8))) ] -- bits
     , If (scale .> 1)
-        [ Load (Ref "image-producer-scale") [scale] ]
+        [ Load (dfu "image-producer-scale") [scale] ]
         []
     , If compress
-        [ Load (Ref "image-producer-compress") [] ]
+        [ Load (dfu "image-producer-compress") [] ]
         []
-    , modify "/Network/Bandwidth" TInt  -- modifies global network bandwidth
-        $ val - imageRate * Res "Image/Size"
     ]
 
 -- | Image scaling DFU.
 imageScale :: Model
 imageScale = Model [Param "scale" TInt]
-    [ modify "CPU" TInt  -- modifies local CPU
-        $ val - Res "Image/ResX" * Res "Image/ResY"
-    , In "Image"
-      [ modify "ResX" TInt $ val ./ scale
-      , modify "ResY" TInt $ val ./ scale
-      , modify "Size" TInt $ val ./ (scale * scale)
-      ]
-    ]
+    [ modify "Image/Size" TInt (val ./ scale) ]
+    -- [ In "Image"
+    --   [ modify "ResX" TInt (val ./ scale)
+    --   , modify "ResY" TInt (val ./ scale)
+    --   , modify "Size" TInt (val ./ (scale * scale))
+    --   ]
+    -- , modify "CPU" TInt  -- modifies local CPU
+    --     (val - Res "Image/ResX" * Res "Image/ResY")
+    -- ]
 
 -- | Image compression DFU.
 imageCompress :: Model
 imageCompress = Model []
-    [ modify "Image/Size" TInt $ val ./ 2
-    , modify "CPU" TInt $ val - Res "Image/ResX" * Res "Image/ResY"
+    [ modify "Image/Size" TInt (val ./ 2)
+    -- , modify "CPU" TInt (val - Res "Image/ResX" * Res "Image/ResY")
     ]
 
 -- | Situational awareness producer.
 saProducer :: Model
-saProducer = Model [] []
+saProducer = Model saParams
+    [ createUnit "SA"
+    , In "SA"
+        [ create "Size" (400 * 8) -- bits
+        , create "Rate" pliRate
+        ]
+    ]
 
-imageRate = Ref "imageRate"
+imageRate = Ref "imageRate" -- images / minute
 resX      = Ref "resX"
 resY      = Ref "resY"
 scale     = Ref "scale"
 color     = Ref "color"
 compress  = Ref "compress"
-pliRate   = Ref "pliRate"
-logging   = Ref "logging"
+pliRate   = Ref "pliRate"   -- messages / minute
+-- logging   = Ref "logging"
+
+
+-- ** Configurations
+
+-- | Generate a configuration for CP2. For CP2, we are fixing as constants
+--   many properties that may be varied in the future.
+networkConfigCP2 :: Int -> Int -> [PVal]
+networkConfigCP2 pli img =
+    [ I 1     -- clients
+    , I img   -- imageRate
+    , I 2500  -- resX
+    , I 2000  -- resY
+    , I 15    -- scale
+    , B true  -- color
+    , B false -- compress
+    , I pli   -- pliRate
+    ]
+
+
+-- ** Initial environments
+
+-- | Creates an initial resource environment for a given bandwidth. Input is
+--   in kilobits/second, but we use bits/minute internally.
+networkEnv :: Int -> ResEnv
+networkEnv kbs = envSingle "/Network/Bandwidth" (I (kbs * 1000 * 60))
+
+
+-- ** Mission requirements
+
+-- | The only mission requirement is that we don't run out of bandwidth.
+networkReqs :: Profile
+networkReqs = toProfile $ Model []
+    [ check "/Network/Bandwidth" TInt (val .>= 0) ]
 
 
 --
@@ -108,9 +159,11 @@ logging   = Ref "logging"
 --
 
 data NetworkOpts = NetworkOpts
-     { genDict  :: Bool
-     , genModel :: Bool
-     , genReqs  :: Bool }
+     { genDict   :: Bool
+     , genModel  :: Bool
+     , genConfig :: Maybe (Int,Int)
+     , genEnv    :: Maybe Int
+     , genReqs   :: Bool }
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 parseNetworkOpts :: Parser NetworkOpts
@@ -118,17 +171,34 @@ parseNetworkOpts = NetworkOpts
   <$> switch
        ( long "dict"
       <> help "Generate DFU dictionary" )
-  
+
   <*> switch
        ( long "model"
       <> help "Generate application model" )
-  
+
+  <*> (optional . option auto)
+       ( long "config"
+      <> metavar "(pli,img)"
+      <> help "Generate configuration with given PLI and image rates (#/min)" )
+
+  <*> (optional . option auto)
+       ( long "init"
+      <> metavar "bandwidth"
+      <> help "Generate initial resource environment with given bandwidth (kb/s)" )
+
   <*> switch
        ( long "reqs"
       <> help "Generate mission requirements" )
 
+
 runNetwork :: NetworkOpts -> IO ()
 runNetwork opts = do
-    when (genDict opts)  (writeJSON defaultDict networkDFUs)
-    -- when (genModel opts) (writeJSON defaultModel undefined)
-    -- when (genReqs opts)  (writeJSON defaultReqs undefined)
+    when (genDict opts)  (writeJSON defaultDict  networkDFUs)
+    when (genModel opts) (writeJSON defaultModel appModel)
+    case genConfig opts of
+      Just (pli,img) -> writeJSON defaultConfig (networkConfigCP2 pli img)
+      Nothing        -> return ()
+    case genEnv opts of
+      Just b  -> writeJSON defaultInit (networkEnv b)
+      Nothing -> return ()
+    when (genReqs opts)  (writeJSON defaultReqs  networkReqs)
