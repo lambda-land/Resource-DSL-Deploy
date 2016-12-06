@@ -189,10 +189,11 @@ To see the inputs that can be generated for this example, pass `--help` to the
 First, generate some input files. The following command generates the network
 example dictionary, application model, the mission requirements, an initial
 resource environment with 1000 kb/s of bandwidth, and configures the
-application to send 30 PLI reports and 10 images per minute.
+application to consist of 2 clients, each sending 30 PLI reports and 5 images
+per minute.
 
 ```bash
-> stack exec resource-dsl -- example network --dict --model --reqs --init 1000 --config \(30,10\)
+> stack exec resource-dsl -- example network --dict --model --reqs --init 1000 --config \(2,30,5\)
 ```
 
 We can check this configuration by executing the following command:
@@ -202,12 +203,13 @@ We can check this configuration by executing the following command:
 ```
 
 However, this fails when checking the mission requirements (exit code 3) since
-the bandwidth is insufficient for the configured PLI and image report rate.
+the bandwidth is insufficient for the configured number of clients, PLI report
+rate, and image report rate.
 
-The following command will reconfigure to only send 5 images per minute:
+The following command will reconfigure to only send 3 images per minute:
 
 ```bash
-> stack exec resource-dsl -- example network --config \(30,5\)
+> stack exec resource-dsl -- example network --config \(2,30,3\)
 ```
 
 This configuration passes the mission requirements (exit code 0):

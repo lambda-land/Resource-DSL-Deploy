@@ -46,9 +46,9 @@ appModel = Model (Param "clients" TInt : imageParams ++ saParams)
     [ Load (dfu "image-producer") [imageRate, resX, resY, scale, color, compress]
     , Load (dfu "situational-awareness-producer") [pliRate]
     , modify "/Network/Bandwidth" TInt
-        (val - imageRate * Res "Image/Size")
+        (val - clients * imageRate * Res "Image/Size")
     , modify "/Network/Bandwidth" TInt
-        (val - pliRate * Res "SA/Size")
+        (val - clients * pliRate * Res "SA/Size")
     ]
 
 
@@ -111,6 +111,7 @@ saProducer = Model saParams
         ]
     ]
 
+clients   = Ref "clients"
 imageRate = Ref "imageRate" -- images / minute
 resX      = Ref "resX"
 resY      = Ref "resY"
@@ -125,9 +126,9 @@ pliRate   = Ref "pliRate"   -- messages / minute
 
 -- | Generate a configuration for CP2. For CP2, we are fixing as constants
 --   many properties that may be varied in the future.
-networkConfigCP2 :: Int -> Int -> [PVal]
-networkConfigCP2 pli img =
-    [ I 1     -- clients
+networkConfigCP2 :: Int -> Int -> Int -> [PVal]
+networkConfigCP2 cs pli img =
+    [ I cs    -- clients
     , I img   -- imageRate
     , I 2500  -- resX
     , I 2000  -- resY
@@ -161,7 +162,7 @@ networkReqs = toProfile $ Model []
 data NetworkOpts = NetworkOpts
      { genDict   :: Bool
      , genModel  :: Bool
-     , genConfig :: Maybe (Int,Int)
+     , genConfig :: Maybe (Int,Int,Int)
      , genEnv    :: Maybe Int
      , genReqs   :: Bool }
   deriving (Data,Eq,Generic,Read,Show,Typeable)
@@ -178,8 +179,8 @@ parseNetworkOpts = NetworkOpts
 
   <*> (optional . option auto)
        ( long "config"
-      <> metavar "(pli,img)"
-      <> help "Generate configuration with given PLI and image rates (#/min)" )
+      <> metavar "(clients,pli,img)"
+      <> help "Generate configuration with given number of clients, PLI rate (#/min), and image rate (#/min)" )
 
   <*> (optional . option auto)
        ( long "init"
@@ -196,7 +197,7 @@ runNetwork opts = do
     when (genDict opts)  (writeJSON defaultDict  networkDFUs)
     when (genModel opts) (writeJSON defaultModel appModel)
     case genConfig opts of
-      Just (pli,img) -> writeJSON defaultConfig (networkConfigCP2 pli img)
+      Just (cs,pli,img) -> writeJSON defaultConfig (networkConfigCP2 cs pli img)
       Nothing        -> return ()
     case genEnv opts of
       Just b  -> writeJSON defaultInit (networkEnv b)
