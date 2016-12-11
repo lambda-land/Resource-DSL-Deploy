@@ -18,6 +18,18 @@ import DSL.Primitive
 dfu :: Name -> Expr
 dfu = Lit . S . mkSymbol
 
+-- | Primitive floor operation.
+pFloor :: Expr -> Expr
+pFloor = P1 (F_I Floor)
+
+-- | Primitive ceiling operation.
+pCeil :: Expr -> Expr
+pCeil = P1 (F_I Ceil)
+
+-- | Primitive round operation.
+pRound :: Expr -> Expr
+pRound = P1 (F_I Round)
+
 
 -- ** Statements
 
