@@ -60,29 +60,29 @@ instance Boolean Expr where
   (==>) = P2 (BB_B Imp)
   (<=>) = P2 (BB_B Eqv)
 
--- Use Num type class for integer arithmetic.
+-- Use Num type class for arithmetic.
 instance Num Expr where
   fromInteger = Lit . I . fromInteger
-  abs    = P1 (I_I Abs)
-  negate = P1 (I_I Neg)
-  signum = P1 (I_I Sign)
-  (+)    = P2 (II_I Add)
-  (-)    = P2 (II_I Sub)
-  (*)    = P2 (II_I Mul)
+  abs    = P1 (N_N Abs)
+  negate = P1 (N_N Neg)
+  signum = P1 (N_N Sign)
+  (+)    = P2 (NN_N Add)
+  (-)    = P2 (NN_N Sub)
+  (*)    = P2 (NN_N Mul)
 
--- Other integer arithmetic primitives.
-instance PrimI Expr where
-  (./) = P2 (II_I Div)
-  (.%) = P2 (II_I Mod)
+-- Other numeric arithmetic primitives.
+instance PrimN Expr where
+  (./) = P2 (NN_N Div)
+  (.%) = P2 (NN_N Mod)
 
--- Integer comparison primitives.
+-- Numeric comparison primitives.
 instance Prim Expr Expr where
-  (.<)  = P2 (II_B LT)
-  (.<=) = P2 (II_B LTE)
-  (.==) = P2 (II_B Equ)
-  (./=) = P2 (II_B Neq)
-  (.>=) = P2 (II_B GTE)
-  (.>)  = P2 (II_B GT)
+  (.<)  = P2 (NN_B LT)
+  (.<=) = P2 (NN_B LTE)
+  (.==) = P2 (NN_B Equ)
+  (./=) = P2 (NN_B Neq)
+  (.>=) = P2 (NN_B GTE)
+  (.>)  = P2 (NN_B GT)
 
 
 -- ** Errors

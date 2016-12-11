@@ -36,15 +36,15 @@ data BExpr
      | BRef Var
      | OpB  B_B  BExpr
      | OpBB BB_B BExpr BExpr
-     | OpIB II_B IExpr IExpr
+     | OpIB NN_B IExpr IExpr
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Integer expressions with variable references.
 data IExpr
      = ILit Int
      | IRef Var
-     | OpI  I_I  IExpr
-     | OpII II_I IExpr IExpr
+     | OpI  N_N  IExpr
+     | OpII NN_N IExpr IExpr
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | The set of boolean variables referenced in a boolean expression.
@@ -105,7 +105,7 @@ instance Num IExpr where
   (*)    = OpII Mul
   
 -- Other integer arithmetic primitives.
-instance PrimI IExpr where
+instance PrimN IExpr where
   (./) = OpII Div
   (.%) = OpII Mod
 
@@ -167,15 +167,15 @@ evalBExpr _  _  (BLit b)     = fromBool b
 evalBExpr mb _  (BRef v)     = assumeSuccess (envLookup v mb)
 evalBExpr mb mi (OpB o e)    = opB_B o (evalBExpr mb mi e)
 evalBExpr mb mi (OpBB o l r) = (opBB_B o `on` evalBExpr mb mi) l r
-evalBExpr _  mi (OpIB o l r) = (opII_B o `on` evalIExpr mi) l r
+evalBExpr _  mi (OpIB o l r) = (opNN_B o `on` evalIExpr mi) l r
 
 -- | Evaluate an integer expression to either a ground or symbolic integer,
 --   given an environment binding all of the variables.
-evalIExpr :: PrimI i => Env Var i -> IExpr -> i
+evalIExpr :: PrimN i => Env Var i -> IExpr -> i
 evalIExpr _ (ILit i)     = fromIntegral i
 evalIExpr m (IRef v)     = assumeSuccess (envLookup v m)
-evalIExpr m (OpI o e)    = opI_I o (evalIExpr m e)
-evalIExpr m (OpII o l r) = (opII_I o `on` evalIExpr m) l r
+evalIExpr m (OpI o e)    = opN_N o (evalIExpr m e)
+evalIExpr m (OpII o l r) = (opNN_N o `on` evalIExpr m) l r
 
 -- | Evaluate a boolean expression to a ground boolean.
 toBool :: Env Var Bool -> Env Var Int -> BExpr -> Bool

@@ -74,6 +74,7 @@ prettyPType :: PType -> String
 prettyPType TUnit   = "unit"
 prettyPType TBool   = "bool"
 prettyPType TInt    = "int"
+prettyPType TFloat  = "float"
 prettyPType TSymbol = "symbol"
 
 prettyPVal :: PVal -> String
@@ -81,6 +82,7 @@ prettyPVal Unit      = "()"
 prettyPVal (B True)  = "true"
 prettyPVal (B False) = "false"
 prettyPVal (I i)     = show i
+prettyPVal (F f)     = show f
 prettyPVal (S s)     = toName s
 
 
@@ -88,8 +90,8 @@ prettyPVal (S s)     = toName s
 
 prettyOp2 :: Op2 -> String
 prettyOp2 (BB_B o) = prettyBB_B o
-prettyOp2 (II_B o) = prettyII_B o
-prettyOp2 (II_I o) = prettyII_I o
+prettyOp2 (NN_B o) = prettyNN_B o
+prettyOp2 (NN_N o) = prettyNN_N o
 
 prettyBB_B :: BB_B -> String
 prettyBB_B And = "&&"
@@ -98,20 +100,20 @@ prettyBB_B XOr = "><"
 prettyBB_B Imp = "->"
 prettyBB_B Eqv = "<->"
 
-prettyII_B :: II_B -> String
-prettyII_B LT  = "<"
-prettyII_B LTE = "<="
-prettyII_B Equ = "=="
-prettyII_B Neq = "!="
-prettyII_B GTE = ">="
-prettyII_B GT  = ">"
+prettyNN_B :: NN_B -> String
+prettyNN_B LT  = "<"
+prettyNN_B LTE = "<="
+prettyNN_B Equ = "=="
+prettyNN_B Neq = "!="
+prettyNN_B GTE = ">="
+prettyNN_B GT  = ">"
 
-prettyII_I :: II_I -> String
-prettyII_I Add = "+"
-prettyII_I Sub = "-"
-prettyII_I Mul = "*"
-prettyII_I Div = "/"
-prettyII_I Mod = "%"
+prettyNN_N :: NN_N -> String
+prettyNN_N Add = "+"
+prettyNN_N Sub = "-"
+prettyNN_N Mul = "*"
+prettyNN_N Div = "/"
+prettyNN_N Mod = "%"
 
 
 -- ** Expressions
@@ -125,17 +127,26 @@ prettyExpr :: Expr -> String
 prettyExpr (Ref x)           = x
 prettyExpr (Res p)           = "@" ++ prettyPath p
 prettyExpr (Lit v)           = prettyPVal v
-prettyExpr (P1 (B_B Not) e)  = "!" ++ prettyTerm e
-prettyExpr (P1 (I_I Neg) e)  = "-" ++ prettyTerm e
--- prettyExpr (P1 (I_I Abs) e)  = "|" ++ prettyTerm e ++ "|"
--- prettyExpr (P1 (I_I Sign) e)  = "sgn " ++ prettyTerm e
-prettyExpr (P2 (II_I o) l r) = concat [prettyTerm l, prettyII_I o, prettyTerm r]
+prettyExpr (P1 o e)          = prettyP1 o e
+prettyExpr (P2 (NN_N o) l r) = concat [prettyTerm l, prettyNN_N o, prettyTerm r]
 prettyExpr (P2 o l r)        = unwords [prettyTerm l, prettyOp2 o, prettyTerm r]
 prettyExpr (P3 Cond c l r)   = unwords [prettyTerm c, "?", prettyTerm l, ":", prettyTerm r]
-prettyExpr e = error $ "Couldn't pretty print expression: " ++ show e
+
+prettyP1 :: Op1 -> Expr -> String
+prettyP1 U_U         e = prettyPrimFun "unit" e
+prettyP1 (B_B Not)   e = "!" ++ prettyTerm e
+prettyP1 (N_N Abs)   e = prettyPrimFun "abs" e
+prettyP1 (N_N Neg)   e = "-" ++ prettyTerm e
+prettyP1 (N_N Sign)  e = prettyPrimFun "signum" e
+prettyP1 (F_I Ceil)  e = prettyPrimFun "ceiling" e
+prettyP1 (F_I Floor) e = prettyPrimFun "floor" e
+prettyP1 (F_I Round) e = prettyPrimFun "round" e
 
 prettyParens :: String -> String
 prettyParens s = "(" ++ s ++ ")"
+
+prettyPrimFun :: String -> Expr -> String
+prettyPrimFun n e = n ++ prettyParens (prettyExpr e)
 
 
 -- ** Functions

@@ -68,6 +68,9 @@ bool = tru <|> fls <?> "boolean literal"
 int :: Parser Int
 int = fmap fromInteger (lexeme L.integer) <?> "integer literal"
 
+float :: Parser Double
+float = lexeme L.float <?> "floating point literal"
+
 name :: Parser Char -> Parser Char -> Parser Name
 name start rest = lexeme (liftA2 (:) start (many rest))
 
@@ -97,9 +100,9 @@ parens = between (lexeme (char '(')) (lexeme (char ')'))
 opTable :: [[Operator Parser Expr]]
 opTable =
     [ [op Prefix negate "-", op Prefix bnot "!"]
-    , map inII_I [Mul,Div,Mod]
-    , map inII_I [Add,Sub]
-    , map inII_B [LTE,LT,Equ,Neq,GTE,GT]
+    , map inNN_N [Mul,Div,Mod]
+    , map inNN_N [Add,Sub]
+    , map inNN_B [LTE,LT,Equ,Neq,GTE,GT]
     , [inBB_B And]
     , map inBB_B [Or,XOr]
     , [inBB_B Imp]
@@ -107,8 +110,8 @@ opTable =
     ]
   where
     op fixity f name = fixity (f <$ verbatim name)
-    inII_I o = op InfixL (opII_I o) (prettyII_I o)
-    inII_B o = op InfixN (opII_B o) (prettyII_B o)
+    inNN_N o = op InfixL (opNN_N o) (prettyNN_N o)
+    inNN_B o = op InfixN (opNN_B o) (prettyNN_B o)
     inBB_B o = op InfixR (opBB_B o) (prettyBB_B o)
 
 expr :: Parser Expr
@@ -123,9 +126,23 @@ expr = do
   where
     simple = makeExprParser term opTable
     term = Lit Unit <$ unit
+       <|> try (fmap (Lit . F) float)
        <|> fmap (Lit . I) int
        <|> fmap (Lit . S) symbol
        <|> try (fmap (Lit . B) bool)
+       <|> try primFun
        <|> fmap Ref var
        <|> fmap Res path
        <|> parens expr
+
+primFun :: Parser Expr
+primFun = fun "unit"    U_U
+      <|> fun "abs"     (N_N Abs)
+      <|> fun "signum"  (N_N Sign)
+      <|> fun "ceiling" (F_I Ceil)
+      <|> fun "floor"   (F_I Floor)
+      <|> fun "round"   (F_I Round)
+  where
+    fun name op = do
+      reserved name
+      P1 op <$> parens expr

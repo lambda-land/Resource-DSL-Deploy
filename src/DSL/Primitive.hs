@@ -4,12 +4,13 @@ module DSL.Primitive
   , Op1(..), Op2(..), Op3(..)
   , primOp1, primOp2, primOp3
   , B_B(..), opB_B
-  , I_I(..), opI_I
+  , N_N(..), opN_N
+  , F_I(..), opF_I
   , BB_B(..), opBB_B
-  , II_B(..), opII_B
-  , II_I(..), opII_I
+  , NN_B(..), opNN_B
+  , NN_N(..), opNN_N
   , Boolean(..)
-  , PrimI(..), Prim(..)
+  , PrimN(..), Prim(..)
   ) where
 
 import Prelude hiding (LT,GT)
@@ -19,6 +20,7 @@ import GHC.Generics (Generic)
 
 import Control.Monad.Catch (Exception,MonadThrow,throwM)
 
+import Data.Fixed (mod')
 import Data.SBV (Boolean(..),SBool,SInteger,SInt8,SInt16,SInt32,SInt64)
 import qualified Data.SBV as SBV
 
@@ -32,7 +34,7 @@ import DSL.Name
 -- | Symbols.
 
 -- | Primitive base types.
-data PType = TUnit | TBool | TInt | TSymbol
+data PType = TUnit | TBool | TInt | TFloat | TSymbol
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Primitive values.
@@ -40,6 +42,7 @@ data PVal
      = Unit
      | B Bool
      | I Int
+     | F Double
      | S Symbol
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
@@ -48,6 +51,7 @@ primType :: PVal -> PType
 primType Unit  = TUnit
 primType (B _) = TBool
 primType (I _) = TInt
+primType (F _) = TFloat
 primType (S _) = TSymbol
 
 
@@ -58,15 +62,16 @@ primType (S _) = TSymbol
 -- | Primitive unary operators organized by type.
 data Op1
      = U_U        -- ^ noop that matches a unit value
-     | B_B B_B    -- ^ unary boolean operation
-     | I_I I_I    -- ^ unary integer operation
+     | B_B B_B    -- ^ unary boolean operator
+     | N_N N_N    -- ^ unary numeric operator
+     | F_I F_I    -- ^ unary float-to-integer operator
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Primitive binary operators organized by type.
 data Op2
      = BB_B BB_B  -- ^ binary boolean operator
-     | II_I II_I  -- ^ binary integer operator
-     | II_B II_B  -- ^ integer comparison operator
+     | NN_N NN_N  -- ^ binary numeric operator
+     | NN_B NN_B  -- ^ numeric comparison operator
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Primitive ternary operator.
@@ -77,20 +82,24 @@ data Op3 = Cond
 data B_B = Not
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
--- | Unary integer operators.
-data I_I = Abs | Neg | Sign
+-- | Unary numeric operators.
+data N_N = Abs | Neg | Sign
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
+
+-- | Unary float-to-integer operators.
+data F_I = Ceil | Floor | Round
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Binary boolean operators.
 data BB_B = And | Or | XOr | Imp | Eqv
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
--- | Binary integer comparison operators.
-data II_B = LT | LTE | Equ | Neq | GTE | GT
+-- | Binary numeric comparison operators.
+data NN_B = LT | LTE | Equ | Neq | GTE | GT
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
--- | Binary integer arithmetic operators.
-data II_I = Add | Sub | Mul | Div | Mod
+-- | Binary numeric arithmetic operators.
+data NN_N = Add | Sub | Mul | Div | Mod
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Type error applying primitive operator.
@@ -106,14 +115,28 @@ instance Exception PrimTypeError
 primOp1 :: MonadThrow m => Op1 -> PVal -> m PVal
 primOp1 U_U     Unit  = return Unit
 primOp1 (B_B o) (B b) = return (B (opB_B o b))
-primOp1 (I_I o) (I i) = return (I (opI_I o i))
+primOp1 (N_N o) (I n) = return (I (opN_N o n))
+primOp1 (N_N o) (F n) = return (F (opN_N o n))
+primOp1 (F_I o) (F n) = return (I (opF_I o n))
 primOp1 o v = throwM (ErrorOp1 o v)
 
--- | Evaluate a primitive binary operator.
+-- | Evaluate a primitive binary operator. When a binary numeric operator is
+--   applied to one integer and one floating point number, the integer is
+--   implicitly converted to floating point.
 primOp2 :: MonadThrow m => Op2 -> PVal -> PVal -> m PVal
+  -- boolean
 primOp2 (BB_B o) (B l) (B r) = return (B (opBB_B o l r))
-primOp2 (II_I o) (I l) (I r) = return (I (opII_I o l r))
-primOp2 (II_B o) (I l) (I r) = return (B (opII_B o l r))
+  -- arithmetic
+primOp2 (NN_N o) (I l) (I r) = return (I (opNN_N o l r))
+primOp2 (NN_N o) (I l) (F r) = return (F (opNN_N o (fromIntegral l) r))
+primOp2 (NN_N o) (F l) (I r) = return (F (opNN_N o l (fromIntegral r)))
+primOp2 (NN_N o) (F l) (F r) = return (F (opNN_N o l r))
+  -- comparison
+primOp2 (NN_B o) (I l) (I r) = return (B (opNN_B o l r))
+primOp2 (NN_B o) (I l) (F r) = return (B (opNN_B o (fromIntegral l) r))
+primOp2 (NN_B o) (F l) (I r) = return (B (opNN_B o l (fromIntegral r)))
+primOp2 (NN_B o) (F l) (F r) = return (B (opNN_B o l r))
+  -- error
 primOp2 o l r = throwM (ErrorOp2 o l r)
 
 -- | Evaluate a primitive ternary operator.
@@ -126,10 +149,16 @@ opB_B :: Boolean b => B_B -> b -> b
 opB_B Not = bnot
 
 -- | Lookup unary integer operator.
-opI_I :: Num i => I_I -> i -> i
-opI_I Abs  = abs
-opI_I Neg  = negate
-opI_I Sign = signum
+opN_N :: Num n => N_N -> n -> n
+opN_N Abs  = abs
+opN_N Neg  = negate
+opN_N Sign = signum
+
+-- | Lookup unary float-to-integer operator.
+opF_I :: (RealFrac f, Integral i) => F_I -> f -> i
+opF_I Ceil  = ceiling
+opF_I Floor = floor
+opF_I Round = round
 
 -- | Lookup binary boolean operator.
 opBB_B :: Boolean b => BB_B -> b -> b -> b
@@ -140,38 +169,43 @@ opBB_B Imp = (==>)
 opBB_B Eqv = (<=>)
 
 -- | Lookup binary integer comparison operator.
-opII_B :: Prim b i => II_B -> i -> i -> b
-opII_B LT  = (.<)
-opII_B LTE = (.<=)
-opII_B Equ = (.==)
-opII_B Neq = (./=)
-opII_B GTE = (.>=)
-opII_B GT  = (.>)
+opNN_B :: Prim b n => NN_B -> n -> n -> b
+opNN_B LT  = (.<)
+opNN_B LTE = (.<=)
+opNN_B Equ = (.==)
+opNN_B Neq = (./=)
+opNN_B GTE = (.>=)
+opNN_B GT  = (.>)
 
 -- | Lookup binary integer operator.
-opII_I :: PrimI i => II_I -> i -> i -> i
-opII_I Add = (+)
-opII_I Sub = (-)
-opII_I Mul = (*)
-opII_I Div = (./)
-opII_I Mod = (.%)
+opNN_N :: PrimN n => NN_N -> n -> n -> n
+opNN_N Add = (+)
+opNN_N Sub = (-)
+opNN_N Mul = (*)
+opNN_N Div = (./)
+opNN_N Mod = (.%)
 
 -- | Add division and modulus to the Num type class.
-class Num i => PrimI i where
-  (./), (.%) :: i -> i -> i
+class Num n => PrimN n where
+  (./), (.%) :: n -> n -> n
 
 -- | A type class for overloading the primitive operators.
-class (Boolean b, PrimI i) => Prim b i where
-  (.<), (.<=), (.==), (./=), (.>=), (.>) :: i -> i -> b
+class (Boolean b, PrimN n) => Prim b n where
+  (.<), (.<=), (.==), (./=), (.>=), (.>) :: n -> n -> b
 
 infix 4 .<, .<=, .==, ./=, .>=, .>
 infixl 7 ./, .%
 
+
 -- Ground instances
 
-instance PrimI Int where
-  (./)  = div
-  (.%)  = mod
+instance PrimN Int where
+  (./) = div
+  (.%) = mod
+
+instance PrimN Double where
+  (./) = (/)
+  (.%) = mod'
 
 instance Prim Bool Int where
   (.<)  = (<)
@@ -181,25 +215,34 @@ instance Prim Bool Int where
   (.>=) = (>=)
   (.>)  = (>)
 
+instance Prim Bool Double where
+  (.<)  = (<)
+  (.<=) = (<=)
+  (.==) = (==)
+  (./=) = (/=)
+  (.>=) = (>=)
+  (.>)  = (>)
+
+
 -- Symbolic instances
 
-instance PrimI SInteger where
+instance PrimN SInteger where
   (./)  = SBV.sDiv
   (.%)  = SBV.sMod
 
-instance PrimI SInt8 where
+instance PrimN SInt8 where
   (./)  = SBV.sDiv
   (.%)  = SBV.sMod
 
-instance PrimI SInt16 where
+instance PrimN SInt16 where
   (./)  = SBV.sDiv
   (.%)  = SBV.sMod
 
-instance PrimI SInt32 where
+instance PrimN SInt32 where
   (./)  = SBV.sDiv
   (.%)  = SBV.sMod
 
-instance PrimI SInt64 where
+instance PrimN SInt64 where
   (./)  = SBV.sDiv
   (.%)  = SBV.sMod
 
