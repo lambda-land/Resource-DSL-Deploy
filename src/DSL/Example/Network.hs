@@ -29,8 +29,8 @@ imageParams =
     [ Param "imageRate" TInt
     , Param "resX"      TInt
     , Param "resY"      TInt
-    , Param "scale"     TInt -- 1/scale
     , Param "color"     TBool
+    , Param "scale"     TFloat
     , Param "compress"  TBool
     ]
 
@@ -43,7 +43,7 @@ saParams =
 -- | Application model.
 appModel :: Model
 appModel = Model (Param "clients" TInt : imageParams ++ saParams)
-    [ Load (dfu "image-producer") [imageRate, resX, resY, scale, color, compress]
+    [ Load (dfu "image-producer") [imageRate, resX, resY, color, scale, compress]
     , Load (dfu "situational-awareness-producer") [pliRate]
     , modify "/Network/Bandwidth" TInt
         (val - clients * imageRate * Res "Image/Size")
@@ -73,9 +73,7 @@ imageProducer = Model imageParams
       , create "ResY"  resY
       , create "Color" color
       , create "Size"  (resX * resY * (color ?? (24,8))) ] -- bits
-    , If (scale .> 1)
-        [ Load (dfu "image-producer-scale") [scale] ]
-        []
+      , Load (dfu "image-producer-scale") [scale]
     , If compress
         [ Load (dfu "image-producer-compress") [] ]
         []
@@ -83,8 +81,8 @@ imageProducer = Model imageParams
 
 -- | Image scaling DFU.
 imageScale :: Model
-imageScale = Model [Param "scale" TInt]
-    [ modify "Image/Size" TInt (val ./ scale) ]
+imageScale = Model [Param "scale" TFloat]
+    [ modify "Image/Size" TInt (pFloor (val * scale)) ]
     -- [ In "Image"
     --   [ modify "ResX" TInt (val ./ scale)
     --   , modify "ResY" TInt (val ./ scale)
@@ -126,14 +124,14 @@ pliRate   = Ref "pliRate"   -- messages / minute
 
 -- | Generate a configuration for CP2. For CP2, we are fixing as constants
 --   many properties that may be varied in the future.
-networkConfigCP2 :: Int -> Int -> Int -> [PVal]
-networkConfigCP2 cs pli img =
+networkConfigCP2 :: Int -> Int -> Int -> Double -> [PVal]
+networkConfigCP2 cs pli img scale =
     [ I cs    -- clients
     , I img   -- imageRate
     , I 2500  -- resX
     , I 2000  -- resY
-    , I 15    -- scale
     , B true  -- color
+    , F scale -- scale
     , B false -- compress
     , I pli   -- pliRate
     ]
@@ -162,7 +160,7 @@ networkReqs = toProfile $ Model []
 data NetworkOpts = NetworkOpts
      { genDict   :: Bool
      , genModel  :: Bool
-     , genConfig :: Maybe (Int,Int,Int)
+     , genConfig :: Maybe (Int,Int,Int,Double)
      , genEnv    :: Maybe Int
      , genReqs   :: Bool }
   deriving (Data,Eq,Generic,Read,Show,Typeable)
@@ -179,7 +177,7 @@ parseNetworkOpts = NetworkOpts
 
   <*> (optional . option auto)
        ( long "config"
-      <> metavar "(clients,pli,img)"
+      <> metavar "(clients,pli,img,scale)"
       <> help "Generate configuration with given number of clients, PLI rate (#/min), and image rate (#/min)" )
 
   <*> (optional . option auto)
@@ -197,8 +195,8 @@ runNetwork opts = do
     when (genDict opts)  (writeJSON defaultDict  networkDFUs)
     when (genModel opts) (writeJSON defaultModel appModel)
     case genConfig opts of
-      Just (cs,pli,img) -> writeJSON defaultConfig (networkConfigCP2 cs pli img)
-      Nothing        -> return ()
+      Just (cs,pli,img,scale) -> writeJSON defaultConfig (networkConfigCP2 cs pli img scale)
+      Nothing -> return ()
     case genEnv opts of
       Just b  -> writeJSON defaultInit (networkEnv b)
       Nothing -> return ()
