@@ -113,8 +113,10 @@ evalExpr (P3 o c t e) = do c' <- evalExpr c
                            primOp3 o c' t' e'
 -- evalExpr (Chc p l r)  = liftM2 (ChcV p) (evalExpr l) (evalExpr r)
 
--- | Check the type of an argument.
+-- | Check the type of an argument. Implicitly converts integer arguments
+--   to floats, if needed.
 checkArg :: MonadEval m => Param -> PVal -> m (Var,PVal)
+checkArg (Param x TFloat) (I i) = return (x, F (fromIntegral i))
 checkArg p@(Param x t) v
     | primType v == t = return (x,v)
     | otherwise       = throwM (ArgTypeError p v)
