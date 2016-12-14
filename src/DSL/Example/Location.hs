@@ -158,7 +158,7 @@ parseLocationOpts = LocationOpts
 
   <*> switch
        ( long "saasm"
-      <> help "Generate SAASM mission requirements; overrides --req" )
+      <> help "Generate SAASM mission requirements; overrides --reqs" )
 
   <*> (optional . strOption)
        ( long "init"
