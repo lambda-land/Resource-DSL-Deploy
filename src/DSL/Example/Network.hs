@@ -45,11 +45,13 @@ appModel :: Model
 appModel = Model (Param "clients" TInt : imageParams ++ saParams)
     [ Load (dfu "image-producer") [imageRate, resX, resY, color, scale, compress]
     , Load (dfu "situational-awareness-producer") [pliRate]
-    , modify "/Network/Bandwidth" TInt
-        (val - clients * imageRate * Res "Image/Size")
-    , modify "/Network/Bandwidth" TInt
-        (val - clients * pliRate * Res "SA/Size")
+    , modify "/Network/Bandwidth" TFloat
+        (val - clients * clients * convert imageRate (Res "Image/Size"))
+    , modify "/Network/Bandwidth" TFloat
+        (val - clients * clients * convert pliRate (Res "SA/Size"))
     ]
+  where
+    convert rate size = (rate ./ Lit (F 60.0)) * (size ./ Lit (F 1000.0))
 
 
 -- ** DFUs
@@ -72,7 +74,7 @@ imageProducer = Model imageParams
       , create "ResX"  resX
       , create "ResY"  resY
       , create "Color" color
-      , create "Size"  (resX * resY * (color ?? (24,8))) ] -- bits
+      , create "Size"  (resX * resY * (color ?? (24,8)) ./ Lit (F 15.0)) ] -- bits
       , Load (dfu "image-producer-scale") [scale]
     , If compress
         [ Load (dfu "image-producer-compress") [] ]
@@ -82,7 +84,7 @@ imageProducer = Model imageParams
 -- | Image scaling DFU.
 imageScale :: Model
 imageScale = Model [Param "scale" TFloat]
-    [ modify "Image/Size" TInt (pFloor (val * scale)) ]
+    [ modify "Image/Size" TFloat (val * scale) ]
     -- [ In "Image"
     --   [ modify "ResX" TInt (val ./ scale)
     --   , modify "ResY" TInt (val ./ scale)
@@ -95,7 +97,7 @@ imageScale = Model [Param "scale" TFloat]
 -- | Image compression DFU.
 imageCompress :: Model
 imageCompress = Model []
-    [ modify "Image/Size" TInt (val ./ 2)
+    [ modify "Image/Size" TFloat (val ./ 2)
     -- , modify "CPU" TInt (val - Res "Image/ResX" * Res "Image/ResY")
     ]
 
@@ -139,10 +141,9 @@ networkConfigCP2 cs pli img scale =
 
 -- ** Initial environments
 
--- | Creates an initial resource environment for a given bandwidth. Input is
---   in kilobits/second, but we use bits/minute internally.
-networkEnv :: Int -> ResEnv
-networkEnv kbs = envSingle "/Network/Bandwidth" (I (kbs * 1000 * 60))
+-- | Creates an initial resource environment for a given bandwidth (kb/s).
+networkEnv :: Double -> ResEnv
+networkEnv kbs = envSingle "/Network/Bandwidth" (F kbs)
 
 
 -- ** Mission requirements
@@ -150,7 +151,7 @@ networkEnv kbs = envSingle "/Network/Bandwidth" (I (kbs * 1000 * 60))
 -- | The only mission requirement is that we don't run out of bandwidth.
 networkReqs :: Profile
 networkReqs = toProfile $ Model []
-    [ check "/Network/Bandwidth" TInt (val .>= 0) ]
+    [ check "/Network/Bandwidth" TFloat (val .>= 0) ]
 
 
 --
@@ -161,7 +162,7 @@ data NetworkOpts = NetworkOpts
      { genDict   :: Bool
      , genModel  :: Bool
      , genConfig :: Maybe (Int,Int,Int,Double)
-     , genEnv    :: Maybe Int
+     , genEnv    :: Maybe Double
      , genReqs   :: Bool }
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
