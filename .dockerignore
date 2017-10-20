@@ -1,0 +1,8 @@
+.stack-work
+inbox
+outbox
+scratch
+TAGS
+*.tix
+.hpc
+.#*
