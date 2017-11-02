@@ -10,13 +10,10 @@ import Control.Monad.Catch (MonadThrow)
 import DSL.Predicate (BExpr)
 -}
 import DSL.Primitive
-import DSL.V
 
 --
 -- * Values
 --
-
-type Value = V PVal
 
 {-
 -- | Variational primitive values.

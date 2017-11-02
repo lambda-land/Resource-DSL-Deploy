@@ -66,6 +66,7 @@ library
     , DSL.SAT
     , DSL.Serialize
     , DSL.Sugar
+    , DSL.Types
     , DSL.Value
     , DSL.Example.Location
     , DSL.Example.Network

@@ -1,7 +1,6 @@
 module DSL.Name where
 
-import Data.Data (Data,Typeable)
-import GHC.Generics (Generic)
+import Data.Typeable
 
 import Data.String (IsString(..))
 
@@ -19,7 +18,7 @@ type Var = Name
 -- | Named symbols, a la Lisp. Symbol names may contain '_' or '-' in addition
 --   to alpha-numeric characters. Symbols are printed as ':'-prefixed strings.
 newtype Symbol = Symbol Name
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Ord,Show,Typeable)
 
 -- | Get the name of a symbol.
 toName :: Symbol -> Name

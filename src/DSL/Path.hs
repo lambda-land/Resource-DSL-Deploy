@@ -1,25 +1,18 @@
+
 module DSL.Path where
 
-import Data.Data (Data,Typeable)
-import GHC.Generics (Generic)
-
-import Control.Exception (Exception)
-import Control.Monad.Catch (MonadThrow,throwM)
+import Control.Monad.Except
 
 import Data.List.Split (splitOn)
 import Data.String (IsString(..))
 
-import DSL.Name
+import DSL.Types
 
 
 --
 -- * Resource IDs
 --
 
--- | Resource IDs are (absolute) paths from the root of the
---   resource environment.
-newtype ResID = ResID [Name]
-  deriving (Data,Eq,Generic,Monoid,Ord,Read,Show,Typeable)
 
 -- | The root resource ID.
 root :: ResID
@@ -29,29 +22,6 @@ instance IsString ResID where
   fromString ('/':s) = ResID (splitOn "/" s)
   fromString s       = ResID (splitOn "/" s)
 
-
---
--- * Paths
---
-
--- | A path is either absolute or relative.
-data PathKind = Absolute | Relative
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
-
--- | A path through a resource environment. Unlike resource IDs, paths may be
---   relative, may contain "special" path names (such as ".." to refer to the
---   parent node), and may be appended with other paths. The idea is that a
---   resource ID is a simple key in the resource environment, while a path is
---   an intermediate object that can be manipulated in the language.
-data Path = Path PathKind [Name]
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
-
--- | Error that can occur when converting paths.
-data PathError
-     = CannotNormalize Path
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
-
-instance Exception PathError
 
 -- | The root of an absolute path.
 pathRoot :: Path
@@ -80,18 +50,14 @@ pathAppend (Path k1 l) p2@(Path k2 r) = case k2 of
 --   prefix is ignored. If the path is relative, it is appended to the prefix.
 --   The resulting path is normalized (i.e. special path names are eliminated)
 --   to produce a resource ID.
-toResID :: MonadThrow m => ResID -> Path -> m ResID
+toResID :: MonadError Error m => ResID -> Path -> m ResID
 toResID (ResID pre) orig@(Path k p) = case k of
     Relative -> ResID <$> norm (pre ++ p)
     Absolute -> ResID <$> norm p
   where
     norm []         = pure []
-    norm ("..":_)   = throwM (CannotNormalize orig)
+    norm ("..":_)   = throwError (PathE $ CannotNormalize orig)
     norm ("":p)     = norm p
     norm (".":p)    = norm p
     norm (_:"..":p) = norm p
     norm (n:p)      = (n:) <$> norm p
-
-instance IsString Path where
-  fromString ('/':s) = Path Absolute (splitOn "/" s)
-  fromString s       = Path Relative (splitOn "/" s)

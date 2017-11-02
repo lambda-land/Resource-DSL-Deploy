@@ -1,8 +1,10 @@
 module DSL.SAT where
 
 import Control.Monad (liftM2)
-import Data.SBV (Boolean(..),SBool,Symbolic,isSatisfiable)
+import Data.SBV (Boolean(..),SBool,sInt32,sBool,Symbolic,isSatisfiable)
 import System.IO.Unsafe (unsafePerformIO)
+import DSL.Types
+import DSL.Predicate
 
 
 -- | A type class for types that can be converted to symbolic predicates
@@ -46,3 +48,10 @@ instance SAT (Symbolic SBool) where
 
 instance SAT (Symbolic Bool) where
   toSymbolic = fmap fromBool
+
+-- Enable satisfiability checking of boolean expressions.
+instance SAT BExpr where
+  toSymbolic e = do
+    mb <- symEnv sBool (boolVars e)
+    mi <- symEnv sInt32 (intVars e)
+    return (toSBool mb mi e)

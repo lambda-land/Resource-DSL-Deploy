@@ -7,6 +7,7 @@ import Control.Monad (forM_)
 import Control.Monad.Catch (Exception,throwM)
 import Data.List (union)
 
+import DSL.Types
 import DSL.Effect
 import DSL.Environment
 import DSL.Expression
@@ -21,40 +22,6 @@ import DSL.Resource
 -- * Components
 --
 
--- ** Syntax
-
--- | An application model.
-data Model = Model [Param] Block
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
-
--- | Statement block.
-type Block = [Stmt]
-
--- | Statement in an application model.
-data Stmt
-     = Do Path Effect       -- ^ apply an effect
-     | If Expr Block Block  -- ^ conditional statement
-     | In Path Block        -- ^ do work in a sub-environment
-     | For Var Expr Block   -- ^ loop over indexed sub-environments
-     | Let Var Expr Block   -- ^ extend the variable environment
-     | Load Expr [Expr]     -- ^ load a sub-model or profile
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
-
--- | Kinds of errors that can occur in statements.
-data StmtErrorKind
-     = IfTypeError    -- ^ non-boolean condition
-     | ForTypeError   -- ^ non-integer range bound
-     | LoadTypeError  -- ^ not a component ID
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
-
--- | Errors in statements.
-data StmtError = StmtError {
-     stmtErrorStmt  :: Stmt,
-     stmtErrorKind  :: StmtErrorKind,
-     stmtErrorValue :: PVal
-} deriving (Data,Eq,Generic,Read,Show,Typeable)
-
-instance Exception StmtError
 
 
 -- ** Operations

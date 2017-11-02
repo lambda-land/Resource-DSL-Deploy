@@ -1,37 +1,19 @@
 module DSL.Environment where
 
-import Data.Data (Data,Typeable)
-import GHC.Generics (Generic)
-
 import Data.Composition ((.:))
-import Control.Monad.Catch (Exception,MonadThrow,throwM)
+import Control.Monad.Except
 
-import Data.Map.Strict (Map)
+import Data.Typeable
+import Data.List (union)
+
 import qualified Data.Map.Strict as Map
+
+import DSL.Types
 
 
 --
 -- * Generic Environments
 --
-
--- ** Type
-
--- | An environment is a map from keys to values.
-newtype Env k v = Env { envAsMap :: Map k v }
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
-
--- | Apply a function to the map that implements this environment.
-envOnMap :: (Map a b -> Map c d) -> Env a b -> Env c d
-envOnMap f (Env m) = Env (f m)
-
-
--- ** Errors
-
--- | Error thrown when a name is not found in the environment.
-data NotFound k = NotFound k [k]
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
-
-instance (Show k, Typeable k) => Exception (NotFound k)
 
 -- | Assume an operation succeeds, failing dynamically otherwise.
 assumeSuccess :: Show e => Either e v -> v
@@ -67,6 +49,33 @@ class MergeDup v where
 instance MergeDup [a] where
   mergeDup = (++)
 
+-- Merge duplicate dictionary entries. For now, merges profiles w/ profiles
+-- and models w/ models, otherwise throws an error.
+instance MergeDup Entry where
+  mergeDup (ProEntry l) (ProEntry r) = ProEntry (mergeDup l r)
+  mergeDup (ModEntry l) (ModEntry r) = ModEntry (mergeDup l r)
+  mergeDup _ _ = error "mergeDup (Entry): cannot merge profile and model"
+
+-- Throw an error if we attempt to merge two primitive values.
+instance MergeDup Value where
+  mergeDup _ _ = error "mergeDup (Value): attempted to merge duplicate entries"
+
+-- | Compose two resource profiles. Merges parameters by name.
+composeProfiles :: Profile -> Profile -> Profile
+composeProfiles (Profile ps1 h1) (Profile ps2 h2) =
+    Profile (union ps1 ps2) (envUnionWith (++) h1 h2)
+
+instance MergeDup Profile where
+  mergeDup = composeProfiles
+
+-- | Compose two models by sequencing the statements in their bodies.
+--   Merges parameters by name.
+composeModels :: Model -> Model -> Model
+composeModels (Model ps1 b1) (Model ps2 b2) =
+    Model (union ps1 ps2) (b1 ++ b2)
+
+instance MergeDup Model where
+  mergeDup = composeModels
 
 -- ** Operations
 
@@ -91,13 +100,10 @@ envUnionWith :: Ord k => (v -> v -> v) -> Env k v -> Env k v -> Env k v
 envUnionWith f (Env l) (Env r) = Env (Map.unionWith f l r)
 
 -- | Lookup a binding in an environment.
-envLookup :: (Ord k, Show k, Typeable k, MonadThrow m) => k -> Env k v -> m v
+envLookup :: (MonadError Error m, Ord k, Show k, Typeable k) => k -> Env k v -> m v
 envLookup k (Env m) = (maybe notFound return . Map.lookup k) m
-  where notFound = throwM (NotFound k (Map.keys m))
+  where notFound = throwError (EnvE $ NotFound k (Map.keys m))
 
 -- | Apply a result-less monadic action to all key-value pairs.
 envMapM_ :: Monad m => (k -> v -> m ()) -> Env k v -> m ()
 envMapM_ f = mapM_ (uncurry f) . Map.toAscList . envAsMap
-
-instance Functor (Env k) where
-  fmap = envOnMap . fmap
