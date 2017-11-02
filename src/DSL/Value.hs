@@ -1,5 +1,6 @@
 module DSL.Value where
 
+{-
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
@@ -7,13 +8,17 @@ import Control.Monad       (liftM2)
 import Control.Monad.Catch (MonadThrow)
 
 import DSL.Predicate (BExpr)
+-}
 import DSL.Primitive
-
+import DSL.V
 
 --
 -- * Values
 --
 
+type Value = V PVal
+
+{-
 -- | Variational primitive values.
 data Value
      = Prim PVal               -- ^ basic primitive value
@@ -43,3 +48,4 @@ applyPrim2 :: MonadThrow m => Op2 -> Value -> Value -> m Value
 applyPrim2 o (Prim l) (Prim r) = fmap Prim (primOp2 o l r)
 applyPrim2 o (ChcV d ll lr) r  = liftM2 (ChcV d) (applyPrim2 o ll r) (applyPrim2 o lr r)
 applyPrim2 o l (ChcV d rl rr)  = liftM2 (ChcV d) (applyPrim2 o l rl) (applyPrim2 o l rr)
+-}
