@@ -13,7 +13,9 @@ import Data.Composition ((.:))
 import DSL.Environment
 import DSL.Name
 import DSL.Path
-import DSL.Primitive
+import DSL.V
+import DSL.Value
+import DSL.Predicate (BExpr(..))
 
 import {-# SOURCE #-} DSL.Model   (Model)
 import {-# SOURCE #-} DSL.Profile (Profile)
@@ -40,48 +42,54 @@ instance MergeDup Entry where
   mergeDup _ _ = error "mergeDup (Entry): cannot merge profile and model"
 
 
--- 
+--
 -- * Evaluation Monad
 --
 
 -- | Variable environment.
-type VarEnv = Env Var PVal
+type VarEnv = Env Var Value
 
 -- | Resource environment.
-type ResEnv = Env ResID PVal  -- TODO make variational
+type ResEnv = Env ResID Value
+
+data StateCtx = SCtx {
+  renv :: ResEnv,
+  mask :: Mask
+} deriving (Generic,Show,Typeable)
 
 -- | Reader context for evaluation.
 data Context = Ctx {
     prefix      :: ResID,      -- ^ resource ID prefix
     environment :: VarEnv,     -- ^ variable environment
-    dictionary  :: Dictionary  -- ^ dictionary of profiles and models
+    dictionary  :: Dictionary, -- ^ dictionary of profiles and models
+    vCtx        :: BExpr       -- ^ current variational context
 } deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- Throw an error if we attempt to merge two primitive values.
-instance MergeDup PVal where
-  mergeDup _ _ = error "mergeDup (PVal): attempted to merge duplicate entries"
+instance MergeDup Value where
+  mergeDup _ _ = error "mergeDup (Value): attempted to merge duplicate entries"
 
 -- | A class of monads for computations that affect a resource environment,
 --   given an evaluation context, and which may throw/catch exceptions.
-class (MonadCatch m, MonadReader Context m, MonadState ResEnv m)
+class (MonadCatch m, MonadReader Context m, MonadState StateCtx m)
   => MonadEval m
-instance (MonadCatch m, MonadReader Context m, MonadState ResEnv m)
+instance (MonadCatch m, MonadReader Context m, MonadState StateCtx m)
   => MonadEval m
 
 -- | A specific monad for running MonadEval computations.
-type EvalM a = StateT ResEnv (ReaderT Context IO) a
+type EvalM a = StateT StateCtx (ReaderT Context IO) a
 
 -- | Execute a computation in a given context.
-runInContext :: Context -> ResEnv -> EvalM a -> IO (a, ResEnv)
+runInContext :: Context -> StateCtx -> EvalM a -> IO (a, StateCtx)
 runInContext ctx init mx = runReaderT (runStateT mx init) ctx
 
 -- | Execute a computation with a given dictionary and an empty variable
 --   environment and prefix.
-runWithDict :: Dictionary -> ResEnv -> EvalM a -> IO (a, ResEnv)
-runWithDict dict = runInContext (Ctx (ResID []) envEmpty dict)
+runWithDict :: Dictionary -> StateCtx -> EvalM a -> IO (a, StateCtx)
+runWithDict dict = runInContext (Ctx (ResID []) envEmpty dict (BLit True))
 
 -- | Execute a computation in the empty context.
-runInEmptyContext :: ResEnv -> EvalM a -> IO (a, ResEnv)
+runInEmptyContext :: StateCtx -> EvalM a -> IO (a, StateCtx)
 runInEmptyContext = runWithDict envEmpty
 
 -- | Get the current resource ID prefix.
@@ -104,7 +112,7 @@ getVarEnv = asks environment
 
 -- | Get the current resource environment.
 getResEnv :: MonadEval m => m ResEnv
-getResEnv = get
+getResEnv = gets renv
 
 -- | Query the dictionary.
 queryDict :: MonadEval m => (Dictionary -> a) -> m a
@@ -116,20 +124,22 @@ queryVarEnv f = fmap f getVarEnv
 
 -- | Query the current resource environment.
 queryResEnv :: MonadEval m => (ResEnv -> a) -> m a
-queryResEnv = gets
+queryResEnv f = fmap f getResEnv
 
 -- | Execute a computation with a specific prefix.
 withPrefix :: MonadEval m => ResID -> m a -> m a
-withPrefix p = local (\(Ctx _ m d) -> Ctx p m d)
+withPrefix p = local (\(Ctx _ m d v) -> Ctx p m d v)
 
 -- | Execute a computation with an updated value environment.
 withVarEnv :: MonadEval m => (VarEnv -> VarEnv) -> m a -> m a
-withVarEnv f = local (\(Ctx p m d) -> Ctx p (f m) d)
+withVarEnv f = local (\(Ctx p m d v) -> Ctx p (f m) d v)
 
 -- | Execute a computation with an extended value environment.
-withNewVar :: MonadEval m => Var -> PVal -> m a -> m a
+withNewVar :: MonadEval m => Var -> Value -> m a -> m a
 withNewVar = withVarEnv .: envExtend
 
+{- TODO
 -- | Update the resource environment.
 updateResEnv :: MonadEval m => (ResEnv -> ResEnv) -> m ()
 updateResEnv = modify
+-}
