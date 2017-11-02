@@ -11,11 +11,6 @@ import DSL.Name
 import DSL.Path
 
 
---
--- * Dictionary
---
-
-
 -- | Execute a computation in a given context.
 runInContext :: Context -> StateCtx -> EvalM a -> Either Error (a, StateCtx)
 runInContext ctx init mx = runExcept (runReaderT (runStateT mx init) ctx)
@@ -51,6 +46,9 @@ getVarEnv = asks environment
 getResEnv :: MonadEval m => m ResEnv
 getResEnv = gets renv
 
+getVCtx :: MonadEval m => m BExpr
+getVCtx = asks vCtx
+
 -- | Query the dictionary.
 queryDict :: MonadEval m => (Dictionary -> a) -> m a
 queryDict f = fmap f getDict
@@ -75,8 +73,18 @@ withVarEnv f = local (\(Ctx p m d v) -> Ctx p (f m) d v)
 withNewVar :: MonadEval m => Var -> Value -> m a -> m a
 withNewVar = withVarEnv .: envExtend
 
-{- TODO
 -- | Update the resource environment.
 updateResEnv :: MonadEval m => (ResEnv -> ResEnv) -> m ()
-updateResEnv = modify
--}
+updateResEnv f = modify (\(SCtx r m) -> SCtx (f r) m)
+
+updateMask :: MonadEval m => (Mask -> Mask) -> m ()
+updateMask f = modify (\(SCtx r m) -> SCtx r (f m))
+
+combineMasks :: BExpr -> Error -> Mask -> Mask
+combineMasks b e m = Chc b (One (Just e)) m
+
+vError :: MonadEval m => Error -> m a
+vError e = do
+  c <- getVCtx
+  updateMask (combineMasks c e)
+  throwError e
