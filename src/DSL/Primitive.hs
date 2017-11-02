@@ -1,4 +1,4 @@
-module DSL.Primitive 
+module DSL.Primitive
   ( PType(..), PVal(..)
   , primType
   , Op1(..), Op2(..), Op3(..)
@@ -34,7 +34,7 @@ import DSL.Name
 -- | Symbols.
 
 -- | Primitive base types.
-data PType = TUnit | TBool | TInt | TFloat | TSymbol
+data PType = TUnit | TBool | TInt | TFloat | TSymbol | TBottom
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Primitive values.
@@ -44,6 +44,7 @@ data PVal
      | I Int
      | F Double
      | S Symbol
+     | PErr
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | Type of primitive value.
@@ -53,6 +54,7 @@ primType (B _) = TBool
 primType (I _) = TInt
 primType (F _) = TFloat
 primType (S _) = TSymbol
+primType PErr  = TBottom
 
 
 --
