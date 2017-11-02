@@ -1,8 +1,13 @@
+{-# LANGUAGE ExistentialQuantification #-}
+
 module DSL.V where
 
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
+import Control.Exception
+
 import DSL.Predicate (BExpr)
+
 
 
 data V a = One a | Chc BExpr (V a) (V a)
@@ -20,3 +25,14 @@ instance Applicative V where
 instance Monad V where
   (One v) >>= f = f v
   (Chc d l r) >>= f = Chc d (l >>= f) (r >>= f)
+
+data ExiErr = forall e . Exception e => ExiErr e
+
+instance Show ExiErr where
+  show (ExiErr e) = show e
+
+type VErr = V ExiErr
+
+instance Exception VErr
+
+type Mask = V (Maybe ExiErr)
