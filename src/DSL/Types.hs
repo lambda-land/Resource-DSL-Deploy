@@ -331,11 +331,13 @@ type Mask = V (Maybe Error)
 
 type VError = V Error
 
+type VType = V PType
+
 
 -- EXPRESSIONS
 
 -- | Named and primitively typed parameters.
-data Param = Param Var PType
+data Param = Param Var VType
   deriving (Show,Eq)
 
 -- | Unary functions.
@@ -346,20 +348,20 @@ data Fun = Fun Param Expr
 data Expr
      = Ref Var                 -- ^ variable reference
      | Res Path                -- ^ resource reference
-     | Lit PVal                -- ^ primitive literal
+     | Lit Value               -- ^ primitive literal
      | P1  Op1 Expr            -- ^ primitive unary function
      | P2  Op2 Expr Expr       -- ^ primitive binary function
      | P3  Op3 Expr Expr Expr  -- ^ conditional expression
   deriving (Eq,Show)
 
 -- | Type error caused by passing argument of the wrong type.
-data ArgTypeError = ArgTypeError Param PVal
+data ArgTypeError = ArgTypeError Param Value
   deriving (Eq,Show)
 
 -- Use SBV's Boolean type class for boolean predicates.
 instance Boolean Expr where
-  true  = Lit (B True)
-  false = Lit (B False)
+  true  = Lit . One . B $ True
+  false = Lit . One . B $ False
   bnot  = P1 (B_B Not)
   (&&&) = P2 (BB_B And)
   (|||) = P2 (BB_B Or)
@@ -369,7 +371,7 @@ instance Boolean Expr where
 
 -- Use Num type class for arithmetic.
 instance Num Expr where
-  fromInteger = Lit . I . fromInteger
+  fromInteger = Lit . One . I . fromInteger
   abs    = P1 (N_N Abs)
   negate = P1 (N_N Neg)
   signum = P1 (N_N Sign)

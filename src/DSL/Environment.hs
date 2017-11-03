@@ -100,7 +100,7 @@ envUnionWith :: Ord k => (v -> v -> v) -> Env k v -> Env k v -> Env k v
 envUnionWith f (Env l) (Env r) = Env (Map.unionWith f l r)
 
 -- | Lookup a binding in an environment.
-envLookup :: (MonadError Error m, Ord k, Show k, Typeable k) => k -> Env k v -> m v
+envLookup :: (Ord k, Show k, Typeable k) => k -> Env k v -> Either Error v
 envLookup k (Env m) = (maybe notFound return . Map.lookup k) m
   where notFound = throwError (EnvE $ NotFound k (Map.keys m))
 

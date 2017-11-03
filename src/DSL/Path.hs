@@ -1,8 +1,6 @@
 
 module DSL.Path where
 
-import Control.Monad.Except
-
 import Data.List.Split (splitOn)
 import Data.String (IsString(..))
 
@@ -50,13 +48,13 @@ pathAppend (Path k1 l) p2@(Path k2 r) = case k2 of
 --   prefix is ignored. If the path is relative, it is appended to the prefix.
 --   The resulting path is normalized (i.e. special path names are eliminated)
 --   to produce a resource ID.
-toResID :: MonadError VError m => ResID -> Path -> m ResID
+toResID :: ResID -> Path -> Either Error ResID
 toResID (ResID pre) orig@(Path k p) = case k of
     Relative -> ResID <$> norm (pre ++ p)
     Absolute -> ResID <$> norm p
   where
     norm []         = pure []
-    norm ("..":_)   = throwError (One . PathE . CannotNormalize $ orig)
+    norm ("..":_)   = Left (PathE . CannotNormalize $ orig)
     norm ("":p)     = norm p
     norm (".":p)    = norm p
     norm (_:"..":p) = norm p

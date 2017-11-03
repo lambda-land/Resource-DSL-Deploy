@@ -8,10 +8,10 @@ import Data.Maybe (fromJust)
 import Data.SBV
 
 import DSL.Types
-import DSL.Environment
 import DSL.Name
 import DSL.Path
 import DSL.SAT
+import DSL.Environment
 
 
 -- | Execute a computation in a given context.
@@ -35,7 +35,7 @@ getPrefix = asks prefix
 getResID :: MonadEval m => Path -> m ResID
 getResID path = do
     pre <- getPrefix
-    toResID pre path
+    promoteError (toResID pre path)
 
 -- | Get the current dictionary of profiles and models.
 getDict :: MonadEval m => m Dictionary
@@ -95,6 +95,10 @@ vError e = do
   updateMask (combineMasks c e)
   throwError (One e)
 
+promoteError :: MonadEval m => Either Error a -> m a
+promoteError (Right a) = return a
+promoteError (Left e) = vError e
+
 allErrors :: Mask -> Bool
 allErrors (One Nothing) = False
 allErrors (One (Just _)) = True
@@ -116,7 +120,7 @@ checkMask d = do
   let m' = traverseMask d m
   if allErrors m' then return () else throwMask m'
 
-vAlt :: MonadEval m => BExpr -> Value -> (PVal -> m Value) -> m Value
+vAlt :: MonadEval m => BExpr -> V a -> (a -> m Value) -> m Value
 vAlt d v f = do
   c <- getVCtx
   let c' = c &&& d
@@ -126,7 +130,7 @@ vAlt d v f = do
 vReturn :: MonadEval m => a -> m (V a)
 vReturn = return . One
 
-vBind :: MonadEval m => m Value -> (PVal -> m Value) -> m Value
+vBind :: MonadEval m => m (V a) -> (a -> m Value) -> m Value
 vBind v f = do
   v' <- v
   case v' of

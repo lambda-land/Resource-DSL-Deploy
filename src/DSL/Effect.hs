@@ -6,6 +6,7 @@ import GHC.Generics (Generic)
 import Control.Monad (unless,when)
 import Control.Monad.Catch (Exception,throwM)
 
+import DSL.Types
 import DSL.Environment
 import DSL.Expression
 import DSL.Path
