@@ -123,6 +123,9 @@ vAlt d v f = do
   checkMask c'
   local (\(Ctx p m d _) -> Ctx p m d c') (vBind (return v) f)
 
+vReturn :: MonadEval m => a -> m (V a)
+vReturn = return . One
+
 vBind :: MonadEval m => m Value -> (PVal -> m Value) -> m Value
 vBind v f = do
   v' <- v
@@ -136,6 +139,6 @@ vBind v f = do
             throwError e
           else
             throwError $ Chc d e e')
-        return $ One PErr)
-      r'' <- r' `catchError` (\_ -> (return $ One PErr))
+        vReturn PErr)
+      r'' <- r' `catchError` (\_ -> (vReturn PErr))
       return $ Chc d l' r''
