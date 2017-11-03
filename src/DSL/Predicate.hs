@@ -13,7 +13,6 @@ import DSL.Name
 import DSL.Environment
 import DSL.Primitive
 
-
 --
 -- * Predicate Expressions
 --

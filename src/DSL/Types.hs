@@ -329,6 +329,8 @@ type Value = V PVal
 
 type Mask = V (Maybe Error)
 
+type VError = V Error
+
 
 -- EXPRESSIONS
 
@@ -500,13 +502,13 @@ data Context = Ctx {
 
 -- | A class of monads for computations that affect a resource environment,
 --   given an evaluation context, and which may throw/catch exceptions.
-class (MonadError Error m, MonadReader Context m, MonadState StateCtx m)
+class (MonadError VError m, MonadReader Context m, MonadState StateCtx m)
   => MonadEval m
-instance (MonadError Error m, MonadReader Context m, MonadState StateCtx m)
+instance (MonadError VError m, MonadReader Context m, MonadState StateCtx m)
   => MonadEval m
 
 -- | A specific monad for running MonadEval computations.
-type EvalM a = StateT StateCtx (ReaderT Context (Except Error)) a
+type EvalM a = StateT StateCtx (ReaderT Context (Except VError)) a
 
 
 -- ERROR

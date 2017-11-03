@@ -17,36 +17,6 @@ import DSL.Primitive
 -- * Resource Effects
 --
 
--- ** Type
-
--- | An effect on a particular resource.
-data Effect
-     = Create Expr
-     | Check  Fun
-     | Modify Fun
-     | Delete
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
-
-
--- ** Errors
-
--- | Kinds of errors that can occur when resolving or combining an effect.
-data EffectErrorKind
-     = CheckFailure
-     | CheckTypeError
-     | NoSuchResource
-     | ResourceAlreadyExists
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
-
--- | An error resulting from applying a resource effect.
-data EffectError = EffectError {
-     effectErrorEffect :: Effect,
-     effectErrorKind   :: EffectErrorKind,
-     effectErrorResID  :: ResID,
-     effectErrorValue  :: Maybe PVal
-} deriving (Data,Eq,Generic,Read,Show,Typeable)
-
-instance Exception EffectError
 
 
 -- ** Resolution

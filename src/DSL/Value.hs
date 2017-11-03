@@ -1,48 +1,37 @@
 module DSL.Value where
 
-{-
-import Data.Data (Data,Typeable)
-import GHC.Generics (Generic)
-
-import Control.Monad       (liftM2)
-import Control.Monad.Catch (MonadThrow)
-
-import DSL.Predicate (BExpr)
--}
+import DSL.Types
 import DSL.Primitive
+import DSL.Resource
 
---
--- * Values
---
+-- | Evaluate a primitive unary operator.
+primOp1 :: MonadEval m => Op1 -> PVal -> m PVal
+primOp1 U_U     Unit  = return Unit
+primOp1 (B_B o) (B b) = return (B (opB_B o b))
+primOp1 (N_N o) (I n) = return (I (opN_N o n))
+primOp1 (N_N o) (F n) = return (F (opN_N o n))
+primOp1 (F_I o) (F n) = return (I (opF_I o n))
+primOp1 o v = vError (PrimE $ ErrorOp1 o v)
+-- | Evaluate a primitive binary operator. When a binary numeric operator is
+--   applied to one integer and one floating point number, the integer is
+--   implicitly converted to floating point.
+primOp2 :: MonadEval m => Op2 -> PVal -> PVal -> m PVal
+  -- boolean
+primOp2 (BB_B o) (B l) (B r) = return (B (opBB_B o l r))
+  -- arithmetic
+primOp2 (NN_N o) (I l) (I r) = return (I (opNN_N o l r))
+primOp2 (NN_N o) (I l) (F r) = return (F (opNN_N o (fromIntegral l) r))
+primOp2 (NN_N o) (F l) (I r) = return (F (opNN_N o l (fromIntegral r)))
+primOp2 (NN_N o) (F l) (F r) = return (F (opNN_N o l r))
+  -- comparison
+primOp2 (NN_B o) (I l) (I r) = return (B (opNN_B o l r))
+primOp2 (NN_B o) (I l) (F r) = return (B (opNN_B o (fromIntegral l) r))
+primOp2 (NN_B o) (F l) (I r) = return (B (opNN_B o l (fromIntegral r)))
+primOp2 (NN_B o) (F l) (F r) = return (B (opNN_B o l r))
+  -- error
+primOp2 o l r = vError (PrimE $ ErrorOp2 o l r)
 
-{-
--- | Variational primitive values.
-data Value
-     = Prim PVal               -- ^ basic primitive value
-     | ChcV BExpr Value Value  -- ^ choice value
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
-
--- | Check whether a predicate is true for all leaves of a value.
---   A result of Nothing indicates a type error.
-allPrims :: (PVal -> Maybe Bool) -> Value -> Maybe Bool
-allPrims f (Prim v)     = f v
-allPrims f (ChcV _ l r) = liftM2 (&&) (allPrims f l) (allPrims f r)
-
--- | Check whether a value is equivalent to True.
---   A result of Nothing indicates a type error.
-valIsTrue :: Value -> Maybe Bool
-valIsTrue = allPrims isTrue
-  where isTrue (B b) = Just b
-        isTrue _     = Nothing
-
--- | Apply a primitive unary function to a value.
-applyPrim1 :: MonadThrow m => Op1 -> Value -> m Value
-applyPrim1 o (Prim v)     = fmap Prim (primOp1 o v)
-applyPrim1 o (ChcV d l r) = liftM2 (ChcV d) (applyPrim1 o l) (applyPrim1 o r)
-
--- | Apply a primitive binary function to two values.
-applyPrim2 :: MonadThrow m => Op2 -> Value -> Value -> m Value
-applyPrim2 o (Prim l) (Prim r) = fmap Prim (primOp2 o l r)
-applyPrim2 o (ChcV d ll lr) r  = liftM2 (ChcV d) (applyPrim2 o ll r) (applyPrim2 o lr r)
-applyPrim2 o l (ChcV d rl rr)  = liftM2 (ChcV d) (applyPrim2 o l rl) (applyPrim2 o l rr)
--}
+-- | Evaluate a primitive ternary operator.
+primOp3 :: MonadEval m => Op3 -> PVal -> PVal -> PVal -> m PVal
+primOp3 Cond (B c) t e = return (if c then t else e)
+primOp3 o c t e = vError (PrimE $ ErrorOp3 o c t e)

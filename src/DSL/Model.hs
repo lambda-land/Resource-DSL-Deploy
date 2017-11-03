@@ -5,7 +5,6 @@ import GHC.Generics (Generic)
 
 import Control.Monad (forM_)
 import Control.Monad.Catch (Exception,throwM)
-import Data.List (union)
 
 import DSL.Types
 import DSL.Effect
@@ -44,14 +43,7 @@ toProfile (Model xs stmts) =
     entries pre (Do path eff) = [(pathAppend pre path, [eff])]
     entries _ _ = error "toProfile: cannot convert model to profile"
 
--- | Compose two models by sequencing the statements in their bodies.
---   Merges parameters by name.
-composeModels :: Model -> Model -> Model
-composeModels (Model ps1 b1) (Model ps2 b2) =
-    Model (union ps1 ps2) (b1 ++ b2)
 
-instance MergeDup Model where
-  mergeDup = composeModels
 
 -- TODO: convert profiles to models, compose profiles and models
 

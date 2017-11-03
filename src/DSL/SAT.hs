@@ -30,6 +30,9 @@ taut = unsat . bnot
 equiv :: SAT b => b -> b -> Bool
 equiv a b = taut (a <=> b)
 
+implies :: SAT b => b -> b -> Bool
+implies a b = sat (a ==> b)
+
 
 -- Instances
 
