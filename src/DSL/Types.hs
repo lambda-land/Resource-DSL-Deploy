@@ -341,7 +341,7 @@ data Param = Param Var VType
   deriving (Show,Eq)
 
 -- | Unary functions.
-data Fun = Fun Param Expr
+data Fun = Fun Param (V Expr)
   deriving (Eq,Show)
 
 -- | Expressions.
@@ -349,9 +349,9 @@ data Expr
      = Ref Var                 -- ^ variable reference
      | Res Path                -- ^ resource reference
      | Lit Value               -- ^ primitive literal
-     | P1  Op1 Expr            -- ^ primitive unary function
-     | P2  Op2 Expr Expr       -- ^ primitive binary function
-     | P3  Op3 Expr Expr Expr  -- ^ conditional expression
+     | P1  Op1 (V Expr)            -- ^ primitive unary function
+     | P2  Op2 (V Expr) (V Expr)       -- ^ primitive binary function
+     | P3  Op3 (V Expr) (V Expr) (V Expr)  -- ^ conditional expression
   deriving (Eq,Show)
 
 -- | Type error caused by passing argument of the wrong type.
@@ -359,39 +359,39 @@ data ArgTypeError = ArgTypeError Param Value
   deriving (Eq,Show)
 
 -- Use SBV's Boolean type class for boolean predicates.
-instance Boolean Expr where
-  true  = Lit . One . B $ True
-  false = Lit . One . B $ False
-  bnot  = P1 (B_B Not)
-  (&&&) = P2 (BB_B And)
-  (|||) = P2 (BB_B Or)
-  (<+>) = P2 (BB_B XOr)
-  (==>) = P2 (BB_B Imp)
-  (<=>) = P2 (BB_B Eqv)
+instance Boolean (V Expr) where
+  true  = One . Lit . One . B $ True
+  false = One . Lit . One . B $ False
+  bnot e  = One (P1 (B_B Not) e)
+  e &&& e' = One (P2 (BB_B And) e e')
+  e ||| e' = One (P2 (BB_B Or) e e')
+  e <+> e' = One (P2 (BB_B XOr) e e')
+  e ==> e' = One (P2 (BB_B Imp) e e')
+  e <=> e' = One (P2 (BB_B Eqv) e e')
 
 -- Use Num type class for arithmetic.
-instance Num Expr where
-  fromInteger = Lit . One . I . fromInteger
-  abs    = P1 (N_N Abs)
-  negate = P1 (N_N Neg)
-  signum = P1 (N_N Sign)
-  (+)    = P2 (NN_N Add)
-  (-)    = P2 (NN_N Sub)
-  (*)    = P2 (NN_N Mul)
+instance Num (V Expr) where
+  fromInteger = One . Lit . One . I . fromInteger
+  abs n   = One (P1 (N_N Abs) n)
+  negate n = One (P1 (N_N Neg) n)
+  signum n = One (P1 (N_N Sign) n)
+  n + n'    = One (P2 (NN_N Add) n n')
+  n - n'    = One (P2 (NN_N Sub) n n')
+  n * n'    = One (P2 (NN_N Mul) n n')
 
 -- Other numeric arithmetic primitives.
-instance PrimN Expr where
-  (./) = P2 (NN_N Div)
-  (.%) = P2 (NN_N Mod)
+instance PrimN (V Expr) where
+  n ./ n' = One (P2 (NN_N Div) n n')
+  n .% n' = One (P2 (NN_N Mod) n n')
 
 -- Numeric comparison primitives.
-instance Prim Expr Expr where
-  (.<)  = P2 (NN_B LT)
-  (.<=) = P2 (NN_B LTE)
-  (.==) = P2 (NN_B Equ)
-  (./=) = P2 (NN_B Neq)
-  (.>=) = P2 (NN_B GTE)
-  (.>)  = P2 (NN_B GT)
+instance Prim (V Expr) (V Expr) where
+  n .< n'  = One (P2 (NN_B LT) n n')
+  n .<= n' = One (P2 (NN_B LTE) n n')
+  n .== n' = One (P2 (NN_B Equ) n n')
+  n ./= n' = One (P2 (NN_B Neq) n n')
+  n .>= n' = One (P2 (NN_B GTE) n n')
+  n .> n' = One (P2 (NN_B GT) n n')
 
 
 -- EFFECTS

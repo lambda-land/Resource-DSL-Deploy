@@ -16,7 +16,7 @@ import DSL.Value
 --
 
 
-(??) :: Expr -> (Expr,Expr) -> Expr
+(??) :: V Expr -> (V Expr, V Expr) -> Expr
 c ?? (t,e) = P3 Cond c t e
 
 infix 1 ??
@@ -34,10 +34,9 @@ evalExpr (Res p)      = do rID <- getResID p
                            env <- getResEnv
                            promoteError (envLookup rID env)
 evalExpr (Lit v)      = return v
-evalExpr (P1 o e)     = applyPrim1 o (evalExpr e)
-
-evalExpr (P2 o l r)   = applyPrim2 o (evalExpr l) (evalExpr r)
-evalExpr (P3 o c t e) = applyPrim3 o (evalExpr c) (evalExpr t) (evalExpr e)
+evalExpr (P1 o e)     = applyPrim1 o (vEvalExpr . return $ e)
+evalExpr (P2 o l r)   = applyPrim2 o (vEvalExpr . return $ l) (vEvalExpr . return $ r)
+evalExpr (P3 o c t e) = applyPrim3 o (vEvalExpr . return $ c) (vEvalExpr . return $ t) (vEvalExpr . return $ e)
 
 vEvalExpr :: MonadEval m => m (V Expr) -> m Value
 vEvalExpr e = vBind e evalExpr
@@ -56,7 +55,7 @@ checkArg p@(Param x t) v
 evalFun :: MonadEval m => Fun -> Value -> m Value
 evalFun (Fun p@(Param x _) e) v = do
     checkArg p v
-    withNewVar x v (evalExpr e)
+    withNewVar x v (vEvalExpr . return $ e)
 
 -- | Run a computation in a variable environment extended by new arguments.
 withArgs :: MonadEval m => [Param] -> [Expr] -> m a -> m a
