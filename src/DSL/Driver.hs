@@ -20,6 +20,7 @@ import DSL.Pretty
 
 import DSL.Example.Location
 import DSL.Example.Network
+import DSL.Example.NewVerbsSaasm
 
 
 --
@@ -31,8 +32,9 @@ runDriver = do
     cmd <- getCommand
     case cmd of
       Check opts -> runCheck opts
-      Example (Location opts) -> runLocation opts
-      Example (Network opts)  -> runNetwork opts
+      Example (Location opts)      -> runLocation opts
+      Example (Network opts)       -> runNetwork opts
+      Example (NewVerbsSaasm opts) -> runNewVerbsSaasm opts
 
 runCheck :: CheckOpts -> IO ()
 runCheck opts = do
@@ -78,8 +80,9 @@ data CheckOpts = CheckOpts
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 data Example
-     = Location LocationOpts
-     | Network  NetworkOpts
+     = Location      LocationOpts
+     | Network       NetworkOpts
+     | NewVerbsSaasm NewVerbsSaasmOpts
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 getCommand :: IO Command
@@ -105,7 +108,10 @@ parseExample = subparser
         (progDesc "Location provider example"))
     <> command "network"
         (info (Network <$> (helper <*> parseNetworkOpts))
-        (progDesc "Network / image provider example")) )
+        (progDesc "Network / image provider example")) 
+    <> command "newverbs"
+        (info (NewVerbsSaasm <$> (helper <*> parseNewVerbsSaasmOpts))
+        (progDesc "Example using new verbs from Securboration")) )
 
 parseCheckOpts :: Parser CheckOpts
 parseCheckOpts = CheckOpts

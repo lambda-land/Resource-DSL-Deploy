@@ -69,6 +69,7 @@ library
     , DSL.Value
     , DSL.Example.Location
     , DSL.Example.Network
+    , DSL.Example.NewVerbsSaasm
 
 executable resource-dsl
   hs-source-dirs:   app
