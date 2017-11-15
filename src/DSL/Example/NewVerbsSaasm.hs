@@ -40,10 +40,9 @@ locationDFUs = profileDict
 -- | USB-based SAASM GPS.
 gpsSaasm :: Model
 gpsSaasm = Model []
-    [ In "GPS" [checkUnit "SAT"]
-    , In "Ext" [checkUnit "USB"]
-    , createUnit "Location"
-    , In "Location" [createUnit "SAASM"]
+    [ checkUnit "GpsSatelliteConstellation"
+    , checkUnit "UsbResource"
+    , createUnit "LocationProvider"
     ]
 
 
@@ -55,7 +54,13 @@ locationEnvs = [(toID ps, toEnv ps) | ps <- tail (subsequences paths)]
   where
     toEnv = envFromList . map (\p -> (ResID p, Unit))
     toID  = intercalate "+" . map (intercalate ".")
-    paths = [["GPS","SAT"],["GPS","Dev"],["Ext","USB"],["Ext","BT"],["UI"]]
+    paths = [ ["GpsSatelliteConstellation"]
+            , ["GpsRecieverEmbedded"]
+            , ["UsbResource"]
+            , ["FileSystemResource"]
+            , ["BluetoothResource"]
+            , ["UserInterface"]
+            ]
 
 -- | Lookup a location environment by ID.
 lookupLocationEnv :: Monad m => String -> m ResEnv
@@ -69,7 +74,7 @@ lookupLocationEnv envID = case lookup envID locationEnvs of
 
 -- | Require location.
 hasLocation :: Profile
-hasLocation = toProfile $ Model [] [checkUnit "Location"]
+hasLocation = toProfile $ Model [] [checkUnit "LocationProvider"]
 
 -- | Require SAASM location.
 hasSaasm :: Profile
