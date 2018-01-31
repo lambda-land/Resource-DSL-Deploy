@@ -1,7 +1,6 @@
 module DSL.Environment where
 
 import Data.Composition ((.:))
-import Control.Monad.Except
 
 import Data.Typeable
 import Data.List (union)
@@ -99,10 +98,15 @@ envUnion (Env l) (Env r) = Env (Map.union l r)
 envUnionWith :: Ord k => (v -> v -> v) -> Env k v -> Env k v -> Env k v
 envUnionWith f (Env l) (Env r) = Env (Map.unionWith f l r)
 
--- | Lookup a binding in an environment.
+-- | Lookup a binding in an environment, returning an error if it does not exist.
 envLookup :: (Ord k, Show k, Typeable k) => k -> Env k v -> Either Error v
-envLookup k (Env m) = (maybe notFound return . Map.lookup k) m
-  where notFound = throwError (EnvE $ NotFound k (Map.keys m))
+envLookup k (Env m) = (maybe notFound Right . Map.lookup k) m
+  where notFound = Left (EnvE $ NotFound k (Map.keys m))
+
+-- | Lookup a binding in an environment, returning an optional value.
+envLookup' :: (Ord k) => k -> Env k v -> Maybe v
+envLookup' k (Env m) = Map.lookup k m
+
 
 -- | Apply a result-less monadic action to all key-value pairs.
 envMapM_ :: Monad m => (k -> v -> m ()) -> Env k v -> m ()

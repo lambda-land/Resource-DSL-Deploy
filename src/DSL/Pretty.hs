@@ -4,13 +4,15 @@ import Prelude hiding (LT,GT)
 
 import Data.List (intercalate)
 
-import DSL.Effect
-import DSL.Expression
-import DSL.Model
+import DSL.Types
 import DSL.Name
-import DSL.Path
-import DSL.Primitive
 
+class Pretty a where
+  pretty :: a -> String
+
+instance (Pretty a) => Pretty (V a) where
+  pretty (One a) = pretty a
+  pretty (Chc d l r) = show d ++ "<" ++ pretty l ++ "," ++ pretty r ++ ">"
 
 --
 -- * Resources
@@ -31,10 +33,13 @@ prettyResID (ResID p) = intercalate "/" p
 -- ** Effects
 
 prettyEffect :: Effect -> String
-prettyEffect (Create e) = "create " ++ prettyExpr e
+prettyEffect (Create e) = "create " ++ pretty e
 prettyEffect (Check f)  = "check "  ++ prettyFun f
 prettyEffect (Modify f) = "modify " ++ prettyFun f
 prettyEffect Delete     = "delete"
+
+instance Pretty Effect where
+  pretty = prettyEffect
 
 prettyEffectErrorKind :: EffectErrorKind -> String
 prettyEffectErrorKind CheckFailure          = "Resource check failure"
@@ -47,7 +52,11 @@ prettyEffectError (EffectError eff kind rID mval) = unlines $
     [ prettyEffectErrorKind kind ++ ":"
     , "  On resource: " ++ prettyResID rID
     , "  While executing: " ++ prettyEffect eff ]
-    ++ maybe [] (\v -> ["  Resource value: " ++ prettyPVal v]) mval
+    ++ maybe [] (\v -> ["  Resource value: " ++ pretty v]) mval
+
+instance (Pretty a) => Pretty (Maybe a) where
+  pretty Nothing = "Nothing"
+  pretty (Just a) = "Just (" ++ pretty a ++ ")"
 
 
 -- ** Models
@@ -77,6 +86,9 @@ prettyPType TInt    = "int"
 prettyPType TFloat  = "float"
 prettyPType TSymbol = "symbol"
 
+instance Pretty PType where
+  pretty = prettyPType
+
 prettyPVal :: PVal -> String
 prettyPVal Unit      = "()"
 prettyPVal (B True)  = "true"
@@ -84,6 +96,9 @@ prettyPVal (B False) = "false"
 prettyPVal (I i)     = show i
 prettyPVal (F f)     = show f
 prettyPVal (S s)     = toName s
+
+instance Pretty PVal where
+  pretty = prettyPVal
 
 
 -- ** Operator Names
@@ -117,26 +132,29 @@ prettyNN_N Mod = "%"
 
 
 -- ** Expressions
-
-prettyTerm :: Expr -> String
-prettyTerm (Ref x) = x
-prettyTerm (Lit v) = prettyPVal v
-prettyTerm e       = prettyParens (prettyExpr e)
+prettyTerm :: V Expr -> String
+prettyTerm (One (Ref x)) = x
+prettyTerm (One (Lit v)) = pretty v
+prettyTerm (One e)       = prettyParens (prettyExpr e)
+prettyTerm ve = pretty ve
 
 prettyExpr :: Expr -> String
 prettyExpr (Ref x)           = x
 prettyExpr (Res p)           = "@" ++ prettyPath p
-prettyExpr (Lit v)           = prettyPVal v
+prettyExpr (Lit v)           = pretty v
 prettyExpr (P1 o e)          = prettyP1 o e
 prettyExpr (P2 (NN_N o) l r) = concat [prettyTerm l, prettyNN_N o, prettyTerm r]
 prettyExpr (P2 o l r)        = unwords [prettyTerm l, prettyOp2 o, prettyTerm r]
 prettyExpr (P3 Cond c l r)   = unwords [prettyTerm c, "?", prettyTerm l, ":", prettyTerm r]
 
-prettyP1 :: Op1 -> Expr -> String
+instance Pretty Expr where
+  pretty = prettyExpr
+
+prettyP1 :: Op1 -> V Expr -> String
 prettyP1 U_U         e = prettyPrimFun "unit" e
-prettyP1 (B_B Not)   e = "!" ++ prettyTerm e
+prettyP1 (B_B Not)   e = "!" ++ pretty e
 prettyP1 (N_N Abs)   e = prettyPrimFun "abs" e
-prettyP1 (N_N Neg)   e = "-" ++ prettyTerm e
+prettyP1 (N_N Neg)   e = "-" ++ pretty e
 prettyP1 (N_N Sign)  e = prettyPrimFun "signum" e
 prettyP1 (F_I Ceil)  e = prettyPrimFun "ceiling" e
 prettyP1 (F_I Floor) e = prettyPrimFun "floor" e
@@ -145,14 +163,14 @@ prettyP1 (F_I Round) e = prettyPrimFun "round" e
 prettyParens :: String -> String
 prettyParens s = "(" ++ s ++ ")"
 
-prettyPrimFun :: String -> Expr -> String
-prettyPrimFun n e = n ++ prettyParens (prettyExpr e)
+prettyPrimFun :: String -> V Expr -> String
+prettyPrimFun n e = n ++ prettyParens (pretty e)
 
 
 -- ** Functions
 
 prettyParam :: Param -> String
-prettyParam (Param x t) = x ++ ":" ++ prettyPType t
+prettyParam (Param x t) = x ++ ":" ++ pretty t
 
 prettyFun :: Fun -> String
-prettyFun (Fun p e) = "λ" ++ prettyParam p ++ ". " ++ prettyExpr e
+prettyFun (Fun p e) = "λ" ++ prettyParam p ++ ". " ++ pretty e

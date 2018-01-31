@@ -4,17 +4,20 @@ import DSL.Types
 import DSL.Primitive
 import DSL.Resource
 
+applyPrim1 :: MonadEval m => Op1 -> VM m PVal -> VM m PVal
+applyPrim1 o v = do
+  p <- v
+  toVM $ promoteError (primOp1 o p)
 
-applyPrim1 :: MonadEval m => Op1 -> m Value -> m Value
-applyPrim1 o v = vBind v (\p -> promoteError (primOp1 o p) >>= vReturn)
+applyPrim2 :: MonadEval m => Op2 -> VM m PVal -> VM m PVal -> VM m PVal
+applyPrim2 o v1 v2 = do
+  p1 <- v1
+  p2 <- v2
+  toVM $ promoteError (primOp2 o p1 p2)
 
-applyPrim2 :: MonadEval m => Op2 -> m Value -> m Value -> m Value
-applyPrim2 o v1 v2 = vBind v1 (\p1 ->
-                                vBind v2 (\p2 ->
-                                  promoteError (primOp2 o p1 p2) >>= vReturn))
-
-applyPrim3 :: MonadEval m => Op3 -> m Value -> m Value -> m Value -> m Value
-applyPrim3 o v1 v2 v3 = vBind v1 (\p1 ->
-                                   vBind v2 (\p2 ->
-                                     vBind v3 (\p3 ->
-                                       promoteError (primOp3 o p1 p2 p3) >>= vReturn)))
+applyPrim3 :: MonadEval m => Op3 -> VM m PVal -> VM m PVal -> VM m PVal -> VM m PVal
+applyPrim3 o v1 v2 v3 = do
+  p1 <- v1
+  p2 <- v2
+  p3 <- v3
+  toVM $ promoteError (primOp3 o p1 p2 p3)

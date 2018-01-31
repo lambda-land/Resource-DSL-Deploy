@@ -18,8 +18,8 @@ import DSL.Resource
 import DSL.Serialize
 import DSL.Pretty
 
-import DSL.Example.Location
-import DSL.Example.Network
+--import DSL.Example.Location
+--import DSL.Example.Network
 
 
 --

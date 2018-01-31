@@ -15,6 +15,7 @@ import Text.Megaparsec.Expr
 import Text.Megaparsec.Text
 import qualified Text.Megaparsec.Lexer as L
 
+import DSL.Types
 import DSL.Expression
 import DSL.Name
 import DSL.Path

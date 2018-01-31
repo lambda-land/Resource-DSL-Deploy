@@ -27,7 +27,6 @@ primType (B _) = TBool
 primType (I _) = TInt
 primType (F _) = TFloat
 primType (S _) = TSymbol
-primType PErr  = TBottom
 
 -- | Evaluate a primitive unary operator.
 primOp1 :: Op1 -> PVal -> Either Error PVal
@@ -36,7 +35,9 @@ primOp1 (B_B o) (B b) = Right (B (opB_B o b))
 primOp1 (N_N o) (I n) = Right (I (opN_N o n))
 primOp1 (N_N o) (F n) = Right (F (opN_N o n))
 primOp1 (F_I o) (F n) = Right (I (opF_I o n))
+-- Primitive type mismatch
 primOp1 o v = Left (PrimE $ ErrorOp1 o v)
+
 -- | Evaluate a primitive binary operator. When a binary numeric operator is
 --   applied to one integer and one floating point number, the integer is
 --   implicitly converted to floating point.

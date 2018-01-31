@@ -25,6 +25,8 @@ import DSL.Name
 newtype Env k v = Env { envAsMap :: Map k v }
   deriving (Eq,Show)
 
+type VEnv k v = Env k (VOpt v)
+
 -- | Apply a function to the map that implements this environment.
 envOnMap :: (Map a b -> Map c d) -> Env a b -> Env c d
 envOnMap f (Env m) = Env (f m)
@@ -41,7 +43,7 @@ instance Eq NotFound where
     | otherwise = False
 
 instance Show NotFound where
-  show (NotFound k ks) = "NotFound " ++ show k ++ " " ++ show ks
+  show (NotFound k ks) = "NotFound (" ++ show k ++ ") (" ++ show ks ++ ")"
 
 
 -- PATHS
@@ -76,7 +78,7 @@ newtype ResID = ResID [Name]
 -- PRIMITIVES
 
 -- | Primitive base types.
-data PType = TUnit | TBool | TInt | TFloat | TSymbol | TBottom
+data PType = TUnit | TBool | TInt | TFloat | TSymbol
   deriving (Eq,Show)
 
 -- | Primitive values.
@@ -86,7 +88,6 @@ data PVal
      | I Int
      | F Double
      | S Symbol
-     | PErr
   deriving (Eq,Show)
 
 --
@@ -310,7 +311,7 @@ instance Prim BExpr IExpr where
 -- VARIATION
 
 data V a = One a | Chc BExpr (V a) (V a)
-  deriving (Eq,Show)
+  deriving (Eq,Show,Typeable)
 
 instance Functor V where
   fmap f (One v) = One . f $ v
@@ -325,11 +326,20 @@ instance Monad V where
   (One v) >>= f = f v
   (Chc d l r) >>= f = Chc d (l >>= f) (r >>= f)
 
-type Value = V PVal
+newtype VM m a = VM { unVM :: (m (VOpt a)) }
 
-type Mask = V (Maybe Error)
+type VOpt a = V (Maybe a)
 
-type VError = V Error
+type SegList a = [Segment a]
+
+data Segment a = Elems [a] | Split BExpr (SegList a) (SegList a)
+  deriving (Eq,Show)
+
+type VList a = [VOpt a]
+
+type Value = VOpt PVal
+
+type Mask = VOpt Error
 
 type VType = V PType
 
@@ -348,14 +358,30 @@ data Fun = Fun Param (V Expr)
 data Expr
      = Ref Var                 -- ^ variable reference
      | Res Path                -- ^ resource reference
-     | Lit Value               -- ^ primitive literal
+     | Lit (V PVal)               -- ^ primitive literal
      | P1  Op1 (V Expr)            -- ^ primitive unary function
      | P2  Op2 (V Expr) (V Expr)       -- ^ primitive binary function
      | P3  Op3 (V Expr) (V Expr) (V Expr)  -- ^ conditional expression
   deriving (Eq,Show)
 
+data VEnvErr = NF NotFound
+             | forall a. (Eq a, Show a, Typeable a) => VNF BExpr (VOpt a)
+
+instance Eq VEnvErr where
+  (NF x) == (NF y) = x == y
+  (VNF b v) == (VNF b' v')
+    | b == b', Just u' <- cast v' = v == u'
+    | otherwise = False
+  _ == _ = False
+
+instance Show VEnvErr where
+  show (NF x) = "NF (" ++ show x ++ ")"
+  show (VNF b v) = "VNF (" ++ show b ++ ") (" ++ show v ++ ")"
+
 -- | Type error caused by passing argument of the wrong type.
-data ArgTypeError = ArgTypeError Param Value
+data ExprError = ArgTypeError Param Value PType PVal
+               | VarNotFound VEnvErr
+               | ResNotFound VEnvErr
   deriving (Eq,Show)
 
 -- Use SBV's Boolean type class for boolean predicates.
@@ -400,7 +426,7 @@ instance Prim (V Expr) (V Expr) where
 
 -- | An effect on a particular resource.
 data Effect
-     = Create Expr
+     = Create (V Expr)
      | Check  Fun
      | Modify Fun
      | Delete
@@ -422,7 +448,7 @@ data EffectError = EffectError {
      effectErrorEffect :: Effect,
      effectErrorKind   :: EffectErrorKind,
      effectErrorResID  :: ResID,
-     effectErrorValue  :: Maybe PVal
+     effectErrorValue  :: Maybe Value
 } deriving (Show,Eq)
 
 
@@ -430,7 +456,7 @@ data EffectError = EffectError {
 
 -- | Resource profile: a parameterized account of all of the resource effects
 --   of a program or component.
-data Profile = Profile [Param] (Env Path [Effect])
+data Profile = Profile [Param] (Env Path (SegList Effect))
   deriving (Show,Eq)
 
 
@@ -441,16 +467,16 @@ data Model = Model [Param] Block
   deriving (Show,Eq)
 
 -- | Statement block.
-type Block = [Stmt]
+type Block = SegList Stmt
 
 -- | Statement in an application model.
 data Stmt
      = Do Path Effect       -- ^ apply an effect
-     | If Expr Block Block  -- ^ conditional statement
+     | If (V Expr) Block Block  -- ^ conditional statement
      | In Path Block        -- ^ do work in a sub-environment
-     | For Var Expr Block   -- ^ loop over indexed sub-environments
-     | Let Var Expr Block   -- ^ extend the variable environment
-     | Load Expr [Expr]     -- ^ load a sub-model or profile
+     | For Var (V Expr) Block   -- ^ loop over indexed sub-environments
+     | Let Var (V Expr) Block   -- ^ extend the variable environment
+     | Load (V Expr) [V Expr]     -- ^ load a sub-model or profile
   deriving (Eq,Show)
 
 -- | Kinds of errors that can occur in statements.
@@ -464,7 +490,7 @@ data StmtErrorKind
 data StmtError = StmtError {
      stmtErrorStmt  :: Stmt,
      stmtErrorKind  :: StmtErrorKind,
-     stmtErrorValue :: Value
+     stmtErrorValue :: PVal
 } deriving (Eq,Show)
 
 
@@ -491,8 +517,9 @@ type ResEnv = Env ResID Value
 
 data StateCtx = SCtx {
   renv :: ResEnv,
+  errCtx :: BExpr,
   mask :: Mask
-} deriving (Show)
+} deriving (Show,Eq)
 
 -- | Reader context for evaluation.
 data Context = Ctx {
@@ -504,13 +531,13 @@ data Context = Ctx {
 
 -- | A class of monads for computations that affect a resource environment,
 --   given an evaluation context, and which may throw/catch exceptions.
-class (MonadError VError m, MonadReader Context m, MonadState StateCtx m)
+class (MonadError Mask m, MonadReader Context m, MonadState StateCtx m)
   => MonadEval m
-instance (MonadError VError m, MonadReader Context m, MonadState StateCtx m)
+instance (MonadError Mask m, MonadReader Context m, MonadState StateCtx m)
   => MonadEval m
 
 -- | A specific monad for running MonadEval computations.
-type EvalM a = StateT StateCtx (ReaderT Context (Except VError)) a
+type EvalM a = ExceptT Mask (StateT StateCtx (Reader Context)) a
 
 
 -- ERROR
@@ -518,6 +545,7 @@ type EvalM a = StateT StateCtx (ReaderT Context (Except VError)) a
 data Error = EnvE (NotFound)
            | PathE (PathError)
            | PrimE (PrimTypeError)
-           | ExprE (ArgTypeError)
+           | ExprE (ExprError)
            | EffE (EffectError)
+           | StmtE (StmtError)
     deriving (Eq,Show)

@@ -50,7 +50,7 @@ library
     , vector
 
   exposed-modules:
-      DSL.Driver
+    DSL.Driver
     , DSL.Effect
     , DSL.Environment
     , DSL.Expression
@@ -64,30 +64,33 @@ library
     , DSL.Profile
     , DSL.Resource
     , DSL.SAT
-    , DSL.Serialize
+    , DSL.SegList
+--    , DSL.Serialize
     , DSL.Sugar
     , DSL.Types
+    , DSL.V
+    , DSL.VEnv
     , DSL.Value
-    , DSL.Example.Location
-    , DSL.Example.Network
+--    , DSL.Example.Location
+--    , DSL.Example.Network
 
-executable resource-dsl
-  hs-source-dirs:   app
-  default-language: Haskell2010
-  main-is:          Main.hs
-  ghc-options:      -threaded -rtsopts -with-rtsopts=-N -fhpc
-  default-extensions:
-      OverloadedStrings
-  build-depends:
-      Resource-DSL
-    , base
+--executable resource-dsl
+--  hs-source-dirs:   app
+--  default-language: Haskell2010
+--  main-is:          Main.hs
+--  ghc-options:      -threaded -rtsopts -with-rtsopts=-N -fhpc
+--  default-extensions:
+--      OverloadedStrings
+--  build-depends:
+--      Resource-DSL
+--    , base
 
 test-suite test
   hs-source-dirs:   test
   default-language: Haskell2010
   type:             exitcode-stdio-1.0
   main-is:          Tests.hs
-  ghc-options:      -threaded -rtsopts -with-rtsopts=-N -fhpc
+  ghc-options:      -threaded -rtsopts -with-rtsopts=-N
   default-extensions:
       OverloadedStrings
   build-depends:
@@ -98,5 +101,6 @@ test-suite test
     , aeson-pretty
     , tasty
     , tasty-hunit
+    , sbv
     , tasty-th
   other-modules:
