@@ -50,13 +50,13 @@ library
     , vector
 
   exposed-modules:
-    DSL.Driver
-    , DSL.Effect
+--    DSL.Driver
+    DSL.Effect
     , DSL.Environment
     , DSL.Expression
     , DSL.Model
     , DSL.Name
-    , DSL.Parser
+--    , DSL.Parser
     , DSL.Path
     , DSL.Predicate
     , DSL.Pretty
