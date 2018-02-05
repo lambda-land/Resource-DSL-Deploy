@@ -16,9 +16,7 @@ import Text.Megaparsec.Text
 import qualified Text.Megaparsec.Lexer as L
 
 import DSL.Types
-import DSL.Expression
 import DSL.Name
-import DSL.Path
 import DSL.Pretty
 import DSL.Primitive
 
@@ -57,9 +55,6 @@ reserved w = lexeme (string w >> notFollowedBy alphaNumChar)
 
 -- ** Expression Parser
 
-unit :: Parser ()
-unit = () <$ verbatim "()" <?> "unit literal"
-
 bool :: Parser Bool
 bool = tru <|> fls <?> "boolean literal"
   where
@@ -78,7 +73,7 @@ name start rest = lexeme (liftA2 (:) start (many rest))
 symbol :: Parser Symbol
 symbol = char ':' >> Symbol <$> name start rest <?> "symbol"
   where
-    start = char '_' <|> letterChar 
+    start = char '_' <|> letterChar
     rest  = char '_' <|> char '-' <|> alphaNumChar
 
 var :: Parser Var
@@ -98,52 +93,166 @@ path = char '@' >> absolute <|> relative <?> "resource path"
 parens :: Parser a -> Parser a
 parens = between (lexeme (char '(')) (lexeme (char ')'))
 
-opTable :: [[Operator Parser Expr]]
-opTable =
-    [ [op Prefix negate "-", op Prefix bnot "!"]
+op fixity f name = fixity (f <$ verbatim name)
+
+opTableIExpr :: [[Operator Parser IExpr]]
+opTableIExpr =
+  [
+    [op Prefix (OpI Neg) "-"]
     , map inNN_N [Mul,Div,Mod]
     , map inNN_N [Add,Sub]
-    , map inNN_B [LTE,LT,Equ,Neq,GTE,GT]
+  ]
+  where
+    inNN_N o = op InfixL (opNN_N o) (prettyNN_N o)
+
+iterm :: Parser IExpr
+iterm = parens iexpr <|> ilit <|> iref <|> ifun <?> "integer term"
+  where
+    ilit = ILit <$> int
+    iref = IRef <$> var
+    ifun = (OpI Abs) <$ reserved "abs" <*> iexpr <|> (OpI Sign) <$ reserved "signum" <*> iexpr
+
+iexpr :: Parser IExpr
+iexpr = makeExprParser iterm opTableIExpr
+
+opTableBExpr :: [[Operator Parser BExpr]]
+opTableBExpr =
+  [
+    [op Prefix (OpB Not) "!"]
     , [inBB_B And]
     , map inBB_B [Or,XOr]
     , [inBB_B Imp]
     , [inBB_B Eqv]
-    ]
+  ]
   where
-    op fixity f name = fixity (f <$ verbatim name)
-    inNN_N o = op InfixL (opNN_N o) (prettyNN_N o)
-    inNN_B o = op InfixN (opNN_B o) (prettyNN_B o)
     inBB_B o = op InfixR (opBB_B o) (prettyBB_B o)
 
-expr :: Parser Expr
-expr = do
-    c <- simple
-    option c $ do
-      lexeme (char '?')
-      t <- simple
-      lexeme (char ':')
-      e <- simple
-      return (P3 Cond c t e)
-  where
-    simple = makeExprParser term opTable
-    term = Lit Unit <$ unit
-       <|> try (fmap (Lit . F) float)
-       <|> fmap (Lit . I) int
-       <|> fmap (Lit . S) symbol
-       <|> try (fmap (Lit . B) bool)
-       <|> try primFun
-       <|> fmap Ref var
-       <|> fmap Res path
-       <|> parens expr
+relation :: Parser NN_B
+relation = verbatim (prettyNN_B LT) *> pure LT
+       <|> verbatim (prettyNN_B LTE) *> pure LTE
+       <|> verbatim (prettyNN_B Equ) *> pure Equ
+       <|> verbatim (prettyNN_B Neq) *> pure Neq
+       <|> verbatim (prettyNN_B GTE) *> pure GTE
+       <|> verbatim (prettyNN_B GT) *> pure GT
 
-primFun :: Parser Expr
-primFun = fun "unit"    U_U
-      <|> fun "abs"     (N_N Abs)
-      <|> fun "signum"  (N_N Sign)
-      <|> fun "ceiling" (F_I Ceil)
-      <|> fun "floor"   (F_I Floor)
-      <|> fun "round"   (F_I Round)
+bterm :: Parser BExpr
+bterm = parens bexpr <|> blit <|> bref <|> rexpr <?> "boolean term"
   where
-    fun name op = do
-      reserved name
-      P1 op <$> parens expr
+    blit = BLit <$> bool
+    bref = BRef <$> var
+    rexpr = do
+      i1 <- iexpr
+      op <- relation
+      i2 <- iexpr
+      return (OpIB op i1 i2)
+
+bexpr :: Parser BExpr
+bexpr = makeExprParser bterm opTableBExpr
+
+v :: Parser a -> Parser (V a)
+v a = chc <|> one <?> "choice expression"
+  where
+    chc = do
+      d <- bexpr
+      verbatim "{"
+      l <- v a
+      verbatim ","
+      r <- v a
+      verbatim "}"
+      return (Chc d l r)
+    one = One <$> a
+
+pval :: Parser PVal
+pval = unit <|> b <|> i <|> f <|> s <?> "primitive value"
+  where
+    unit = Unit <$ verbatim "()"
+    b = B <$> bool
+    i = I <$> int
+    f = F <$> float
+    s = S <$> symbol
+
+eterm :: Parser Expr
+eterm = parens expr <|> ref <|> res <|> lit <?> "expression term"
+  where
+    ref = Ref <$> var
+    res = Res <$> path
+    lit = Lit <$> v pval
+
+b_b :: Parser B_B
+b_b = Not <$ verbatim "!"
+
+n_n :: Parser N_N
+n_n = abs <|> neg <|> sign
+  where
+    neg = Neg <$ verbatim "!"
+    abs = Abs <$ reserved "abs"
+    sign = Sign <$ reserved "signum"
+
+f_i :: Parser F_I
+f_i = ceil <|> floor <|> round
+  where
+    ceil = Ceil <$ reserved "ceiling"
+    floor = Floor <$ reserved "floor"
+    round = Round <$ reserved "round"
+
+op1 :: Parser Op1
+op1 = u_u <|> b_b' <|> n_n' <|> f_i' <?> "unary operation"
+  where
+    u_u = U_U <$ verbatim "unit"
+    b_b' = B_B <$> b_b
+    n_n' = N_N <$> n_n
+    f_i' = F_I <$> f_i
+
+bb_b :: Parser BB_B
+bb_b = and <|> or <|> xor <|> imp <|> eqv
+  where
+    and = inBB_B And
+    or = inBB_B Or
+    xor = inBB_B XOr
+    imp = inBB_B Imp
+    eqv = inBB_B Eqv
+    inBB_B o = o <$ verbatim (prettyBB_B o)
+
+nn_n :: Parser NN_N
+nn_n = add <|> sub <|> mul <|> div <|> mod
+  where
+    add = inNN_N Add
+    sub = inNN_N Sub
+    mul = inNN_N Mul
+    div = inNN_N Div
+    mod = inNN_N Mod
+    inNN_N o = o <$ verbatim (prettyNN_N o)
+
+nn_b :: Parser NN_B
+nn_b = lt <|> lte <|> eq <|> neq <|> gte <|> gt
+  where
+    lt = inNN_B LT
+    lte = inNN_B LTE
+    eq = inNN_B Equ
+    neq = inNN_B Neq
+    gte = inNN_B GTE
+    gt = inNN_B GT
+    inNN_B o = o <$ verbatim (prettyNN_B o)
+
+op2 :: Parser Op2
+op2 = bb_b' <|> nn_n' <|> nn_b'
+  where
+    bb_b' = BB_B <$> bb_b
+    nn_n' = NN_N <$> nn_n
+    nn_b' = NN_B <$> nn_b
+
+eop :: Parser Expr
+eop = p1 <|> p2 <|> p3 <?> "expression operation"
+  where
+    p1 = P1 <$> op1 <*> v expr
+    p2 = P2 <$> op2 <*> v expr <*> v expr
+    p3 = do
+      c <- v expr
+      verbatim "?"
+      t <- v expr
+      verbatim ":"
+      e <- v expr
+      return (P3 Cond c t e)
+
+expr :: Parser Expr
+expr = eterm <|> eop
