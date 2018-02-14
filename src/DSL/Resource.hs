@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+
 module DSL.Resource where
 
 import Control.Monad.Except
@@ -150,7 +152,7 @@ lookupHelper g (One Nothing) = do
 lookupHelper _ v@(One (Just _)) = return v
 lookupHelper g (Chc d l r) = vHandle d (lookupHelper g) l r
 
-envLookupV :: (Ord k, MonadEval m, Eq v, Show v, Typeable v, Show k, Ord k, Typeable k) =>
+envLookupV :: (Ord k, MonadEval m, Show k, Typeable k) =>
               (NotFound -> Error) ->
               (BExpr -> (V (Maybe v)) -> Error) ->
               k -> Env k (V (Maybe v)) -> m (V (Maybe v))

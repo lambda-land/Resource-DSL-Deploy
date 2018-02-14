@@ -3,6 +3,8 @@ module DSL.SAT where
 import Control.Monad (liftM2)
 import Data.SBV (Boolean(..),SBool,sInt32,sBool,Symbolic,isSatisfiable)
 import System.IO.Unsafe (unsafePerformIO)
+import Data.Text (unpack)
+
 import DSL.Types
 import DSL.Predicate
 
@@ -14,9 +16,7 @@ class Boolean b => SAT b where
 
 -- | Is the predicate satisfiable?
 sat :: SAT b => b -> Bool
-sat p = case unsafePerformIO (isSatisfiable Nothing (toSymbolic p)) of
-  Just b  -> b
-  Nothing -> error "sat: Timed out despite no set time limit."
+sat p = unsafePerformIO (isSatisfiable (toSymbolic p))
 
 -- | Is the predicate unsatisfiable?
 unsat :: SAT b => b -> Bool
@@ -80,6 +80,6 @@ instance SAT (Symbolic Bool) where
 -- Enable satisfiability checking of boolean expressions.
 instance SAT BExpr where
   toSymbolic e = do
-    mb <- symEnv sBool (boolVars e)
-    mi <- symEnv sInt32 (intVars e)
+    mb <- symEnv (sBool . unpack) (boolVars e)
+    mi <- symEnv (sInt32 . unpack) (intVars e)
     return (toSBool mb mi e)

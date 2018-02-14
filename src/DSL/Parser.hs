@@ -1,25 +1,26 @@
 module DSL.Parser
-  ( parseExprText, parseExprString
+  ( parseExprText, parseExprString, parseBExprText, parseBExprString
   ) where
 
 import Prelude hiding (LT,GT)
 
 import Control.Applicative (empty,liftA2)
-import Control.Monad (void)
+import Data.Void
 
 import Data.Bifunctor (first)
-import Data.Text (Text,pack)
+import Data.Text (Text, pack, cons)
 
 import Text.Megaparsec
 import Text.Megaparsec.Expr
-import Text.Megaparsec.Text
-import qualified Text.Megaparsec.Lexer as L
+import Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char.Lexer as L
 
 import DSL.Types
 import DSL.Name
 import DSL.Pretty
 import DSL.Primitive
 
+type Parser = Parsec Void Text
 
 --
 -- * Parse Expressions
@@ -33,6 +34,13 @@ parseExprText = first parseErrorPretty . parse (expr <* eof) ""
 parseExprString :: String -> Either String Expr
 parseExprString = parseExprText . pack
 
+-- | Parse a Text value as an expression.
+parseBExprText :: Text -> Either String BExpr
+parseBExprText = first parseErrorPretty . parse (bexpr <* eof) ""
+
+-- | Parse a String value as an expression.
+parseBExprString :: String -> Either String BExpr
+parseBExprString = parseBExprText . pack
 
 --
 -- * Internal
@@ -41,15 +49,15 @@ parseExprString = parseExprText . pack
 -- ** Lexer
 
 spaceConsumer :: Parser ()
-spaceConsumer = L.space (void spaceChar) empty empty
+spaceConsumer = L.space space1 empty empty
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme spaceConsumer
 
-verbatim :: String -> Parser String
+verbatim :: Text -> Parser Text
 verbatim = L.symbol spaceConsumer
 
-reserved :: String -> Parser ()
+reserved :: Text -> Parser ()
 reserved w = lexeme (string w >> notFollowedBy alphaNumChar)
 
 
@@ -62,13 +70,13 @@ bool = tru <|> fls <?> "boolean literal"
     fls = False <$ reserved "false"
 
 int :: Parser Int
-int = fmap fromInteger (lexeme L.integer) <?> "integer literal"
+int = fmap fromInteger (lexeme L.decimal) <?> "integer literal"
 
 float :: Parser Double
 float = lexeme L.float <?> "floating point literal"
 
 name :: Parser Char -> Parser Char -> Parser Name
-name start rest = lexeme (liftA2 (:) start (many rest))
+name start rest = lexeme (liftA2 cons start (pack <$> many rest))
 
 symbol :: Parser Symbol
 symbol = char ':' >> Symbol <$> name start rest <?> "symbol"
@@ -88,7 +96,7 @@ path = char '@' >> absolute <|> relative <?> "resource path"
     absolute = char '/' >> Path Absolute <$> steps
     relative = Path Relative <$> steps
     steps = sepBy step (char '/')
-    step = verbatim "." <|> verbatim ".." <|> many (char '_' <|> alphaNumChar)
+    step = verbatim "." <|> verbatim ".." <|> (pack <$> many (char '_' <|> alphaNumChar))
 
 parens :: Parser a -> Parser a
 parens = between (lexeme (char '(')) (lexeme (char ')'))
@@ -103,7 +111,7 @@ opTableIExpr =
     , map inNN_N [Add,Sub]
   ]
   where
-    inNN_N o = op InfixL (opNN_N o) (prettyNN_N o)
+    inNN_N o = op InfixL (opNN_N o) (pretty o)
 
 iterm :: Parser IExpr
 iterm = parens iexpr <|> ilit <|> iref <|> ifun <?> "integer term"
@@ -125,15 +133,15 @@ opTableBExpr =
     , [inBB_B Eqv]
   ]
   where
-    inBB_B o = op InfixR (opBB_B o) (prettyBB_B o)
+    inBB_B o = op InfixR (opBB_B o) (pretty o)
 
 relation :: Parser NN_B
-relation = verbatim (prettyNN_B LT) *> pure LT
-       <|> verbatim (prettyNN_B LTE) *> pure LTE
-       <|> verbatim (prettyNN_B Equ) *> pure Equ
-       <|> verbatim (prettyNN_B Neq) *> pure Neq
-       <|> verbatim (prettyNN_B GTE) *> pure GTE
-       <|> verbatim (prettyNN_B GT) *> pure GT
+relation = verbatim (pretty LT) *> pure LT
+       <|> verbatim (pretty LTE) *> pure LTE
+       <|> verbatim (pretty Equ) *> pure Equ
+       <|> verbatim (pretty Neq) *> pure Neq
+       <|> verbatim (pretty GTE) *> pure GTE
+       <|> verbatim (pretty GT) *> pure GT
 
 bterm :: Parser BExpr
 bterm = parens bexpr <|> blit <|> bref <|> rexpr <?> "boolean term"
@@ -211,7 +219,7 @@ bb_b = and <|> or <|> xor <|> imp <|> eqv
     xor = inBB_B XOr
     imp = inBB_B Imp
     eqv = inBB_B Eqv
-    inBB_B o = o <$ verbatim (prettyBB_B o)
+    inBB_B o = o <$ verbatim (pretty o)
 
 nn_n :: Parser NN_N
 nn_n = add <|> sub <|> mul <|> div <|> mod
@@ -221,7 +229,7 @@ nn_n = add <|> sub <|> mul <|> div <|> mod
     mul = inNN_N Mul
     div = inNN_N Div
     mod = inNN_N Mod
-    inNN_N o = o <$ verbatim (prettyNN_N o)
+    inNN_N o = o <$ verbatim (pretty o)
 
 nn_b :: Parser NN_B
 nn_b = lt <|> lte <|> eq <|> neq <|> gte <|> gt
@@ -232,7 +240,7 @@ nn_b = lt <|> lte <|> eq <|> neq <|> gte <|> gt
     neq = inNN_B Neq
     gte = inNN_B GTE
     gt = inNN_B GT
-    inNN_B o = o <$ verbatim (prettyNN_B o)
+    inNN_B o = o <$ verbatim (pretty o)
 
 op2 :: Parser Op2
 op2 = bb_b' <|> nn_n' <|> nn_b'

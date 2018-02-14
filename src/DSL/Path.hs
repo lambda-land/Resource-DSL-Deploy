@@ -1,8 +1,8 @@
-
 module DSL.Path where
 
-import Data.List.Split (splitOn)
-import Data.String (IsString(..))
+import Prelude hiding (head, tail)
+
+import Data.Text
 
 import DSL.Types
 
@@ -16,10 +16,13 @@ import DSL.Types
 root :: ResID
 root = ResID []
 
-instance IsString ResID where
-  fromString ('/':s) = ResID (splitOn "/" s)
-  fromString s       = ResID (splitOn "/" s)
+fromTextResID :: Text -> ResID
+fromTextResID t | head t == '/' = ResID (splitOn "/" (tail t))
+                | otherwise = ResID (splitOn "/" (tail t))
 
+fromTextPath :: Text -> Path
+fromTextPath t | head t == '/' = Path Absolute (splitOn "/" (tail t))
+               | otherwise = Path Relative (splitOn "/" (tail t))
 
 -- | The root of an absolute path.
 pathRoot :: Path
@@ -35,7 +38,7 @@ pathParent = Path Relative [".."]
 
 -- | A relative path from a for-loop index.
 pathFor :: Int -> Path
-pathFor i = Path Relative [show i]
+pathFor i = Path Relative [(pack . show) i]
 
 -- | Append two paths. If the second path is absolute, instead use it directly.
 pathAppend :: Path -> Path -> Path

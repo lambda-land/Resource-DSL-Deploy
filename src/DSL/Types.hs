@@ -10,7 +10,7 @@ import Control.Monad.State
 import Control.Monad.Except
 import Data.Typeable
 import Data.String (IsString(..))
-import Data.List.Split (splitOn)
+import Data.Text (pack, splitOn)
 import Data.Map.Strict (Map)
 import Data.SBV (Boolean(..),SBool,SInteger,SInt8,SInt16,SInt32,SInt64)
 import qualified Data.SBV as SBV
@@ -66,13 +66,17 @@ data PathError
   deriving (Eq,Show)
 
 instance IsString Path where
-  fromString ('/':s) = Path Absolute (splitOn "/" s)
-  fromString s       = Path Relative (splitOn "/" s)
+  fromString ('/':s) = Path Absolute (splitOn "/" (pack s))
+  fromString s       = Path Relative (splitOn "/" (pack s))
 
 -- | Resource IDs are (absolute) paths from the root of the
 --   resource environment.
 newtype ResID = ResID [Name]
   deriving (Eq,Monoid,Ord,Show)
+
+instance IsString ResID where
+  fromString ('/':s) = ResID (splitOn "/" (pack s))
+  fromString s       = ResID (splitOn "/" (pack s))
 
 
 -- PRIMITIVES
@@ -529,12 +533,7 @@ data Context = Ctx {
     vCtx        :: BExpr       -- ^ current variational context
 } deriving (Show)
 
--- | A class of monads for computations that affect a resource environment,
---   given an evaluation context, and which may throw/catch exceptions.
-class (MonadError Mask m, MonadReader Context m, MonadState StateCtx m)
-  => MonadEval m
-instance (MonadError Mask m, MonadReader Context m, MonadState StateCtx m)
-  => MonadEval m
+type MonadEval m = (MonadError Mask m, MonadReader Context m, MonadState StateCtx m)
 
 -- | A specific monad for running MonadEval computations.
 type EvalM a = ExceptT Mask (StateT StateCtx (Reader Context)) a

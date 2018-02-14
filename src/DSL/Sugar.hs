@@ -1,11 +1,7 @@
 module DSL.Sugar where
 
-import DSL.Types
-import DSL.Effect
-import DSL.Expression
-import DSL.Model
 import DSL.Name
-import DSL.Path
+import DSL.Types
 import DSL.Primitive
 
 

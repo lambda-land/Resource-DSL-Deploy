@@ -1,5 +1,8 @@
 module DSL.Name where
 
+import Prelude hiding (head, tail)
+
+import Data.Text
 import Data.Typeable
 
 import Data.String (IsString(..))
@@ -10,7 +13,7 @@ import Data.String (IsString(..))
 --
 
 -- | Miscellaneous name.
-type Name = String
+type Name = Text
 
 -- | Variable name.
 type Var = Name
@@ -22,16 +25,16 @@ newtype Symbol = Symbol Name
 
 -- | Get the name of a symbol.
 toName :: Symbol -> Name
-toName (Symbol n) = ':' : n
+toName (Symbol n) = ':' `cons` n
 
 -- | Construct a symbol from a string. Strips a ':'-prefix if it exists.
 --   Does not check whether the symbol contains only valid characters.
 mkSymbol :: Name -> Symbol
-mkSymbol (':':n) = Symbol n
-mkSymbol n       = Symbol n
+mkSymbol n | head n == ':' = Symbol (tail n)
+           | otherwise     = Symbol n
 
 -- | Component (DFU) IDs are symbols.
 type CompID = Symbol
 
 instance IsString Symbol where
-  fromString = mkSymbol
+  fromString = mkSymbol . pack
