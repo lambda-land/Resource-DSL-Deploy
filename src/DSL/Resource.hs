@@ -18,21 +18,29 @@ import DSL.V
 
 
 -- | Execute a computation in a given context.
-runInContext :: Context -> StateCtx -> EvalM a -> (Either Mask a, StateCtx)
-runInContext ctx init mx = runReader (runStateT (runExceptT mx) init) ctx
---runInContext ctx init mx = runExcept $ runReaderT (runStateT mx init) ctx
+runInContext' :: Context -> StateCtx -> EvalM a -> (Either Mask a, StateCtx)
+runInContext' ctx init mx = runReader (runStateT (runExceptT mx) init) ctx
+
+runInContext :: Context -> ResEnv -> EvalM a -> (Either Mask a, StateCtx)
+runInContext ctx renv mx = runReader (runStateT (runExceptT mx) (SCtx renv (BLit False) (One Nothing))) ctx
 
 -- | Execute a computation with a given dictionary and an empty variable
 --   environment and prefix.
-runWithDict :: Dictionary -> StateCtx -> EvalM a -> (Either Mask a, StateCtx)
+runWithDict' :: Dictionary -> StateCtx -> EvalM a -> (Either Mask a, StateCtx)
+runWithDict' dict = runInContext' (Ctx (ResID []) envEmpty dict (BLit True))
+
+runWithDict :: Dictionary -> ResEnv -> EvalM a -> (Either Mask a, StateCtx)
 runWithDict dict = runInContext (Ctx (ResID []) envEmpty dict (BLit True))
 
 -- | Execute a computation in the empty context.
-runInEmptyContext :: StateCtx -> EvalM a -> (Either Mask a, StateCtx)
+runInEmptyContext' :: StateCtx -> EvalM a -> (Either Mask a, StateCtx)
+runInEmptyContext' = runWithDict' envEmpty
+
+runInEmptyContext :: ResEnv -> EvalM a -> (Either Mask a, StateCtx)
 runInEmptyContext = runWithDict envEmpty
 
 runEmpty :: EvalM a -> (Either Mask a, StateCtx)
-runEmpty = runInEmptyContext (SCtx envEmpty (BLit False) (One Nothing))
+runEmpty = runInEmptyContext envEmpty
 
 -- | Take a value in the plain monadic evaluation context and
 --   turn it into a varitional value in the same context.
@@ -154,7 +162,7 @@ lookupHelper g (Chc d l r) = vHandle d (lookupHelper g) l r
 
 envLookupV :: (Ord k, MonadEval m, Show k, Typeable k) =>
               (NotFound -> Error) ->
-              (BExpr -> (V (Maybe v)) -> Error) ->
+              (k -> BExpr -> (V (Maybe v)) -> Error) ->
               k -> Env k (V (Maybe v)) -> m (V (Maybe v))
 envLookupV f g k env = do
   case envLookup k env of
@@ -162,7 +170,7 @@ envLookupV f g k env = do
     Left (EnvE nf) -> vError (f nf)
     Right v -> do
       -- throw errors for malformed contexts
-      let g' = (\d -> g d v)
+      let g' = (\d -> g k d v)
       c <- getVCtx
       let v' = select c v
       lookupHelper g' v'

@@ -93,22 +93,32 @@ mission requirements.
 
 ### Outputs
 
-There are two kinds of outputs from the `check` subcommand. The first is the
-resulting resource environment if the application model successfully loads,
-stored by default in the following file:
+When the `check` subcommand is run, there are a number of possible outcomes.
+In the case that there is an error in loading the input, such as a missing
+file or an error parsing the JSON input, execution terminates with an exit
+code of 1.
 
- * `outbox/resources.json` -- resulting resource environment
+Once the input is successfully loaded, the model is loaded into the given
+environment. If all variants produce an error, execution terminates with an
+exit code of 2. Otherwise, if at least one variant successfully loads, execution
+proceeds to the next step.
 
-Additionally the overall result of the check is indicated by the process exit
-code (and potentially some error messages).
+If provided with requirements, the resulting resource environment is then checked
+for whether those requirements are satisfied. If all variants fail to satisfy the
+given requirements, the application exits with exit code 3.
 
-The exit codes are defined as follows:
- 
- * 0: OK -- the model loads successfully and satisfies the mission requirements
- * 1: miscellaneous error -- see output for details (e.g. JSON error, bug)
- * 2: model cannot be loaded in the given environment
- * 3: model successfully loads but does not satisfy the requirements
+If at least one variant is successful, the application exits with exit code 0.
 
+There are three possible output files produced when the application is run:
+
+  * `outbox/error.json` -- A variational value containing either the error
+  message for a particular variant, or `null` if no error exists.
+  * `outbox/success.json` -- A boolean expression that indicating which variants,
+  if any, are in success states.
+  * `outbox/resources.json` -- The resulting resource environment.
+  
+Only the first two files are produced in the case that the application model
+fails to load, exiting with code 2.
 
 ## Generating example inputs
 

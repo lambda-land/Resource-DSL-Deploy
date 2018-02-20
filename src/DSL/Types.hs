@@ -15,6 +15,7 @@ import Data.Map.Strict (Map)
 import Data.SBV (Boolean(..),SBool,SInteger,SInt8,SInt16,SInt32,SInt64)
 import qualified Data.SBV as SBV
 import Data.Fixed (mod')
+import Data.Text
 
 import DSL.Name
 
@@ -368,19 +369,22 @@ data Expr
      | P3  Op3 (V Expr) (V Expr) (V Expr)  -- ^ conditional expression
   deriving (Eq,Show)
 
+class Pretty a where
+  pretty :: a -> Text
+
 data VEnvErr = NF NotFound
-             | forall a. (Eq a, Show a, Typeable a) => VNF BExpr (VOpt a)
+             | forall a k. (Eq a, Show a, Typeable a, Pretty a, Eq k, Show k, Typeable k) => VNF k BExpr (VOpt a)
 
 instance Eq VEnvErr where
   (NF x) == (NF y) = x == y
-  (VNF b v) == (VNF b' v')
-    | b == b', Just u' <- cast v' = v == u'
+  (VNF k b v) == (VNF k' b' v')
+    | b == b', Just u' <- cast v', Just l' <- cast k' = v == u' && k == l'
     | otherwise = False
   _ == _ = False
 
 instance Show VEnvErr where
   show (NF x) = "NF (" ++ show x ++ ")"
-  show (VNF b v) = "VNF (" ++ show b ++ ") (" ++ show v ++ ")"
+  show (VNF k b v) = "VNF (" ++ show k ++ ") (" ++ show b ++ ") (" ++ show v ++ ")"
 
 -- | Type error caused by passing argument of the wrong type.
 data ExprError = ArgTypeError Param Value PType PVal

@@ -10,6 +10,7 @@ import DSL.Value
 import DSL.V
 import DSL.Primitive
 import DSL.Environment
+import DSL.Pretty ()
 
 
 --
@@ -33,13 +34,13 @@ isArgTypeError _ = False
 evalExpr :: MonadEval m => Expr -> VM m PVal
 evalExpr (Ref x)      = VM (getVarEnv >>= (\env -> envLookupV
                                                      (ExprE . VarNotFound . NF)
-                                                     (\x y -> ExprE . VarNotFound $ VNF x y)
+                                                     (\k x y -> ExprE . VarNotFound $ VNF k x y)
                                                      x env))
 evalExpr (Res p)      = VM (do rID <- getResID p
                                env <- getResEnv
                                envLookupV
                                  (ExprE . ResNotFound . NF)
-                                 (\x y -> ExprE . ResNotFound $ VNF x y)
+                                 (\k x y -> ExprE . ResNotFound $ VNF k x y)
                                  rID env)
 evalExpr (Lit v)      = VM . return . toVMaybe $ v
 evalExpr (P1 o e)     = applyPrim1 o (evalExprV e)

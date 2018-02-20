@@ -17,7 +17,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
 
 import DSL.Types
 import DSL.Name
-import DSL.Pretty
+import DSL.Pretty ()
 import DSL.Primitive
 
 type Parser = Parsec Void Text

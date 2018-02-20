@@ -2,13 +2,11 @@ module DSL.Pretty where
 
 import Prelude hiding (LT,GT,concat,unwords,unlines)
 import Data.Text
+import Data.Monoid
 
 
 import DSL.Types
 import DSL.Name
-
-class Pretty a where
-  pretty :: a -> Text
 
 class (Pretty a) => PrettyTerm a where
   prettyTerm :: a -> Text
@@ -136,19 +134,6 @@ instance Pretty PVal where
 
 -- ** Expressions
 
-{-
-prettyTerm :: V Expr -> Text
-prettyTerm (One (Ref x)) = x
-prettyTerm (One (Lit v)) = pretty v
-prettyTerm (One e)       = prettyParens (pretty e)
-prettyTerm ve = pretty ve
-
-prettyTerm :: Expr -> Text
-prettyTerm (Ref x) = x
-prettyTerm (Lit v) = pretty v
-prettyTerm e       = prettyParens (pretty e)
--}
-
 instance PrettyTerm Expr where
   prettyTerm (Ref x) = x
   prettyTerm (Lit v) = pretty v
@@ -218,3 +203,46 @@ instance Pretty StmtError where
       [ pretty kind `snoc` ':'
       , "  In statement: " `append` (pack . show) stmt  -- TODO: pretty print statements
       , "  Offending value: " `append` pretty val ]
+
+instance Pretty Error where
+  pretty (EnvE e) = pretty e
+  pretty (PathE e) = pretty e
+  pretty (PrimE e) = pretty e
+  pretty (ExprE e) = pretty e
+  pretty (EffE e) = pretty e
+  pretty (StmtE e) = pretty e
+
+instance Pretty NotFound where
+  pretty (NotFound k ks) = "Key \"" <> (pack . show) k <> "\" not found in environment " <> (pack . show) ks
+
+instance Pretty PathError where
+  pretty (CannotNormalize p) = "Cannot normalize path " <> prettyPath p
+
+instance Pretty Op1 where
+  pretty U_U = "unit"
+  pretty (B_B Not) = "!"
+  pretty (N_N Abs) = "abs"
+  pretty (N_N Neg) = "-"
+  pretty (N_N Sign) = "signum"
+  pretty (F_I Ceil) = "ceiling"
+  pretty (F_I Floor) = "floor"
+  pretty (F_I Round) = "round"
+
+instance Pretty PrimTypeError where
+  pretty (ErrorOp1 o p) = "Primitive type error: " <>
+    "attempting to apply " <> pretty o <> " to the value " <> pretty p
+  pretty (ErrorOp2 o p1 p2) = "Primitive type error: " <>
+    "attempting to apply " <> pretty o <> " to the values " <> pretty p1 <> " and " <> pretty p2
+  pretty (ErrorOp3 _ p1 p2 p3) = "Primitive type error: " <>
+    "in the conditional expression if " <> pretty p1 <> " then " <> pretty p2 <> " else " <> pretty p3
+
+instance Pretty ExprError where
+  pretty (ArgTypeError param v pt pv) = "Argument type error: " <>
+    "Expected a value of type " <> pretty pt <> " but got value \"" <> pretty pv <>
+    "\" in parameter " <> pretty param <> " applied to the value " <> pretty v
+  pretty (VarNotFound (NF (NotFound k ks))) = "Variable \"" <> (pack . show) k <> "\" not found in environment " <> (pack . show) ks
+  pretty (VarNotFound (VNF k d v)) = "Variable \"" <> (pack . show) k <> "\" not found in variational value " <>
+    pretty v <> " in context " <> pretty d
+  pretty (ResNotFound (NF (NotFound k ks))) = "Resource \"" <> (pack . show) k <> "\" not found in environment " <> (pack . show) ks
+  pretty (ResNotFound (VNF k d v)) = "Resource \"" <> (pack . show) k <> "\" not found in variational value " <>
+    pretty v <> " in context " <> pretty d
