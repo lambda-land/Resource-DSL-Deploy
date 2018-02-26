@@ -18,7 +18,7 @@ import DSL.Resource
 import DSL.Serialize
 
 import DSL.Example.Location
---import DSL.Example.Network
+import DSL.Example.Network
 
 
 --
@@ -31,7 +31,7 @@ runDriver = do
     case cmd of
       Check opts -> runCheck opts
       Example (Location opts) -> runLocation opts
---      Example (Network opts)  -> runNetwork opts
+      Example (Network opts)  -> runNetwork opts
 
 runCheck :: CheckOpts -> IO ()
 runCheck opts = do
@@ -99,7 +99,7 @@ data CheckOpts = CheckOpts
 
 data Example
      = Location LocationOpts
---     | Network  NetworkOpts
+     | Network  NetworkOpts
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 
@@ -125,10 +125,9 @@ parseExample = subparser
      ( command "location"
         (info (Location <$> (helper <*> parseLocationOpts))
         (progDesc "Location provider example"))
---    <> command "network"
---        (info (Network <$> (helper <*> parseNetworkOpts))
---        (progDesc "Network / image provider example")) )
-     )
+    <> command "network"
+        (info (Network <$> (helper <*> parseNetworkOpts))
+        (progDesc "Network / image provider example")) )
 
 
 parseCheckOpts :: Parser CheckOpts

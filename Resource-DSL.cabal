@@ -73,7 +73,7 @@ library
     , DSL.VEnv
     , DSL.Value
     , DSL.Example.Location
---    , DSL.Example.Network
+    , DSL.Example.Network
 
 executable resource-dsl
   hs-source-dirs:   app
