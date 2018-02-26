@@ -17,7 +17,7 @@ import DSL.Profile
 import DSL.Resource
 import DSL.Serialize
 
---import DSL.Example.Location
+import DSL.Example.Location
 --import DSL.Example.Network
 
 
@@ -30,7 +30,7 @@ runDriver = do
     cmd <- getCommand
     case cmd of
       Check opts -> runCheck opts
---      Example (Location opts) -> runLocation opts
+      Example (Location opts) -> runLocation opts
 --      Example (Network opts)  -> runNetwork opts
 
 runCheck :: CheckOpts -> IO ()
@@ -80,7 +80,7 @@ writeOutput fp (SCtx o _ _) = writeJSON fp o
 
 data Command
      = Check CheckOpts
---     | Example Example
+     | Example Example
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 data CheckOpts = CheckOpts
@@ -96,12 +96,12 @@ data CheckOpts = CheckOpts
      , successFile :: FilePath }
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
-{-
+
 data Example
      = Location LocationOpts
-     | Network  NetworkOpts
+--     | Network  NetworkOpts
   deriving (Data,Eq,Generic,Read,Show,Typeable)
--}
+
 
 getCommand :: IO Command
 getCommand = getArgs >>= handleParseResult . execParserPure pref desc
@@ -115,21 +115,21 @@ parseCommand = subparser
         (info (Check <$> (helper <*> parseCheckOpts))
         (progDesc ("Execute an application model on a given resource environment; "
           ++ "optionally check result against given mission requirements")))
-   -- <> command "example"
-   --     (info (Example <$> (helper <*> parseExample))
-   --     (progDesc "Generate example inputs and put them in the inbox")) )
-     )
+    <> command "example"
+        (info (Example <$> (helper <*> parseExample))
+        (progDesc "Generate example inputs and put them in the inbox")) )
 
-{-
+
 parseExample :: Parser Example
 parseExample = subparser
      ( command "location"
         (info (Location <$> (helper <*> parseLocationOpts))
         (progDesc "Location provider example"))
-    <> command "network"
-        (info (Network <$> (helper <*> parseNetworkOpts))
-        (progDesc "Network / image provider example")) )
--}
+--    <> command "network"
+--        (info (Network <$> (helper <*> parseNetworkOpts))
+--        (progDesc "Network / image provider example")) )
+     )
+
 
 parseCheckOpts :: Parser CheckOpts
 parseCheckOpts = CheckOpts

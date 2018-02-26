@@ -1,6 +1,8 @@
 module DSL.Model where
 
 import Control.Monad (forM_)
+import Data.Foldable (foldl')
+import Data.SBV (bnot, (&&&))
 
 import DSL.Types
 import DSL.Effect
@@ -29,6 +31,12 @@ modelDict l = envFromList [(Symbol n, ModEntry m) | (n,m) <- l]
 profileDict :: [(Name,Model)] -> Dictionary
 profileDict l = envFromList [(Symbol n, ProEntry (toProfile m)) | (n,m) <- l]
 
+vMergeEff :: Env Path (SegList Effect) -> (Path, Maybe BExpr, Effect) -> Env Path (SegList Effect)
+vMergeEff env (p, d, e) | Just es <- envLookup' p env = envExtend p (segSetInsert d e es) env
+                        | otherwise                   = envExtend p (segSetInsert d e []) env
+
+vEnvFromList :: [(Path, Maybe BExpr, Effect)] -> Env Path (SegList Effect)
+vEnvFromList = foldl' vMergeEff envEmpty
 {- TODO TODO TODO
 -- | Convert a simple model into a profile. This allows writing profiles
 --   with nicer syntax. Fails with a runtime error on a Load or If statement.
@@ -40,8 +48,21 @@ toProfile (Model xs vstmts) =
     entries pre (One . Just $ (Do path eff)) = [(pathAppend pre path, [eff])]
     entries _ _ = error "toProfile: cannot convert model to profile"
 -}
+
+toProfileEntries :: Path -> Maybe BExpr -> Block -> [(Path, Maybe BExpr, Effect)]
+toProfileEntries _ _ [] = []
+toProfileEntries p d ((Elems xs):ys) = fromElems p d xs ++ toProfileEntries p d ys
+  where
+    fromElems _ _ [] = []
+    fromElems p d ((In path blk):xs) = toProfileEntries (pathAppend p path) d blk ++ fromElems p d xs
+    fromElems p d ((Do path eff):xs) = (pathAppend p path, d, eff):(fromElems p d xs)
+    fromElems _ _ _ = error "toProfile: cannot convert model to profile"
+toProfileEntries p Nothing ((Split d' l r):ys) = toProfileEntries p (Just d') l ++ toProfileEntries p (Just (bnot d')) r ++ toProfileEntries p Nothing ys
+toProfileEntries p (Just d) ((Split d' l r):ys) = toProfileEntries p (Just (d &&& d')) l ++ toProfileEntries p (Just (d &&& (bnot d'))) r ++ toProfileEntries p (Just d) ys
+
 toProfile :: Model -> Profile
-toProfile = undefined
+toProfile (Model xs vstmts) =
+    Profile xs (vEnvFromList (toProfileEntries pathThis Nothing vstmts))
 
 
 

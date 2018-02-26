@@ -34,6 +34,9 @@ equiv a b = taut (a <=> b)
 (|=|) :: SAT b => b -> b -> Bool
 (|=|) = equiv
 
+(|!=|) :: SAT b => b -> b -> Bool
+a |!=| b = (bnot a) |=| b
+
 -- | Does the first predicate imply the second?
 implies :: SAT b => b -> b -> Bool
 implies a b = taut (a ==> b)

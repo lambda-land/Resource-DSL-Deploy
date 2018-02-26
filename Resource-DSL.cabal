@@ -72,7 +72,7 @@ library
     , DSL.V
     , DSL.VEnv
     , DSL.Value
---    , DSL.Example.Location
+    , DSL.Example.Location
 --    , DSL.Example.Network
 
 executable resource-dsl
