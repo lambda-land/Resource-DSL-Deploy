@@ -35,10 +35,7 @@ runDriver = do
 
 runCheck :: CheckOpts -> IO ()
 runCheck opts = do
-    print "made it to here"
-    print (show opts)
     dict  <- readJSON (dictFile opts) asDictionary
-    print "made it this far"
     init  <- readJSON (initFile opts) asResEnv
     model <- readJSON (modelFile opts) asModel
     args' <- case configValue opts of

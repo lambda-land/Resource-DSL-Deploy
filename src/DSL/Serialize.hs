@@ -156,7 +156,7 @@ asPType = do
       _ -> throwCustomError (BadCase "primitive type" ["unit","bool","int","float","symbol"] t)
 
 instance ToJSON PVal where
-  toJSON Unit  = Null
+  toJSON Unit  = String "()"
   toJSON (B b) = Bool b
   toJSON (I i) = Number (fromInteger (toInteger i))
   toJSON (F d) = Number (fromFloatDigits d)
@@ -166,9 +166,9 @@ asPVal :: ParseIt PVal
 asPVal = do
     v <- asValue
     case v of
-      Null     -> pure Unit
       Bool b   -> pure (B b)
       Number n -> pure (either F I (floatingOrInteger n))
+      String "()" -> pure Unit
       String _ -> S <$> asSymbol
       _ -> throwCustomError (BadPVal v)
 
