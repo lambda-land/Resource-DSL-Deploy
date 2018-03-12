@@ -100,8 +100,10 @@ test-suite test
     , aeson
     , aeson-better-errors
     , aeson-pretty
+    , megaparsec
+    , sbv
+    , text
     , tasty
     , tasty-hunit
-    , sbv
     , tasty-th
   other-modules:

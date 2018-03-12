@@ -94,7 +94,7 @@ instance (PrettyTerm a) => PrettyTerm (V a) where
 
 instance (Pretty a) => Pretty (V a) where
   pretty (One a) = pretty a
-  pretty (Chc d l r) = concat [prettyTerm d, "{", pretty l, ",", pretty r, "}"]
+  pretty (Chc d l r) = concat ["[", prettyTerm d, "]{", pretty l, ",", pretty r, "}"]
 
 --
 -- * Resources
@@ -146,7 +146,7 @@ instance Pretty Expr where
   pretty (P1 o e)          = prettyP1 o e
   pretty (P2 (NN_N o) l r) = concat [prettyTerm l, pretty o, prettyTerm r]
   pretty (P2 o l r)        = unwords [prettyTerm l, pretty o, prettyTerm r]
-  pretty (P3 Cond c l r)   = unwords [prettyTerm c, "?", prettyTerm l, ":", prettyTerm r]
+  pretty (P3 Cond c l r)   = unwords ["if", prettyTerm c, "then", prettyTerm l, "else", prettyTerm r]
 
 prettyP1 :: Op1 -> V Expr -> Text
 prettyP1 U_U         e = prettyPrimFun "unit" e
