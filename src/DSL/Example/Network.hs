@@ -124,16 +124,16 @@ pliRate   = One (Ref "pliRate")   -- messages / minute
 
 -- | Generate a configuration for CP2. For CP2, we are fixing as constants
 --   many properties that may be varied in the future.
-networkConfigCP2 :: Int -> Int -> Int -> Double -> [PVal]
+networkConfigCP2 :: Int -> Int -> Int -> Double -> [V PVal]
 networkConfigCP2 cs pli img scale =
-    [ I cs    -- clients
-    , I img   -- imageRate
-    , I 2500  -- resX
-    , I 2000  -- resY
-    , B true  -- color
-    , F scale -- scale
-    , B false -- compress
-    , I pli   -- pliRate
+    [ One $ I cs    -- clients
+    , One $ I img   -- imageRate
+    , One $ I 2500  -- resX
+    , One $ I 2000  -- resY
+    , Chc (BRef "color") (One $ B true) (One $ B false) -- color
+    , One $ F scale -- scale
+    , Chc (BRef "compress") (One $ B true) (One $ B false) -- compress
+    , One $ I pli   -- pliRate
     ]
 
 

@@ -53,15 +53,15 @@ runCheck opts = do
       writeError (errorFile opts) sctx'
       writeSuccess (successFile opts) sctx'
       case e of
-        (Left _) -> putStrLn "Requirements not satisfied ...\n" >> exitWith (ExitFailure 3)
+        (Left _) -> putStrLn "Requirements not satisfied ..." >> exitWith (ExitFailure 3)
         (Right _) -> return ()
-    putStrLn "Success\n"
+    putStrLn "Success"
 
 catchEffErr :: (Either a b, StateCtx) -> (CheckOpts, Int, String) -> IO StateCtx
 catchEffErr (Left _, s) (opts, code,msg) = do
   writeError (errorFile opts) s
   writeSuccess (successFile opts) s
-  putStrLn (msg ++ "\n")
+  putStrLn (msg)
   exitWith (ExitFailure code)
 catchEffErr (Right _, s) _ = return s
 
