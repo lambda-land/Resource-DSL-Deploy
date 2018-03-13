@@ -18,11 +18,11 @@ root = ResID []
 
 fromTextResID :: Text -> ResID
 fromTextResID t | head t == '/' = ResID (splitOn "/" (tail t))
-                | otherwise = ResID (splitOn "/" (tail t))
+                | otherwise = ResID (splitOn "/" t)
 
 fromTextPath :: Text -> Path
 fromTextPath t | head t == '/' = Path Absolute (splitOn "/" (tail t))
-               | otherwise = Path Relative (splitOn "/" (tail t))
+               | otherwise = Path Relative (splitOn "/" t)
 
 -- | The root of an absolute path.
 pathRoot :: Path
