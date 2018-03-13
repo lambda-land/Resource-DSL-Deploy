@@ -71,8 +71,8 @@ name start rest = lexeme (liftA2 cons start (pack <$> many rest))
 var :: Parser Var
 var = try (name start rest >>= check) <?> "variable name"
   where
-    start = char '$' <|> char '_' <|> letterChar
-    rest  = char '$' <|> char '_' <|> alphaNumChar
+    start = choice [char '$', char '_', letterChar]
+    rest  = choice [char '$', char '_', alphaNumChar]
     check x = if x `elem` rws
                 then fail $ "Keyword " <> show x <> " cannot be a variable name."
                 else return x
@@ -175,8 +175,8 @@ bexpr = makeExprParser bterm opTableBExpr <?> "boolean expression"
 
 -- ** Variational Parser
 
-v :: (Show a) => Parser a -> Parser (V a)
-v a = one <|> chc <?> "choice expression"
+v :: Parser a -> Parser (V a)
+v a = chc <|> one <?> "choice expression"
   where
     chc = do
       verbatim "["
@@ -190,20 +190,59 @@ v a = one <|> chc <?> "choice expression"
       return (Chc d l r)
     one = One <$> a
 
+v' :: Parser Expr -> Parser (V Expr)
+v' e = chc <|> one <?> "choice expression"
+  where
+    chc = do
+      verbatim "["
+      d <- bexpr
+      verbatim "]"
+      verbatim "{"
+      trylit d <|> ex d
+    one = One <$> e
+    trylit d = try (do
+      l <- v pval
+      verbatim ","
+      r <- v pval
+      verbatim "}"
+      return (One . Lit $ Chc d l r))
+    ex d = do
+      l <- v' e
+      verbatim ","
+      r <- v' e
+      verbatim "}"
+      return (Chc d l r)
+
+{-
+v :: (Show a) => Parser a -> Parser (V a)
+v a = dbg "v" (dbg "one" one <|> dbg "chc" chc <?> "choice expression")
+  where
+    chc = do
+      verbatim "["
+      d <- bexpr
+      verbatim "]"
+      verbatim "{"
+      l <- v a
+      verbatim ","
+      r <- v a
+      verbatim "}"
+      return (Chc d l r)
+    one = One <$> a
+-}
 -- ** Expression Parser
 
 symbol :: Parser Symbol
 symbol = char ':' >> Symbol <$> name start rest <?> "symbol"
   where
     start = char '_' <|> letterChar
-    rest  = char '_' <|> char '-' <|> alphaNumChar
+    rest  = choice [char '_', char '-', alphaNumChar]
 
 pval :: Parser PVal
 pval = unit
     <|> b
+    <|> s
     <|> f
     <|> i
-    <|> s
     <?> "primitive value"
   where
     unit = Unit <$ verbatim "()"
@@ -226,12 +265,45 @@ keyword = rword . pretty
 eterm :: Parser Expr
 eterm =
     try (unit)
-    <|> try (parens expr)
+    <|> parens expr
     <|> lit
     <|> res
     <|> op1
     <|> op3
     <|> ref
+    <?> "expression term"
+  where
+    unit = (Lit . One $ Unit) <$ verbatim "()"
+    lit = Lit <$> v pval
+    res = Res <$> path
+    ref = Ref <$> var
+    p1 o = P1 o <$ keyword o <*> v' expr
+    op1 = p1 U_U
+      <|> p1 (N_N Abs)
+      <|> p1 (N_N Sign)
+      <|> p1 (F_I Ceil)
+      <|> p1 (F_I Floor)
+      <|> p1 (F_I Round)
+      <|> P1 (B_B Not) <$ verbatim "!" <*> v' eterm
+      <|> P1 (N_N Neg) <$ verbatim "-" <*> v' eterm
+    op3 = do
+      rword "if"
+      c <- v' expr
+      rword "then"
+      t <- v' expr
+      rword "else"
+      e <- v' expr
+      return (P3 Cond c t e)
+{-
+eterm :: Parser Expr
+eterm =
+    dbg "unit" (try (unit))
+    <|> dbg "parens expr" (parens expr)
+    <|> dbg "lit" lit
+    <|> dbg "res" res
+    <|> dbg "op1" op1
+    <|> dbg "op3" op3
+    <|> dbg "ref" ref
     <?> "expression term"
   where
     unit = (Lit . One $ Unit) <$ verbatim "()"
@@ -248,13 +320,14 @@ eterm =
       <|> P1 (B_B Not) <$ verbatim "!" <*> v eterm
       <|> P1 (N_N Neg) <$ verbatim "-" <*> v eterm
     op3 = do
-      rword "if"
-      c <- v expr
-      rword "then"
-      t <- v expr
-      rword "else"
-      e <- v expr
+      dbg "if" (rword "if")
+      c <- dbg "c" (v expr)
+      dbg "then" (rword "then")
+      t <- dbg "t" (v expr)
+      dbg "else" (rword "else")
+      e <- dbg "e" (v expr)
       return (P3 Cond c t e)
+-}
 
 p2 :: Op2 -> Parser (V Expr -> V Expr -> Expr)
 p2 o = P2 o <$ verbatim (pretty o)
@@ -295,7 +368,7 @@ eop6 =
 eop7 :: Parser (V Expr -> V Expr -> Expr)
 eop7 = p2 (BB_B Eqv)
 
-pInfixL :: Parser (V Expr -> V Expr -> Expr) -> Parser (V Expr) -> V Expr -> Parser Expr
+pInfixL :: Parser (V a -> V a -> a) -> Parser (V a) -> V a -> Parser a
 pInfixL op p x = do
   f <- op
   y <- p
@@ -314,26 +387,37 @@ pInfixR op p x = do
   y <- p >>= \r -> (One <$> pInfixR op p r) <|> return r
   return $ f x y
 
+expr' :: (Parser (V a -> V a -> a) -> Parser (V a) -> V a -> Parser a) ->
+         Parser a ->
+         Parser (V a -> V a -> a) ->
+         Parser a
+expr' p e op = e >>= (\x -> p op (One <$> e) (One x) <|> pure x)
+
+exprL :: Parser a ->
+         Parser (V a -> V a -> a) ->
+         Parser a
+exprL = expr' pInfixL
+
 expr1 :: Parser Expr
-expr1 = try (v eterm >>= pInfixL eop1 (v eterm)) <|> eterm
+expr1 = try (v' eterm >>= pInfixL eop1 (v' eterm)) <|> eterm
 
 expr2 :: Parser Expr
-expr2 = try ((One <$> expr1) >>= pInfixL eop2 (One <$> expr1)) <|> expr1
+expr2 = exprL expr1 eop2
 
 expr3 :: Parser Expr
-expr3 = try ((One <$> expr2) >>= pInfixN eop3 (One <$> expr2)) <|> expr2
+expr3 = expr' pInfixN expr2 eop3
 
 expr4 :: Parser Expr
-expr4 = try ((One <$> expr3) >>= pInfixL eop4 (One <$> expr3)) <|> expr3
+expr4 = exprL expr3 eop4
 
 expr5 :: Parser Expr
-expr5 = try ((One <$> expr4) >>= pInfixL eop5 (One <$> expr4)) <|> expr4
+expr5 = exprL expr4 eop5
 
 expr6 :: Parser Expr
-expr6 = try ((One <$> expr5) >>= pInfixR eop6 (One <$> expr5)) <|> expr5
+expr6 = expr' pInfixR expr5 eop6
 
 expr7 :: Parser Expr
-expr7 = try ((One <$> expr6) >>= pInfixL eop7 (One <$> expr6)) <|> expr6
+expr7 = exprL expr6 eop7
 
 expr :: Parser Expr
 expr = expr7 <?> "expression"
