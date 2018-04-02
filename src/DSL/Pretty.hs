@@ -53,10 +53,14 @@ instance Pretty NN_N where
   pretty Div = "/"
   pretty Mod = "%"
 
+instance Pretty SS_B where
+  pretty SEqu = "~"
+
 instance Pretty Op2 where
   pretty (BB_B o) = pretty o
   pretty (NN_B o) = pretty o
   pretty (NN_N o) = pretty o
+  pretty (SS_B o) = pretty o
 
 -- ** Integer Expressions
 

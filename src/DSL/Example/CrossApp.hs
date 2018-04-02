@@ -7,98 +7,14 @@ import Control.Monad (when)
 import Options.Applicative
 import Data.Monoid
 import Data.Foldable
-import qualified Data.Text as T
-import qualified Data.Map.Strict as M
 
 import DSL.Types
 import DSL.Name
 import DSL.Environment
-import DSL.Expression
 import DSL.Model
-import DSL.Primitive
 import DSL.Serialize
 import DSL.Sugar
-{-
-compRatio = One (Ref "compRatio")
-compRate  = One (Ref "compRate") -- images / minute
-encRate   = One (Ref "encRate")
-encSec    = One (Ref "encSec")
 
--- ** Configurations
-
--- | Generate a configuration for the challenge problem.
-crossAppConfig :: Double -> Double -> Double -> Double -> [V PVal]
-crossAppConfig cr cr' er es =
-    [ One $ F cr
-    , One $ F cr'
-    , One $ F er
-    , One $ F es
-    ]
-
--- ** Initial environments
-
--- | Creates an initial resource environment for a message of a given size.
-crossAppEnv :: Double -> ResEnv
-crossAppEnv kbs = envSingle "/CrossApp/Size" (One . Just $ (F kbs))
-
--- ** Mission requirements
-
--- | The mission requires us to meet the required throughput threshold and
---   achieve a certain security threshold.
-crossAppReqs :: Profile
-crossAppReqs = toProfile $ Model []
-    [Elems [ check "/CrossApp/Throughput" (One TFloat) (val .>= 0), -- what should these
-             check "/CrossApp/Enc" (One TFloat) (val .>= 125)]]     -- values be?
-
---
--- * Driver
---
-
-data CrossAppOpts = CrossAppOpts
-     { genDict   :: Bool
-     , genModel  :: Bool
-     , genConfig :: Maybe (Double,Double,Double,Double)
-     , genEnv    :: Maybe Double
-     , genReqs   :: Bool }
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
-
-crossAppOpts :: Parser CrossAppOpts
-crossAppOpts = CrossAppOpts
-  <$> switch
-       ( long "dict"
-      <> help "Generate DFU dictionary" )
-
-  <*> switch
-       ( long "model"
-      <> help "Generate application model" )
-
-  <*> (optional . option auto)
-       ( long "config"
-      <> metavar "(comp ratio,comp rate,enc rate,enc security)"
-      <> help "Generate configuration with given compression ratio, compression rate (KiB/s), encryption rate (KiB/s), and encryption security (log2 bits)" )
-
-  <*> (optional . option auto)
-       ( long "init"
-      <> metavar "bandwidth"
-      <> help "Generate initial resource environment with given bandwidth (kb/s)" )
-
-  <*> switch
-       ( long "reqs"
-      <> help "Generate mission requirements" )
-
-
-runCrossApp :: CrossAppOpts -> IO ()
-runCrossApp opts = do
-    when (genDict opts)  (writeJSON defaultDict  crossAppDFUs)
-    when (genModel opts) (writeJSON defaultModel appModel)
-    case genConfig opts of
-      Just (cr,cr',er,es) -> writeJSON defaultConfig (crossAppConfig cr cr' er es)
-      Nothing -> return ()
-    case genEnv opts of
-      Just b  -> writeJSON defaultInit (crossAppEnv b)
-      Nothing -> return ()
-    when (genReqs opts)  (writeJSON defaultReqs crossAppReqs)
--}
 -- ** Initial environment
 
 crossAppResEnv :: ResEnv
@@ -226,6 +142,20 @@ crossAppConfig = [comps, encs, encs, comps]
     f r n = Chc (BRef n) (One . S . Symbol $ n) r
 
 --
+-- * Requirements
+--
+
+crossAppReqs :: Double -> Double -> Double -> Profile
+crossAppReqs sec size eff = toProfile $ Model []
+  [Elems[
+    check "/Server/CompAlgorithm" (One TSymbol) (One (P2 (SS_B SEqu) val (One . Res $ "/Client/CompAlgorithm"))),
+    check "/Server/EncAlgorithm" (One TSymbol) (One (P2 (SS_B SEqu) val (One . Res $ "/Client/EncAlgorithm"))),
+    check "/Security" (One TFloat) (val .>= (One . Lit . One . F $ sec)),
+    check "/CompRatio" (One TFloat) (val .<= (One . Lit . One . F $ size)),
+    check "/Efficiency" (One TFloat) (val .<= (One . Lit . One . F $ eff))
+  ]]
+
+--
 -- * Driver
 --
 
@@ -234,8 +164,7 @@ data CrossAppOpts = CrossAppOpts
      , genModel  :: Bool
      , genInit   :: Bool
      , genConfig :: Bool
---     , genReqs   :: Bool }
-     }
+     , genReqs   :: Maybe (Double,Double,Double) }
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 parseCrossAppOpts :: Parser CrossAppOpts
@@ -255,16 +184,10 @@ parseCrossAppOpts = CrossAppOpts
   <*> switch
        ( long "config"
       <> help "Generate default configuration" )
-{-
-  <*> switch
+  <*> (optional . option auto)
        ( long "reqs"
-      <> help "Generate mission requirements" )
-  <*> (optional . strOption)
-       ( long "init"
-      <> metavar "STRING"
-      <> help ("Generate initial resource environment; valid strings: "
-               ++ intercalate ", " (fmap (T.unpack . fst) locationEnvs)) )
--}
+      <> metavar "(security,size,efficiency)"
+      <> help "Generate mission requirements based on desired security, message size, and efficiency (s/mb)" )
 
 runCrossApp :: CrossAppOpts -> IO ()
 runCrossApp opts = do
@@ -272,4 +195,6 @@ runCrossApp opts = do
     when (genModel opts)  (writeJSON defaultModel appModel)
     when (genInit opts)   (writeJSON defaultInit crossAppResEnv)
     when (genConfig opts) (writeJSON defaultConfig crossAppConfig)
-    --when (genReqs opts)  (writeJSON defaultReqs crossAppReqs)
+    case (genReqs opts) of
+      Just (sec,size,eff) -> writeJSON defaultReqs (crossAppReqs sec size eff)
+      Nothing -> return ()

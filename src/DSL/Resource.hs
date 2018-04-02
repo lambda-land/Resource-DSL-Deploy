@@ -8,7 +8,6 @@ import Control.Monad.State
 import Data.Composition ((.:))
 import Data.SBV (bnot, (&&&), (|||))
 import Data.Typeable
-import Debug.Trace
 
 import DSL.Types
 import DSL.SAT
@@ -108,7 +107,7 @@ withNewVar = withVarEnv .: envExtend
 
 -- | Update the resource environment.
 updateResEnv :: MonadEval m => (ResEnv -> ResEnv) -> m ()
-updateResEnv f = modify (\(SCtx r e m) -> trace ("\nbefore: " ++ show r ++ "\nafter: " ++ show (f r)) (SCtx (f r) e m))
+updateResEnv f = modify (\(SCtx r e m) -> SCtx (f r) e m)
 
 -- | Update the error context.
 updateErrCtx :: MonadEval m => (BExpr -> BExpr) -> m ()

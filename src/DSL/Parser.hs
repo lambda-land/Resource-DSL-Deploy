@@ -213,22 +213,6 @@ v' e = chc <|> one <?> "choice expression"
       verbatim "}"
       return (Chc d l r)
 
-{-
-v :: (Show a) => Parser a -> Parser (V a)
-v a = dbg "v" (dbg "one" one <|> dbg "chc" chc <?> "choice expression")
-  where
-    chc = do
-      verbatim "["
-      d <- bexpr
-      verbatim "]"
-      verbatim "{"
-      l <- v a
-      verbatim ","
-      r <- v a
-      verbatim "}"
-      return (Chc d l r)
-    one = One <$> a
--}
 -- ** Expression Parser
 
 symbol :: Parser Symbol
@@ -294,40 +278,6 @@ eterm =
       rword "else"
       e <- v' expr
       return (P3 Cond c t e)
-{-
-eterm :: Parser Expr
-eterm =
-    dbg "unit" (try (unit))
-    <|> dbg "parens expr" (parens expr)
-    <|> dbg "lit" lit
-    <|> dbg "res" res
-    <|> dbg "op1" op1
-    <|> dbg "op3" op3
-    <|> dbg "ref" ref
-    <?> "expression term"
-  where
-    unit = (Lit . One $ Unit) <$ verbatim "()"
-    lit = Lit <$> v pval
-    res = Res <$> path
-    ref = Ref <$> var
-    p1 o = P1 o <$ keyword o <*> v expr
-    op1 = p1 U_U
-      <|> p1 (N_N Abs)
-      <|> p1 (N_N Sign)
-      <|> p1 (F_I Ceil)
-      <|> p1 (F_I Floor)
-      <|> p1 (F_I Round)
-      <|> P1 (B_B Not) <$ verbatim "!" <*> v eterm
-      <|> P1 (N_N Neg) <$ verbatim "-" <*> v eterm
-    op3 = do
-      dbg "if" (rword "if")
-      c <- dbg "c" (v expr)
-      dbg "then" (rword "then")
-      t <- dbg "t" (v expr)
-      dbg "else" (rword "else")
-      e <- dbg "e" (v expr)
-      return (P3 Cond c t e)
--}
 
 p2 :: Op2 -> Parser (V Expr -> V Expr -> Expr)
 p2 o = P2 o <$ verbatim (pretty o)
@@ -351,6 +301,7 @@ eop3 =
   <|> p2 (NN_B GT)
   <|> p2 (NN_B Neq)
   <|> p2 (NN_B Equ)
+  <|> p2 (SS_B SEqu)
 
 eop4 :: Parser (V Expr -> V Expr -> Expr)
 eop4 =

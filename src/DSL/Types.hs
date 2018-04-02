@@ -112,6 +112,7 @@ data Op2
      = BB_B BB_B  -- ^ binary boolean operator
      | NN_N NN_N  -- ^ binary numeric operator
      | NN_B NN_B  -- ^ numeric comparison operator
+     | SS_B SS_B  -- ^ symbol comparison operator
   deriving (Eq,Show)
 
 -- | Primitive ternary operator.
@@ -140,6 +141,9 @@ data NN_B = LT | LTE | Equ | Neq | GTE | GT
 
 -- | Binary numeric arithmetic operators.
 data NN_N = Add | Sub | Mul | Div | Mod
+  deriving (Eq,Show)
+
+data SS_B = SEqu
   deriving (Eq,Show)
 
 -- | Type error applying primitive operator.

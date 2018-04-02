@@ -9,10 +9,6 @@ import DSL.Resource
 import DSL.Environment
 import DSL.SAT
 
-import Debug.Trace
-import DSL.Pretty ()
-import Data.Text (unpack)
-
 -- | Look up a resource in a variational context, returning a
 --   variational value. Note that it does not throw errors for
 --   nonexistent resources, so error handling should be handled
@@ -46,7 +42,8 @@ vDelete'' e v = do
 vDelete' :: (MonadEval m) => Error -> BExpr -> VOpt v -> m (VOpt v)
 vDelete' e _ (One Nothing) = vError e
 vDelete' _ d v@(One (Just _)) = return (Chc d (One Nothing) v)
-vDelete' e d (Chc d' l r) | d |<=| d' = vMove d' (vDelete'' e l) >>= (\l' -> return (Chc d' l' r))
+vDelete' e d (Chc d' l r)
+                          | d |<=| d' = vMove d' (vDelete'' e l) >>= (\l' -> return (Chc d' l' r))
                           | d |!<=| d' = vMove (bnot d') (vDelete'' e r) >>= (\r' -> return (Chc d' l r'))
                           | d |=>| d' = (vDelete' e d l) >>= (\l' -> return (Chc d' l' r))
                           | d |=>!| d' = (vDelete' e d r) >>= (\r' -> return (Chc d' l r'))
@@ -73,7 +70,7 @@ vCreate' e d (Chc d' l r) new
                               | d |=>!| d' = do
                                   r' <- vCreate' e d r new
                                   return (Chc d' l r')
-                              | d |<=| d' = trace (unpack (pretty d) ++ "|<=|" ++ unpack (pretty d')) $ do
+                              | d |<=| d' = do
                                   let r' = vMove (bnot d') (vCreate' e d r new)
                                   vMove d' (checkNExists e l) `catchError` (\e -> do
                                       r' `catchError` (\e' -> throwError (Chc d' e e'))
@@ -95,11 +92,11 @@ lookup' :: (Ord k) => k -> VEnv k v -> VOpt v
 lookup' k env | Just v <- envLookup' k env = v
               | otherwise = One Nothing
 
-vCreate :: (MonadEval m, Ord k, Pretty k, Pretty v) => Error -> k -> VEnv k v -> VOpt v -> m (VEnv k v)
+vCreate :: (MonadEval m, Ord k) => Error -> k -> VEnv k v -> VOpt v -> m (VEnv k v)
 vCreate e k env new = do
   c <- getVCtx
-  v <- trace ("trying to create value: " ++ unpack (pretty new) ++ " at key: " ++ unpack (pretty k) ++ " in context: " ++ unpack (pretty c)) $ vCreate' e c (lookup' k env) new
-  trace ("successfully created value: " ++ unpack (pretty new) ++ " at key: " ++ unpack (pretty k) ++ " in context: " ++ unpack (pretty c)) $ return (envExtend k v env)
+  v <- vCreate' e c (lookup' k env) new
+  return (envExtend k v env)
 
 vModify'' :: MonadEval m => Error -> (VOpt v -> m (VOpt v)) -> VOpt v -> m (VOpt v)
 vModify'' e f v = do
