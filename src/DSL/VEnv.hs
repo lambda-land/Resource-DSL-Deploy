@@ -122,10 +122,29 @@ vModify' e _ _ (One Nothing) = vError e
 vModify' _ d f v@(One (Just _)) = do
   v' <- f v
   return (Chc d v' v)
-vModify' e d f (Chc d' l r) | d |<=| d' = vMove d' (vModify'' e f l) >>= (\l' -> return (Chc d' l' r))
-                            | d |!<=| d' = vMove (bnot d') (vModify'' e f r) >>= (\r' -> return (Chc d' l r'))
-                            | d |=>| d' = (vModify' e d f l) >>= (\l' -> return (Chc d' l' r))
-                            | d |=>!| d' = (vModify' e d f r) >>= (\r' -> return (Chc d' l r'))
+vModify' e d f (Chc d' l r)
+                            | d |=>| d' = do
+                                l' <- vModify' e d f l
+                                return (Chc d' l' r)
+                            | d |=>!| d' = do
+                                r' <- vModify' e d f r
+                                return (Chc d' l r')
+                            | d |<=| d' = do
+                                let r' = vMove (bnot d') (vModify' e d f r)
+                                l' <- vMove d' (vModify'' e f l) `catchError` (\e -> do
+                                    r' `catchError` (\e' -> throwError (Chc d' e e'))
+                                    return (One Nothing)
+                                  )
+                                r'' <- r' `catchError` (\_ -> return (One Nothing))
+                                return (Chc d' l' r'')
+                            | d |!<=| d' = do
+                                let l' = vMove d' (vModify' e d f l)
+                                r' <- vMove (bnot d') (vModify'' e f l) `catchError` (\e -> do
+                                    l' `catchError` (\e' -> throwError (Chc d' e' e))
+                                    return (One Nothing)
+                                  )
+                                l'' <- l' `catchError` (\_ -> return (One Nothing))
+                                return (Chc d' l'' r')
                             | otherwise = vHandle d' (vModify' e d f) l r
 
 vModify :: (MonadEval m, Ord k) => Error -> k -> VEnv k v -> (VOpt v -> m (VOpt v)) -> m (VEnv k v)
