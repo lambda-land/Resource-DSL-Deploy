@@ -75,7 +75,8 @@ checkNExists _ (One Nothing) = return ()
 checkNExists e (Chc d l r) = vHandleUnit d (checkNExists e) l r
 
 vCreate' :: (MonadEval m) => Error -> BExpr -> VOpt v -> VOpt v -> m (VOpt v)
-vCreate' _ d v@(One _) new = return (Chc d new v)
+vCreate' _ d v@(One Nothing) new = return (Chc d new v)
+vCreate' e _ (One (Just _)) _ = vError e
 vCreate' e d (Chc d' l r) new
                               | d |=>| d' = do
                                   l' <- vCreate' e d l new
