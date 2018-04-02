@@ -34,19 +34,32 @@ vLookup e k env = do
   checkExists e v
   return v
 
-vDelete'' :: (MonadEval m) => Error -> VOpt v -> m (VOpt v)
-vDelete'' e v = do
-  checkExists e v
-  return (One Nothing)
-
 vDelete' :: (MonadEval m) => Error -> BExpr -> VOpt v -> m (VOpt v)
 vDelete' e _ (One Nothing) = vError e
 vDelete' _ d v@(One (Just _)) = return (Chc d (One Nothing) v)
 vDelete' e d (Chc d' l r)
-                          | d |<=| d' = vMove d' (vDelete'' e l) >>= (\l' -> return (Chc d' l' r))
-                          | d |!<=| d' = vMove (bnot d') (vDelete'' e r) >>= (\r' -> return (Chc d' l r'))
-                          | d |=>| d' = (vDelete' e d l) >>= (\l' -> return (Chc d' l' r))
-                          | d |=>!| d' = (vDelete' e d r) >>= (\r' -> return (Chc d' l r'))
+                          | d |=>| d' = do
+                              l' <- vDelete' e d l
+                              return (Chc d' l' r)
+                          | d |=>!| d' = do
+                              r' <- vDelete' e d r
+                              return (Chc d' l r')
+                          | d |<=| d' = do
+                              let r' = vMove (bnot d') (vDelete' e d r)
+                              vMove d' (checkExists e l) `catchError` (\e -> do
+                                  r' `catchError` (\e' -> throwError (Chc d' e e'))
+                                  return ()
+                                )
+                              r'' <- r' `catchError` (\_ -> return (One Nothing))
+                              return (Chc d' (One Nothing) r'')
+                          | d |!<=| d' = do
+                              let l' = vMove d' (vDelete' e d l)
+                              vMove (bnot d') (checkExists e r) `catchError` (\e -> do
+                                  l' `catchError` (\e' -> throwError (Chc d' e' e))
+                                  return ()
+                                )
+                              l'' <- l' `catchError` (\_ -> return (One Nothing))
+                              return (Chc d' l'' (One Nothing))
                           | otherwise = vHandle d' (vDelete' e d) l r
 
 vDelete :: (MonadEval m, Ord k) => Error -> k -> VEnv k v -> m (VEnv k v)
