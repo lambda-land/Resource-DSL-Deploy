@@ -110,7 +110,7 @@ crossAppDFUs = modelDict
       compEntry "gzip" (Comp (1/1.87) (1/20.07) (1/70.05)),
       compEntry "pithy" (Comp (1/1.4) (1/78.09) (1/124.38)),
       compEntry "smallandslow" (Comp (1/5) 1 2),
-      compEntry "bigandfast" (Comp (1/1.2) 125 150),
+      compEntry "bigandfast" (Comp (1/1.2) (1/125) (1/150)),
       compEntry "nocomp" (Comp 1 0 0)
     ]
   where
