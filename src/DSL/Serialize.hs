@@ -132,13 +132,18 @@ asBExpr = do
       Left msg -> throwCustomError (BExprParseError (pack msg) t)
 
 instance (ToJSON a) => ToJSON (V a) where
-  toJSON (One a) = toJSON a
-  toJSON (Chc d l r) = object ["dim" .= d, "l" .= l, "r" .= r]
+  toJSON (One a) = object ["vtype" .= String "one", "one" .= toJSON a]
+  toJSON (Chc d l r) = object ["vtype" .= String "chc", "dim" .= d, "l" .= l, "r" .= r]
 
 asV :: ParseIt a -> ParseIt (V a)
-asV asA = one <|> chc
+asV asA = do
+  vtype <- key "vtype" asText
+  case vtype of
+    "one" -> one
+    "chc" -> chc
+    _ -> throwCustomError (BadCase "vtype" ["one", "chc"] vtype)
   where
-    one = One <$> asA
+    one = One <$> key "one" asA
     chc = Chc <$> key "dim" asBExpr <*> key "l" (asV asA) <*> key "r" (asV asA)
 
 instance ToJSON PType where
@@ -275,16 +280,24 @@ asStmt = do
       _ -> throwCustomError (BadCase "stmt" ["do","in","if","let","load"] stmt)
 
 instance (ToJSON a) => ToJSON (Segment a) where
-  toJSON (Elems xs) = toJSON xs
+  toJSON (Elems xs) = object
+    [ "segType" .= String "elems"
+    , "elems" .= toJSON xs ]
   toJSON (Split d l r) = object
-    [ "dim" .= toJSON d
+    [ "segType" .= String "split"
+    , "dim" .= toJSON d
     , "l" .= toJSON l
     , "r" .= toJSON r ]
 
 asSegment :: ParseIt a -> ParseIt (Segment a)
-asSegment asA = elems <|> split
+asSegment asA = do
+  segType <- key "segType" asText
+  case segType of
+    "elems" -> elems
+    "split" -> split
+    _ -> throwCustomError (BadCase "segType" ["elems", "split"] segType)
   where
-    elems = Elems <$> eachInArray asA
+    elems = Elems <$> key "elems" (eachInArray asA)
     split = Split
       <$> key "dim" asBExpr
       <*> key "l" (asSegList asA)

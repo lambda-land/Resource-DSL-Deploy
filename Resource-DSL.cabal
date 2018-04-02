@@ -74,6 +74,7 @@ library
     , DSL.Value
     , DSL.Example.Location
     , DSL.Example.Network
+    , DSL.Example.CrossApp
 
 executable resource-dsl
   hs-source-dirs:   app

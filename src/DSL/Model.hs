@@ -37,17 +37,6 @@ vMergeEff env (p, d, e) | Just es <- envLookup' p env = envExtend p (segSetInser
 
 vEnvFromList :: [(Path, Maybe BExpr, Effect)] -> Env Path (SegList Effect)
 vEnvFromList = foldl' vMergeEff envEmpty
-{- TODO TODO TODO
--- | Convert a simple model into a profile. This allows writing profiles
---   with nicer syntax. Fails with a runtime error on a Load or If statement.
-toProfile :: Model -> Profile
-toProfile (Model xs vstmts) =
-    Profile xs (envFromListAcc (concatMap (entries pathThis) vstmts))
-  where
-    entries pre (In path blk) = concatMap (entries (pathAppend pre path)) blk
-    entries pre (One . Just $ (Do path eff)) = [(pathAppend pre path, [eff])]
-    entries _ _ = error "toProfile: cannot convert model to profile"
--}
 
 toProfileEntries :: Path -> Maybe BExpr -> Block -> [(Path, Maybe BExpr, Effect)]
 toProfileEntries _ _ [] = []

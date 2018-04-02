@@ -19,6 +19,7 @@ import DSL.Serialize
 
 import DSL.Example.Location
 import DSL.Example.Network
+import DSL.Example.CrossApp
 
 
 --
@@ -32,6 +33,7 @@ runDriver = do
       Check opts -> runCheck opts
       Example (Location opts) -> runLocation opts
       Example (Network opts)  -> runNetwork opts
+      Example (CrossApp opts) -> runCrossApp opts
 
 runCheck :: CheckOpts -> IO ()
 runCheck opts = do
@@ -100,6 +102,7 @@ data CheckOpts = CheckOpts
 data Example
      = Location LocationOpts
      | Network  NetworkOpts
+     | CrossApp CrossAppOpts
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 
@@ -127,7 +130,11 @@ parseExample = subparser
         (progDesc "Location provider example"))
     <> command "network"
         (info (Network <$> (helper <*> parseNetworkOpts))
-        (progDesc "Network / image provider example")) )
+        (progDesc "Network / image provider example"))
+    <> command "crossapp"
+        (info (CrossApp <$> (helper <*> parseCrossAppOpts))
+        (progDesc "Cross application dependencies example"))
+     )
 
 
 parseCheckOpts :: Parser CheckOpts

@@ -50,6 +50,7 @@ parseFloat = testGroup "floats"
   [
     testCase "1.5" $ runp float "1.5" @?= success 1.5,
     testCase "33.0" $ runp float "33.0" @?= success 33.0,
+    testCase "9.319664492078285e-4" $ runp float "9.319664492078285e-4" @?= success 9.319664492078285e-4,
     testCase "abc" $ fails (runp float "abc") @? "abc fails"
   ]
 
@@ -124,6 +125,7 @@ parsePVal = testGroup "pval"
     testCase "false" $ runp pval "false" @?= success (B False),
     testCase "55" $ runp pval "55" @?= success (I 55),
     testCase "3.14" $ runp pval "3.14" @?= success (F 3.14),
+    testCase "9.319664492078285e-4" $ runp pval "9.319664492078285e-4" @?= success (F 9.319664492078285e-4),
     testCase ":abc" $ runp pval ":abc" @?= success (S "abc")
   ]
 
@@ -132,6 +134,7 @@ parseExpr = testGroup "expr"
     testCase "()" $ runp expr "()" @?= success (Lit (One Unit)),
     testCase ":abc" $ runp expr ":abc" @?= success (Lit (One (S "abc"))),
     testCase "false" $ runp expr "false" @?= success (Lit (One (B False))),
+    testCase "9.319664492078285e-4" $ runp expr "9.319664492078285e-4" @?= success (Lit (One (F 9.319664492078285e-4))),
     testCase "[a]{(),false}" $ runp expr "[a]{(),false}" @?= success (Lit (Chc (BRef "a") (One Unit) (One (B False)))),
     testCase "[true||(1>a)]{55,3.14}" $ runp expr "[true||(1>a)]{55,3.14}" @?= success (Lit (Chc (OpBB Or (BLit True) (OpIB GT (ILit 1) (IRef "a"))) (One (I 55)) (One (F 3.14)))),
     testCase "[a]{[b]{1,2},3}" $ runp expr "[a]{[b]{1,2},3}" @?= success (Lit (Chc (BRef "a") (Chc (BRef "b") (One (I 1)) (One (I 2))) (One (I 3)))),
