@@ -208,9 +208,9 @@ promoteError (Left e) = vError e
 vBind :: MonadEval m => m (V (Maybe a)) -> (a -> m (V (Maybe b))) -> m (V (Maybe b))
 vBind v f = do
   v' <- v
-  -- c <- getVCtx
-  -- let v'' = select c v' TODO: should we have this?
-  case v' of
+  c <- getVCtx
+  let v'' = select c v' -- perform selection at runtime
+  case v'' of
     (One Nothing) -> return (One Nothing)
     (One (Just a)) -> f a
     (Chc d l r) -> vHandle d (\v -> vBind (return v) f) l r
