@@ -70,7 +70,10 @@ runCheck opts = do
       writeError (errorFile opts) sctx
       writeSuccess (successFile opts) sctx
     else do
-      reqs <- readJSON (reqsFile opts) asProfile
+      reqs' <- readJSON (reqsFile opts) asProfile
+      let reqs = case d of
+                   Just d' -> selectProfile d' reqs'
+                   Nothing -> reqs'
       let (e, sctx') = runWithDict' dict sctx (loadProfile reqs [])
       writeError (errorFile opts) sctx'
       writeSuccess (successFile opts) sctx'

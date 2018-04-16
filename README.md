@@ -80,6 +80,18 @@ following input file.
  
  * `inbox/configuration.json` -- arguments to application model
 
+A user can also provide a _selection_ to the `check` subcommand, via the
+`-s` or `--selection` options. A selection is a string representing a boolean
+formula determing which variants should be executed. For example, calling
+
+
+```bash
+> stack exec resource-dsl -- check -s A&&(!B)
+```
+
+Will run the check command with a configuration where variant `A` is assumed
+to be true and `B` is assumed to be false.
+
 Finally, the resulting resource environment can be checked against a set of
 mission requirements, which is itself just another resource profile, which is
 provided in the following input file.
