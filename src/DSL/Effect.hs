@@ -47,3 +47,9 @@ resolveEffect rID Delete = do
   env <- getResEnv
   env' <- vDelete (EffE $ EffectError Delete NoSuchResource rID Nothing) rID env
   updateResEnv (\_ -> env')
+
+selectEff :: BExpr -> Effect -> Effect
+selectEff d (Create e) = Create (selectExpr d e)
+selectEff d (Check f) = Check (selectFun d f)
+selectEff d (Modify f) = Modify (selectFun d f)
+selectEff _ Delete = Delete

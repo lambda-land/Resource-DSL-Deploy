@@ -16,6 +16,8 @@ import DSL.Model
 import DSL.Profile
 import DSL.Resource
 import DSL.Serialize
+import DSL.Parser (parseBExprString)
+import DSL.V
 
 import DSL.Example.Location
 import DSL.Example.Network
@@ -37,13 +39,31 @@ runDriver = do
 
 runCheck :: CheckOpts -> IO ()
 runCheck opts = do
-    dict  <- readJSON (dictFile opts) asDictionary
-    init  <- readJSON (initFile opts) asResEnv
-    model <- readJSON (modelFile opts) asModel
+    d <- case selection opts of
+            Just s -> case parseBExprString s of
+              Right b -> return (Just b)
+              Left e -> do
+                putStrLn ("Could not parse selection:\n" ++ e)
+                exitWith (ExitFailure 1)
+            Nothing -> return Nothing
+    dict'  <- readJSON (dictFile opts) asDictionary
+    let dict = case d of
+          Just d' -> selectDict d' dict'
+          Nothing -> dict'
+    init'  <- readJSON (initFile opts) asResEnv
+    let init = case d of
+          Just d' -> fmap (select d') init'
+          Nothing -> init'
+    model' <- readJSON (modelFile opts) asModel
+    let model = case d of
+          Just d' -> selectModel d' model'
+          Nothing -> model'
     args' <- case configValue opts of
               Just xs -> decodeJSON xs asConfig
               Nothing -> readJSON (configFile opts) asConfig
-    let args = map (One . Lit) args'
+    let args = map (One . Lit) (case d of
+          Just d' -> map (select d') args'
+          Nothing -> args')
     sctx <- runWithDict dict init (loadModel model args) `catchEffErr` (opts, 2,"Error executing application model ...")
     writeOutput (outputFile opts) sctx
     if noReqs opts then do
@@ -67,6 +87,13 @@ catchEffErr (Left _, s) (opts, code,msg) = do
   exitWith (ExitFailure code)
 catchEffErr (Right _, s) _ = return s
 
+selectDict :: BExpr -> Dictionary -> Dictionary
+selectDict d dict = fmap (selectEntry d) dict
+
+selectEntry :: BExpr -> Entry -> Entry
+selectEntry d (ProEntry p) = ProEntry (selectProfile d p)
+selectEntry d (ModEntry m) = ModEntry (selectModel d m)
+
 writeError :: FilePath -> StateCtx -> IO ()
 writeError fp (SCtx _ _ e) = writeJSON fp e
 
@@ -88,6 +115,7 @@ data Command
 data CheckOpts = CheckOpts
      { noReqs      :: Bool
      , configValue :: Maybe String
+     , selection   :: Maybe String
      , dictFile    :: FilePath
      , initFile    :: FilePath
      , modelFile   :: FilePath
@@ -149,6 +177,12 @@ parseCheckOpts = CheckOpts
       <> long "config"
       <> metavar "STRING"
       <> help "Arguments to the application model; overrides --config-file if present" )
+
+  <*> (optional . strOption)
+       ( short 's'
+      <> long "selection"
+      <> metavar "STRING"
+      <> help "A string representing a boolean expression. Selects variants to be executed." )
 
   <*> pathOption
        ( long "dict-file"
