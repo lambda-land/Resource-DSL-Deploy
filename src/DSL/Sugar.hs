@@ -58,6 +58,9 @@ checkUnit p = Do p (Check (Fun (Param "$val" (One TUnit)) true))
 createUnit :: Path -> Stmt
 createUnit p = Do p (Create (One . Lit . One $ Unit))
 
+mkVExpr :: PVal -> V Expr
+mkVExpr = One . Lit . One
+
 {- TODO TODO TODO
 -- | Macro for an integer-case construct. Evaluates the expression, then
 --   compares the resulting integer value against each case in turn, executing

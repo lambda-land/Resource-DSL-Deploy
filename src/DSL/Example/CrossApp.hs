@@ -27,10 +27,12 @@ crossAppResEnv = envFromListAcc [
 
 appModel = Model [Param "serverComp" (One TSymbol), Param "serverEnc" (One TSymbol), Param "clientComp" (One TSymbol), Param "clientEnc" (One TSymbol)]
     [ Elems [
-      Load (One . Ref $ "serverComp") [One . Lit . One . B $ True],
-      Load (One . Ref $ "serverEnc") [One . Lit . One . B $ True],
-      Load (One . Ref $ "clientEnc") [One . Lit . One . B $ False],
-      Load (One . Ref $ "clientComp") [One . Lit . One . B $ False],
+      Load (One . Ref $ "serverComp") [mkVExpr . B $ True],
+      Load (One . Ref $ "serverEnc") [mkVExpr . B $ True],
+      Load (One . Ref $ "clientEnc") [mkVExpr . B $ False],
+      Load (One . Ref $ "clientComp") [mkVExpr . B $ False],
+      check "/Server/CompAlgorithm" (One TSymbol) (One (P2 (SS_B SEqu) val (One . Res $ "/Client/CompAlgorithm"))),
+      check "/Server/EncAlgorithm" (One TSymbol) (One (P2 (SS_B SEqu) val (One . Res $ "/Client/EncAlgorithm"))),
       create "Efficiency" ((One . Res $ "Server/Efficiency") + (One . Res $ "Client/Efficiency"))
     ]]
 
@@ -48,16 +50,16 @@ makeEncDFU n e = Model [Param "isServer" (One TBool)]
   [ Elems [
     If (One (Ref "isServer"))
       [Elems [
-        create "Security" (One . Lit . One . F . security $ e),
+        create "Security" (mkVExpr . F . security $ e),
         In "Server" [Elems [
-          create "EncAlgorithm" (One . Lit . One . S . Symbol $ n),
-          modify "Efficiency" TFloat (val + (One . Lit . One . F . eff $ e) * cr)
+          create "EncAlgorithm" (mkVExpr . S . Symbol $ n),
+          modify "Efficiency" TFloat (val + (mkVExpr . F . eff $ e) * cr)
         ]]
       ]]
       [Elems [
         In "Client" [Elems [
-          create "EncAlgorithm" (One . Lit . One . S . Symbol $ n),
-          modify "Efficiency" TFloat (val + (One . Lit . One . F . eff $ e) * cr)
+          create "EncAlgorithm" (mkVExpr . S . Symbol $ n),
+          modify "Efficiency" TFloat (val + (mkVExpr . F . eff $ e) * cr)
         ]]
       ]]
   ]]
@@ -73,16 +75,16 @@ makeCompDFU n c = Model [Param "isServer" (One TBool)]
   [ Elems [
     If (One (Ref "isServer"))
       [Elems [
-        create "CompRatio" (One . Lit . One . F . compRatio $ c),
+        create "CompRatio" (mkVExpr . F . compRatio $ c),
         In "Server" [Elems [
-          create "CompAlgorithm" (One . Lit . One . S . Symbol $ n),
-          modify "Efficiency" TFloat (val + (One . Lit . One . F . compEff $ c))
+          create "CompAlgorithm" (mkVExpr . S . Symbol $ n),
+          modify "Efficiency" TFloat (val + (mkVExpr . F . compEff $ c))
         ]]
       ]]
       [Elems [
         In "Client" [Elems [
-          create "CompAlgorithm" (One . Lit . One . S . Symbol $ n),
-          modify "Efficiency" TFloat (val + (One . Lit . One . F . decompEff $ c) * cr)
+          create "CompAlgorithm" (mkVExpr . S . Symbol $ n),
+          modify "Efficiency" TFloat (val + (mkVExpr . F . decompEff $ c) * cr)
         ]]
       ]]
   ]]
@@ -148,11 +150,9 @@ crossAppConfig = [comps, encs, encs, comps]
 crossAppReqs :: Double -> Double -> Double -> Profile
 crossAppReqs sec size eff = toProfile $ Model []
   [Elems[
-    check "/Server/CompAlgorithm" (One TSymbol) (One (P2 (SS_B SEqu) val (One . Res $ "/Client/CompAlgorithm"))),
-    check "/Server/EncAlgorithm" (One TSymbol) (One (P2 (SS_B SEqu) val (One . Res $ "/Client/EncAlgorithm"))),
-    check "/Security" (One TFloat) (val .>= (One . Lit . One . F $ sec)),
-    check "/CompRatio" (One TFloat) (val .<= (One . Lit . One . F $ size)),
-    check "/Efficiency" (One TFloat) (val .<= (One . Lit . One . F $ eff))
+    check "/Security" (One TFloat) (val .>= (mkVExpr . F $ sec)),
+    check "/CompRatio" (One TFloat) (val .<= (mkVExpr . F $ size)),
+    check "/Efficiency" (One TFloat) (val .<= (mkVExpr . F $ eff))
   ]]
 
 --
