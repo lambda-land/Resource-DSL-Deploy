@@ -251,25 +251,32 @@ To see the inputs that can be generated for this example, pass `--help` to the
 ```
 
 First, generate some input files. The following command generates the cross app
-example dictionary, application model, the initial
-resource environment, and configures the
-application to variationally load all available DFUs for compression and encryption.
+example dictionary, application model, and the initial
+resource environment
 
 ```bash
-> stack exec resource-dsl -- example crossapp --dict --model --init --config
+> stack exec resource-dsl -- example crossapp --dict --model --init
 ```
 
-Next, generate the mission requirements. The requirements are that the encryption and
-compression algorithms match for both the server and client. In addition, the user specifies
-a minimum desired security (measured in bits, e.g. 126.1 for AES128), a maximum desired compression
-ratio (the expected size of the resulting message after compression as a percentage of the original),
-and a maximum desired efficiency (measured in s/mb, or processing time taken to process a single mb
-of the original message). For example, mission requirements that desire 128 bits or greater of security,
-a minimum of 75% reduction in message size, and a processing speed of at least 0.1 s/mb would use the
-following command:
+Next, we generate a configuration for the example. To do this, we choose an encryption provider
+to run on the server, another provider to run on the client, and a keysize to use with the
+encryption algorithm. For example, to use the default `javax` API on the server and `org.bouncycastle`
+on the client, with 128-bit encryption, you would call:
 
 ```bash
-> stack exec resource-dsl -- example crossapp --reqs \(128,0.75,0.1\)
+> stack exec resource-dsl -- example crossapp --config \(\"Javax\",\"BouncyCastle\",128\)
+```
+
+The available DFUs to load on the server and client are `Javax`, `BouncyCastle`, and `AESNI`.
+
+Next, generate the mission requirements. The requirements are specified as a 4-tuple made up
+of an algorithm, keysize, mode, and padding. The requirements check that the specified 4-tuple
+is available from the providers on both the server and the client. For example, the following
+command generates mission requirements that specify that both client and server support
+AES128 encryption in CBC mode with PKCS5 padding:
+
+```bash
+> stack exec resource-dsl -- example crossapp --reqs \(\"AES\",128,\"CBC\",\"PKCS5\"\)
 ```
 
 Once the mission requirements are generated, check the example configuration against the requirements
@@ -279,9 +286,10 @@ by running this command:
 > stack exec resource-dsl -- check
 ```
 
-If there are no choices of compression algorithm combined with encryption algorithm that satisfy the mission
-requirements, the application will return with exit code 3. Otherwise, if at least one variant successfully
-satsifies the mission requirements, it will return with exit code 0.
+If there is some variant that meets the mission requirements, it will return with exit code 0. Otherwise,
+it will return with exit code 2 if some static condition was not met (e.g. the keysize didn't match the
+algorithm) or exit code 3 if the particular 4-tuple specified in the mission requirements is not supported
+on both the client and server.
 
 The application will also output three report files into the outbox. `error.json` will contain a variational
 data structure containing any errors generated for a particular variant, such as failing to meet a particular

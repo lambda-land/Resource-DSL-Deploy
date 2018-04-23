@@ -1,8 +1,11 @@
 module DSL.Sugar where
 
+import qualified Data.Text as T
+
 import DSL.Name
 import DSL.Types
 import DSL.Primitive
+import DSL.Parser
 
 
 --
@@ -60,6 +63,11 @@ createUnit p = Do p (Create (One . Lit . One $ Unit))
 
 mkVExpr :: PVal -> V Expr
 mkVExpr = One . Lit . One
+
+dim :: T.Text -> BExpr
+dim t | Right b <- parseBExprText t = b
+      | Left s <- parseBExprText t = error s
+      | otherwise = error "impossible"
 
 {- TODO TODO TODO
 -- | Macro for an integer-case construct. Evaluates the expression, then

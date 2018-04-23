@@ -7,6 +7,8 @@ import Control.Monad (when)
 import Options.Applicative
 import Data.Monoid
 import Data.Foldable
+import Data.SBV ((|||),(&&&))
+import qualified Data.Text as T
 
 import DSL.Types
 import DSL.Name
@@ -19,141 +21,165 @@ import DSL.Sugar
 
 crossAppResEnv :: ResEnv
 crossAppResEnv = envFromListAcc [
-    ("/Server/Efficiency",(One . Just . F $ 0)),
-    ("/Client/Efficiency",(One . Just . F $ 0))
+    ("/Server/Hardware/AESNI", Chc (dim "SAESNI") (One (Just Unit)) (One Nothing)),
+    ("/Client/Hardware/AESNI", Chc (dim "CAESNI") (One (Just Unit)) (One Nothing)),
+    ("/Server/JCEUnlimitedStrength", Chc (dim "SJCEUS") (One (Just Unit)) (One Nothing)),
+    ("/Client/JCEUnlimitedStrength", Chc (dim "CJCEUS") (One (Just Unit)) (One Nothing))
   ]
 
 -- ** Application model
 
-appModel = Model [Param "serverComp" (One TSymbol), Param "serverEnc" (One TSymbol), Param "clientComp" (One TSymbol), Param "clientEnc" (One TSymbol)]
-    [ Elems [
-      Load (One . Ref $ "serverComp") [mkVExpr . B $ True],
-      Load (One . Ref $ "serverEnc") [mkVExpr . B $ True],
-      Load (One . Ref $ "clientEnc") [mkVExpr . B $ False],
-      Load (One . Ref $ "clientComp") [mkVExpr . B $ False],
-      check "/Server/CompAlgorithm" (One TSymbol) (One (P2 (SS_B SEqu) val (One . Res $ "/Client/CompAlgorithm"))),
-      check "/Server/EncAlgorithm" (One TSymbol) (One (P2 (SS_B SEqu) val (One . Res $ "/Client/EncAlgorithm"))),
-      create "Efficiency" ((One . Res $ "Server/Efficiency") + (One . Res $ "Client/Efficiency"))
-    ]]
+appModel = Model
+  [
+    Param "serverProvider" (One TSymbol),
+    Param "clientProvider" (One TSymbol),
+    Param "keysize" (One TInt)
+  ]
+  [ Elems [
+    In "/Server" [Elems[Load (One . Ref $ "serverProvider") [One . Ref $ "keysize"]]],
+    In "/Client" [Elems[Load (One . Ref $ "clientProvider") [One . Ref $ "keysize"]]]
+  ]]
 
 -- ** DFUs
 
-cr = One . Res $ "../CompRatio"
-
-data Enc = Enc {
-    security :: Double, -- bits of security
-    eff      :: Double  -- encoding efficiency s/mb
-  } deriving (Eq,Show)
-
-makeEncDFU :: Name -> Enc -> Model
-makeEncDFU n e = Model [Param "isServer" (One TBool)]
-  [ Elems [
-    If (One (Ref "isServer"))
-      [Elems [
-        create "Security" (mkVExpr . F . security $ e),
-        In "Server" [Elems [
-          create "EncAlgorithm" (mkVExpr . S . Symbol $ n),
-          modify "Efficiency" TFloat (val + (mkVExpr . F . eff $ e) * cr)
-        ]]
-      ]]
-      [Elems [
-        In "Client" [Elems [
-          create "EncAlgorithm" (mkVExpr . S . Symbol $ n),
-          modify "Efficiency" TFloat (val + (mkVExpr . F . eff $ e) * cr)
-        ]]
-      ]]
-  ]]
-
-data Comp = Comp {
-    compRatio :: Double, -- size of resulting message as a percentage of the original
-    compEff   :: Double, -- compression efficiency s/kb
-    decompEff :: Double  -- decompression efficiency s/kb
-  } deriving (Eq,Show)
-
-makeCompDFU :: Name -> Comp -> Model
-makeCompDFU n c = Model [Param "isServer" (One TBool)]
-  [ Elems [
-    If (One (Ref "isServer"))
-      [Elems [
-        create "CompRatio" (mkVExpr . F . compRatio $ c),
-        In "Server" [Elems [
-          create "CompAlgorithm" (mkVExpr . S . Symbol $ n),
-          modify "Efficiency" TFloat (val + (mkVExpr . F . compEff $ c))
-        ]]
-      ]]
-      [Elems [
-        In "Client" [Elems [
-          create "CompAlgorithm" (mkVExpr . S . Symbol $ n),
-          modify "Efficiency" TFloat (val + (mkVExpr . F . decompEff $ c) * cr)
-        ]]
-      ]]
-  ]]
-
--- | A dictionary of all the location DFUs with associated names.
-crossAppDFUs :: Dictionary
-crossAppDFUs = modelDict
-    [
-      -- Block ciphers
-      -- Security data from here: https://en.wikipedia.org/wiki/Cipher_security_summary
-      -- Efficiency data from here: https://www.cryptopp.com/benchmarks.html
-      encEntry "AES128CTR" (Enc 126.1 (1/4525)),
-      encEntry "AES128CBC" (Enc 126.1 (1/1073)),
-      encEntry "AES256CTR" (Enc 254.4 (1/3340)),
-      encEntry "AES256CBC" (Enc 254.4 (1/805)),
-      encEntry "Twofish128CTR" (Enc 128 (1/183)),
-      encEntry "Threefish256CTR" (Enc 256 (1/375)),
-      encEntry "FastButBroken" (Enc 10 (1/10000)),
-      encEntry "SlowButSecure" (Enc 1024 (1/50)),
-      encEntry "NoEnc" (Enc 0 0),
-
-      -- Compression algorithms
-      -- Data from here: https://quixdb.github.io/squash-benchmark/#results
-      compEntry "bzip" (Comp (1/2.05) (1/5.09) (1/12.09)),
-      compEntry "gzip" (Comp (1/1.87) (1/20.07) (1/70.05)),
-      compEntry "pithy" (Comp (1/1.4) (1/78.09) (1/124.38)),
-      compEntry "smallandslow" (Comp (1/5) 1 2),
-      compEntry "bigandfast" (Comp (1/1.2) (1/125) (1/150)),
-      compEntry "nocomp" (Comp 1 0 0)
+javaxDFU :: Model
+javaxDFU = Model [Param "keysize" (One TInt)]
+  [
+    Elems [
+      If (ksz .> (Chc (dim "DES") 64 128))
+        [Elems[checkUnit "JCEUnlimitedStrength"]]
+        [],
+      If (Chc (dim "AES")
+           aes
+           (Chc (dim "Blowfish")
+             blowfish
+             (Chc (dim "DES")
+               des
+               (Chc (dim "DES3")
+                 des3
+                 (mkVExpr . B $ False)
+               )
+             )
+           )
+         )
+        [Elems[create "KeySize" ksz]]
+        [Elems[check "KeySize" (One TInt) (mkVExpr . B $ False)]],
+      create "Algorithm" (foldChc ["NOALG", "AES", "Blowfish", "DES", "DES3"]),
+      create "Mode" (foldChc ["NOMODE", "ECB", "CBC", "PCBC", "CTR", "CTS", "CFB", "OFB"]),
+      create "Padding" (foldChc ["NOPADDING","PKCS5", "ISO10126"])
     ]
+  ]
   where
-    encEntry n e = (n, makeEncDFU n e)
-    compEntry n c = (n, makeCompDFU n c)
+    ksz = One . Ref $ "keysize"
+    aes = ksz .== 128 ||| ksz .== 192 ||| ksz .== 256
+    blowfish = ksz .>= 32 &&& ksz .<= 448 &&& ksz .% 8 .== 0
+    des = ksz .== 56
+    des3 = ksz .== 112 &&& ksz .== 168
+
+bcDFU :: Model
+bcDFU = Model [Param "keysize" (One TInt)]
+  [
+    Elems [
+      If (Chc (dim "AES")
+           aes
+           (Chc (dim "Blowfish")
+             blowfish
+             (Chc (dim "DES")
+               des
+               (Chc (dim "DES3")
+                 des3
+                 (Chc (dim "TwoFish")
+                   twofish
+                   (Chc (dim "ThreeFish")
+                     threefish
+                     (mkVExpr . B $ False)
+                   )
+                 )
+               )
+             )
+           )
+         )
+        [Elems[create "KeySize" ksz]]
+        [Elems[check "KeySize" (One TInt) (mkVExpr . B $ False)]],
+      create "Algorithm" (foldChc ["NOALG", "AES", "Blowfish", "DES", "DES3", "TwoFish", "ThreeFish"]),
+      create "Mode" (foldChc ["NOMODE", "ECB", "CBC", "PCBC", "CTR", "CTS", "CFB", "OFB", "CCM", "EAX"]),
+      create "Padding" (foldChc ["NOPADDING","PKCS5", "ISO10126", "X923", "TBC"])
+    ]
+  ]
+  where
+    ksz = One . Ref $ "keysize"
+    aes = ksz .== 128 ||| ksz .== 192 ||| ksz .== 256
+    blowfish = ksz .>= 32 &&& ksz .<= 448 &&& ksz .% 8 .== 0
+    des = ksz .== 56
+    des3 = ksz .== 112 &&& ksz .== 168
+    twofish = aes
+    threefish = ksz .== 256 ||| ksz .== 512 ||| ksz .== 1024
+
+aesniDFU :: Model
+aesniDFU = Model [Param "keysize" (One TInt)]
+  [
+    Split (dim "AES")
+      [Elems[checkUnit "AESNI"]]
+      [],
+    Elems [
+      If (Chc (dim "AES")
+           aes
+           (Chc (dim "Blowfish")
+             blowfish
+             (Chc (dim "DES")
+               des
+               (Chc (dim "DES3")
+                 des3
+                 (mkVExpr . B $ False)
+               )
+             )
+           )
+         )
+        [Elems[create "KeySize" ksz]]
+        [Elems[check "KeySize" (One TInt) (mkVExpr . B $ False)]],
+      create "Algorithm" (foldChc ["NOALG", "AES", "Blowfish", "DES", "DES3"]),
+      create "Mode" (foldChc ["NOMODE", "ECB", "CBC", "PCBC", "CTR", "CTS", "CFB", "OFB"]),
+      create "Padding" (foldChc ["NOPADDING","PKCS5", "ISO10126"])
+    ]
+  ]
+  where
+    ksz = One . Ref $ "keysize"
+    aes = ksz .== 128 ||| ksz .== 192 ||| ksz .== 256
+    blowfish = ksz .>= 32 &&& ksz .<= 448 &&& ksz .% 8 .== 0
+    des = ksz .== 56
+    des3 = ksz .== 112 &&& ksz .== 168
+
+foldChc :: [T.Text] -> V Expr
+foldChc [] = error "whoops!"
+foldChc (start:names) = One . Lit $ foldl' f (One . S . Symbol $ start) names
+  where
+    f r n = Chc (BRef n) (One . S . Symbol $ n) r
+
+crossAppDFUs :: Dictionary
+crossAppDFUs = modelDict [("Javax", javaxDFU), ("AESNI", aesniDFU), ("BouncyCastle", bcDFU)]
 
 -- * Config
 
-crossAppConfig :: [V PVal]
-crossAppConfig = [comps, encs, encs, comps]
-  where
-    encs = foldl' f (One . S . Symbol $ "NoEnc") [
-          "AES128CTR"
-        , "AES128CBC"
-        , "AES256CTR"
-        , "AES256CBC"
-        , "Twofish128CTR"
-        , "Threefish256CTR"
-        , "FastButBroken"
-        , "SlowButSecure"
-      ]
-    comps = foldl' f (One . S . Symbol $ "nocomp") [
-          "bzip"
-        , "gzip"
-        , "pithy"
-        , "smallandslow"
-        , "bigandfast"
-      ]
-    f r n = Chc (BRef n) (One . S . Symbol $ n) r
+crossAppConfig :: Symbol -> Symbol -> Int -> [V PVal]
+crossAppConfig s c ksz = [One . S $ s, One . S $ c, One . I $ ksz]
 
 --
 -- * Requirements
 --
 
-crossAppReqs :: Double -> Double -> Double -> Profile
-crossAppReqs sec size eff = toProfile $ Model []
-  [Elems[
-    check "/Security" (One TFloat) (val .>= (mkVExpr . F $ sec)),
-    check "/CompRatio" (One TFloat) (val .<= (mkVExpr . F $ size)),
-    check "/Efficiency" (One TFloat) (val .<= (mkVExpr . F $ eff))
+crossAppReqs :: Symbol -> Int -> Symbol -> Symbol -> Profile
+crossAppReqs alg ksz mode pad = toProfile $ Model []
+  [ Elems [
+      In "Server" chk,
+      In "Client" chk
   ]]
+    where
+      chk = [ Elems [
+          check "Algorithm" (One TSymbol) (One (P2 (SS_B SEqu) val (mkVExpr . S $ alg))),
+          check "KeySize" (One TInt) (val .== (mkVExpr . I $ ksz)),
+          check "Mode" (One TSymbol) (One (P2 (SS_B SEqu) val (mkVExpr . S $ mode))),
+          check "Padding" (One TSymbol) (One (P2 (SS_B SEqu) val (mkVExpr . S $ pad)))
+        ]]
 
 --
 -- * Driver
@@ -163,8 +189,8 @@ data CrossAppOpts = CrossAppOpts
      { genDict   :: Bool
      , genModel  :: Bool
      , genInit   :: Bool
-     , genConfig :: Bool
-     , genReqs   :: Maybe (Double,Double,Double) }
+     , genConfig :: Maybe (String,String,Int)
+     , genReqs   :: Maybe (String,Int,String,String) }
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 parseCrossAppOpts :: Parser CrossAppOpts
@@ -181,20 +207,26 @@ parseCrossAppOpts = CrossAppOpts
        ( long "init"
       <> help "Generate initial resource environment" )
 
-  <*> switch
+  <*> (optional . option auto)
        ( long "config"
-      <> help "Generate default configuration" )
+      <> metavar "(server provider,client provider,keysize)"
+      <> help "Generate configuration by giving the name of the provider to use on the server and client, as well as the keysize to use" )
+
   <*> (optional . option auto)
        ( long "reqs"
-      <> metavar "(security,size,efficiency)"
-      <> help "Generate mission requirements based on desired security, message size, and efficiency (s/mb)" )
+      <> metavar "(alg,ksz,mode,pad)"
+      <> help "Generate mission requirements for a given algorithm, keysize, mode, and padding scheme (e.g. AES, 256, CTR, and PKCS5)" )
 
 runCrossApp :: CrossAppOpts -> IO ()
 runCrossApp opts = do
     when (genDict opts)   (writeJSON defaultDict crossAppDFUs)
     when (genModel opts)  (writeJSON defaultModel appModel)
     when (genInit opts)   (writeJSON defaultInit crossAppResEnv)
-    when (genConfig opts) (writeJSON defaultConfig crossAppConfig)
-    case (genReqs opts) of
-      Just (sec,size,eff) -> writeJSON defaultReqs (crossAppReqs sec size eff)
+    case (genConfig opts) of
+      Just (s,c,ksz) -> writeJSON defaultConfig (crossAppConfig (str2sym s) (str2sym c) ksz)
       Nothing -> return ()
+    case (genReqs opts) of
+      Just (alg,ksz,mode,pad) -> writeJSON defaultReqs (crossAppReqs (str2sym alg) ksz (str2sym mode) (str2sym pad))
+      Nothing -> return ()
+    where
+      str2sym = Symbol . T.pack
