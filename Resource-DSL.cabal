@@ -57,6 +57,7 @@ library
     , DSL.Expression
     , DSL.Model
     , DSL.Name
+    , DSL.Options
     , DSL.Parser
     , DSL.Path
     , DSL.Predicate

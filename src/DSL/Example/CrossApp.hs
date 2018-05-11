@@ -1,3 +1,5 @@
+{-# LANGUAGE DuplicateRecordFields #-}
+
 module DSL.Example.CrossApp where
 
 import Data.Data (Data,Typeable)
@@ -16,16 +18,19 @@ import DSL.Environment
 import DSL.Model
 import DSL.Serialize
 import DSL.Sugar
+import DSL.Options
 
 -- ** Initial environment
 
-crossAppResEnv :: ResEnv
-crossAppResEnv = envFromListAcc [
-    ("/Server/Hardware/AESNI", Chc (dim "SAESNI") (One (Just Unit)) (One Nothing)),
-    ("/Client/Hardware/AESNI", Chc (dim "CAESNI") (One (Just Unit)) (One Nothing)),
-    ("/Server/JCEUnlimitedStrength", Chc (dim "SJCEUS") (One (Just Unit)) (One Nothing)),
-    ("/Client/JCEUnlimitedStrength", Chc (dim "CJCEUS") (One (Just Unit)) (One Nothing))
+crossAppResEnv :: Bool -> Bool -> Bool -> Bool -> ResEnv
+crossAppResEnv a b c d = envFromListAcc [
+    ("/Server/Hardware/AESNI", f a),
+    ("/Client/Hardware/AESNI", f b),
+    ("/Server/JCEUnlimitedStrength", f c),
+    ("/Client/JCEUnlimitedStrength", f d)
   ]
+  where
+    f x = One (if x then (Just Unit) else Nothing)
 
 -- ** Application model
 
@@ -185,13 +190,33 @@ crossAppReqs alg ksz mode pad = toProfile $ Model []
 -- * Driver
 --
 
+data CAInit = CAInit {
+    serverAESNI :: Bool,
+    clientAESNI :: Bool,
+    serverJCEUS :: Bool,
+    clientJCEUS :: Bool
+  } deriving (Show,Eq,Read,Data,Typeable,Generic)
+
+data CAConfig = CAConfig {
+    serverProv :: String,
+    clientProv :: String,
+    keysize :: Int
+  } deriving (Show,Eq,Read,Data,Typeable,Generic)
+
+data CAReqs = CAReqs {
+    algorithm :: String,
+    keysize :: Int,
+    mode :: String,
+    padding :: String
+  } deriving (Show,Eq,Read,Data,Typeable,Generic)
+
 data CrossAppOpts = CrossAppOpts
      { genDict   :: Bool
      , genModel  :: Bool
-     , genInit   :: Bool
-     , genConfig :: Maybe (String,String,Int)
-     , genReqs   :: Maybe (String,Int,String,String) }
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
+     , genInit   :: Maybe CAInit
+     , genConfig :: Maybe CAConfig
+     , genReqs   :: Maybe CAReqs}
+  deriving (Eq,Read,Show,Data,Typeable,Generic)
 
 parseCrossAppOpts :: Parser CrossAppOpts
 parseCrossAppOpts = CrossAppOpts
@@ -203,30 +228,33 @@ parseCrossAppOpts = CrossAppOpts
        ( long "model"
       <> help "Generate application model" )
 
-  <*> switch
+  <*> (optional . option (readRecord "CAInit"))
        ( long "init"
-      <> help "Generate initial resource environment" )
+      <> metavar "(serverAESNI,clientAESNI,serverJCEUS,clientJCEUS)"
+      <> help "Generate initial resource environment by providing boolean values for server and client support of AESNI and JCE Unlimited Strength" )
 
-  <*> (optional . option auto)
+  <*> (optional . option (readRecord "CAConfig"))
        ( long "config"
-      <> metavar "(server provider,client provider,keysize)"
+      <> metavar "(serverProv,clientProv,keysize)"
       <> help "Generate configuration by giving the name of the provider to use on the server and client, as well as the keysize to use" )
 
-  <*> (optional . option auto)
+  <*> (optional . option (readRecord "CAReqs"))
        ( long "reqs"
-      <> metavar "(alg,ksz,mode,pad)"
+      <> metavar "(algorithm,keysize,mode,padding)"
       <> help "Generate mission requirements for a given algorithm, keysize, mode, and padding scheme (e.g. AES, 256, CTR, and PKCS5)" )
 
 runCrossApp :: CrossAppOpts -> IO ()
 runCrossApp opts = do
     when (genDict opts)   (writeJSON defaultDict crossAppDFUs)
     when (genModel opts)  (writeJSON defaultModel appModel)
-    when (genInit opts)   (writeJSON defaultInit crossAppResEnv)
+    case (genInit opts) of
+      Just (CAInit sa ca sj cj) -> writeJSON defaultInit (crossAppResEnv sa ca sj cj)
+      Nothing -> return ()
     case (genConfig opts) of
-      Just (s,c,ksz) -> writeJSON defaultConfig (crossAppConfig (str2sym s) (str2sym c) ksz)
+      Just (CAConfig s c ksz) -> writeJSON defaultConfig (crossAppConfig (str2sym s) (str2sym c) ksz)
       Nothing -> return ()
     case (genReqs opts) of
-      Just (alg,ksz,mode,pad) -> writeJSON defaultReqs (crossAppReqs (str2sym alg) ksz (str2sym mode) (str2sym pad))
+      Just (CAReqs alg ksz mode pad) -> writeJSON defaultReqs (crossAppReqs (str2sym alg) ksz (str2sym mode) (str2sym pad))
       Nothing -> return ()
     where
       str2sym = Symbol . T.pack

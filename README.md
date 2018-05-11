@@ -251,11 +251,19 @@ To see the inputs that can be generated for this example, pass `--help` to the
 ```
 
 First, generate some input files. The following command generates the cross app
-example dictionary, application model, and the initial
-resource environment
+example dictionary and application model.
 
 ```bash
-> stack exec resource-dsl -- example crossapp --dict --model --init
+> stack exec resource-dsl -- example crossapp --dict --model
+```
+
+Next, we generate the initial resource environment. The initial resource environment is specified
+by setting boolean values for whether the server or client support either AESNI or the JCE Unlimited
+Strength provisions. For example, to set an initial resource environement where the server supports both
+but the client does not, we would run the following command:
+
+```bash
+> stack exec resource-dsl -- example crossapp --init \{serverAESNI=True,clientAESNI=False,serverJCEUS=True,clientJCEUS=False\}
 ```
 
 Next, we generate a configuration for the example. To do this, we choose an encryption provider
@@ -264,7 +272,7 @@ encryption algorithm. For example, to use the default `javax` API on the server 
 on the client, with 128-bit encryption, you would call:
 
 ```bash
-> stack exec resource-dsl -- example crossapp --config \(\"Javax\",\"BouncyCastle\",128\)
+> stack exec resource-dsl -- example crossapp --config \{serverProv=\"Javax\",clientProv=\"BouncyCastle\",keysize=128\}
 ```
 
 The available DFUs to load on the server and client are `Javax`, `BouncyCastle`, and `AESNI`.
@@ -276,7 +284,7 @@ command generates mission requirements that specify that both client and server 
 AES128 encryption in CBC mode with PKCS5 padding:
 
 ```bash
-> stack exec resource-dsl -- example crossapp --reqs \(\"AES\",128,\"CBC\",\"PKCS5\"\)
+> stack exec resource-dsl -- example crossapp --reqs \{algorithm=\"AES\",keysize=128,mode=\"CBC\",padding=\"PKCS5\"\}
 ```
 
 Once the mission requirements are generated, check the example configuration against the requirements
