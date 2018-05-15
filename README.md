@@ -80,17 +80,42 @@ following input file.
  
  * `inbox/configuration.json` -- arguments to application model
 
-A user can also provide a _selection_ to the `check` subcommand, via the
-`-s` or `--selection` options. A selection is a string representing a boolean
-formula determing which variants should be executed. For example, calling
+A user can also provide a _selection_ to the `check` subcommand.
+A selection sets certain features on or off prior to execution of the program.
+The simplest way to perform a selection is via the `--on` or `--off` options.
+The `--on` and `--off` options take as arguments a list of strings representing
+the names of various features present in the program. For example, to run the
+program with features `A` and `B` on and feature `C` off, you would use this command:
+
+```bash
+> stack exec resource-dsl -- check --on \["A","B"\] --off \["C"\]
+```
+
+If a feature is left unselected, then it is evaluated as if it were simultaneously
+on and off, producing a _variational_ value at the end that describes both alternatives.
+
+Selections can also be specified via the `-f` or `--formula` option, which takes a
+boolean formula that performs a selection. This allows for more expressiveness in
+describing selections, as a user can describe any valid boolean formula using the
+literals `true` and `false`, negation `!`, disjunction `||`, and conjunction `&&`.
+For example, the following expresses the same selection as the example above:
 
 
 ```bash
-> stack exec resource-dsl -- check -s A&&(!B)
+> stack exec resource-dsl -- check -f "A&&B&&(!C)"
 ```
 
-Will run the check command with a configuration where variant `A` is assumed
-to be true and `B` is assumed to be false.
+If a total configuration is desired, where all features are set to be either on
+or off with no variational evaluation performed, the user can use the `-t` or
+`--total` option, which takes a list of the strings representing the features
+that should be turned on (just like the `--on` option). The difference from the
+`--on` option is that all other features left unspecified are assumed to be set
+to off. For example, this command turns `A` and `B` on and all other features off:
+
+```bash
+> stack exec resource-dsl -- check -t \["A","B"\]
+```
+
 
 Finally, the resulting resource environment can be checked against a set of
 mission requirements, which is itself just another resource profile, which is
