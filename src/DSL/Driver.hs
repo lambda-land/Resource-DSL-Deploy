@@ -9,7 +9,8 @@ import Data.Monoid ((<>))
 import Options.Applicative
 import System.Environment (getArgs)
 import System.Exit
-import Data.SBV (bnot)
+import qualified Data.Text as T
+import Data.SBV (bnot,(&&&))
 
 import DSL.Types hiding (Check)
 import DSL.Model
@@ -37,43 +38,48 @@ runDriver = do
       Example (Network opts)  -> runNetwork opts
       Example (CrossApp opts) -> runCrossApp opts
 
+getSel :: Select a => SelOpts -> (a -> a)
+getSel (Formula s) = case (parseBExprString s) of
+                       Right b -> sel b
+                       Left e -> do
+                         error $ "Could not parse selection:\n" ++ e
+getSel (OnOff ns fs) =
+  case (ns,fs) of
+    (Just (x:xs), Just (y:ys)) -> sel ((f (x:xs)) &&& (g (y:ys)))
+    (Just (x:xs), _) -> sel $ f (x:xs)
+    (_, Just (y:ys)) -> sel $ g (y:ys)
+    _ -> id
+  where
+    f [] = error "impossible"
+    f [x] = BRef (T.pack x)
+    f (x:xs) = BRef (T.pack x) &&& f xs
+    g [] = error "impossible"
+    g [x] = bnot (BRef (T.pack x))
+    g (x:xs) = bnot (BRef (T.pack x)) &&& g xs
+getSel (Total []) = conf (BLit False)
+getSel (Total xs) = conf $ f xs
+  where
+    f [] = error "impossible"
+    f [x] = BRef (T.pack x)
+    f (x:xs) = (BRef (T.pack x)) &&& f xs
+
 runCheck :: CheckOpts -> IO ()
 runCheck opts = do
-    d <- case selection opts of
-            Just s -> case parseBExprString s of
-              Right b -> return (Just b)
-              Left e -> do
-                putStrLn ("Could not parse selection:\n" ++ e)
-                exitWith (ExitFailure 1)
-            Nothing -> return Nothing
-    dict'  <- readJSON (dictFile opts) asDictionary
-    let dict = case d of
-          Just d' -> selectDict d' dict'
-          Nothing -> dict'
-    init'  <- readJSON (initFile opts) asResEnv
-    let init = case d of
-          Just d' -> fmap (select d') init'
-          Nothing -> init'
-    model' <- readJSON (modelFile opts) asModel
-    let model = case d of
-          Just d' -> selectModel d' model'
-          Nothing -> model'
+    let s x = x >>= return . (getSel (selection opts))
+    dict  <- s $ readJSON (dictFile opts) asDictionary
+    init  <- s $ readJSON (initFile opts) asResEnv
+    model <- s $ readJSON (modelFile opts) asModel
     args' <- case configValue opts of
               Just xs -> decodeJSON xs asConfig
               Nothing -> readJSON (configFile opts) asConfig
-    let args = map (One . Lit) (case d of
-          Just d' -> map (select d') args'
-          Nothing -> args')
+    let args = map (One . Lit . s) args'
     sctx <- runWithDict dict init (loadModel model args) `catchEffErr` (opts, 2,"Error executing application model ...")
     writeOutput (outputFile opts) sctx
     if noReqs opts then do
       writeError (errorFile opts) sctx
       writeSuccess (successFile opts) sctx
     else do
-      reqs' <- readJSON (reqsFile opts) asProfile
-      let reqs = case d of
-                   Just d' -> selectProfile d' reqs'
-                   Nothing -> reqs'
+      reqs <- s $ readJSON (reqsFile opts) asProfile
       let (e, sctx') = runWithDict' dict sctx (loadProfile reqs [])
       writeError (errorFile opts) sctx'
       writeSuccess (successFile opts) sctx'
@@ -89,13 +95,6 @@ catchEffErr (Left _, s) (opts, code,msg) = do
   putStrLn (msg)
   exitWith (ExitFailure code)
 catchEffErr (Right _, s) _ = return s
-
-selectDict :: BExpr -> Dictionary -> Dictionary
-selectDict d dict = fmap (selectEntry d) dict
-
-selectEntry :: BExpr -> Entry -> Entry
-selectEntry d (ProEntry p) = ProEntry (selectProfile d p)
-selectEntry d (ModEntry m) = ModEntry (selectModel d m)
 
 writeError :: FilePath -> StateCtx -> IO ()
 writeError fp (SCtx _ _ e) = writeJSON fp e
@@ -115,10 +114,15 @@ data Command
      | Example Example
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
+data SelOpts = Formula String
+             | OnOff {on :: Maybe [String], off :: Maybe [String]}
+             | Total [String]
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
+
 data CheckOpts = CheckOpts
      { noReqs      :: Bool
      , configValue :: Maybe String
-     , selection   :: Maybe String
+     , selection   :: SelOpts
      , dictFile    :: FilePath
      , initFile    :: FilePath
      , modelFile   :: FilePath
@@ -153,7 +157,6 @@ parseCommand = subparser
         (info (Example <$> (helper <*> parseExample))
         (progDesc "Generate example inputs and put them in the inbox")) )
 
-
 parseExample :: Parser Example
 parseExample = subparser
      ( command "location"
@@ -167,6 +170,31 @@ parseExample = subparser
         (progDesc "Cross application dependencies example"))
      )
 
+parseSel :: Parser SelOpts
+parseSel = formula <|> onOff <|> total
+  where
+    formula = Formula
+      <$> strOption
+          ( short 'f'
+          <> long "formula"
+          <> metavar "STRING"
+          <> help "A string representing a boolean expression. Selects variants to be executed." )
+    onOff = OnOff
+      <$> (optional . option auto)
+          ( long "on"
+          <> help ("Provide a list of strings representing the names of features" <>
+          " that will be set to True and selected on.") )
+      <*> (optional . option auto)
+          ( long "off"
+          <> help ("Provide a list of strings representing the names of features" <>
+          " that will be set to False and selected on.") )
+    total = Total
+      <$> option auto
+          ( long "total"
+          <> short 't'
+          <> help ("Provide a list of strings representing the names of features" <>
+          " that will be set to True and selected on. All other features will be" <>
+          " set to False.") )
 
 parseCheckOpts :: Parser CheckOpts
 parseCheckOpts = CheckOpts
@@ -181,11 +209,7 @@ parseCheckOpts = CheckOpts
       <> metavar "STRING"
       <> help "Arguments to the application model; overrides --config-file if present" )
 
-  <*> (optional . strOption)
-       ( short 's'
-      <> long "selection"
-      <> metavar "STRING"
-      <> help "A string representing a boolean expression. Selects variants to be executed." )
+  <*> parseSel
 
   <*> pathOption
        ( long "dict-file"

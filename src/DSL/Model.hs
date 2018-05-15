@@ -13,7 +13,6 @@ import DSL.Path
 import DSL.Profile
 import DSL.Resource
 import DSL.SegList
-import DSL.SAT
 
 
 --
@@ -116,21 +115,3 @@ execStmt stmt@(Load comp args) = unVM (do
     case res of
       S cid -> toVM $ loadComp cid args
       _ -> VM $ vError (StmtE $ StmtError stmt LoadTypeError res)) >> return ()
-
-selectModel :: BExpr -> Model -> Model
-selectModel d (Model ps blk) = Model (map (selectParam d) ps) (selectBlk d blk)
-
-selectBlk :: BExpr -> Block -> Block
-selectBlk _ [] = []
-selectBlk d ((Elems xs):ys) = Elems (map (selectStmt d) xs) : selectBlk d ys
-selectBlk d ((Split d' l r):xs) | d |=>| d' = selectBlk d l ++ selectBlk d xs
-                                | d |=>!| d' = selectBlk d r ++ selectBlk d xs
-                                | otherwise = Split d' (selectBlk d l) (selectBlk d r) : selectBlk d xs
-
-selectStmt :: BExpr -> Stmt -> Stmt
-selectStmt d (Do p e) = Do p (selectEff d e)
-selectStmt d (If c t e) = If (selectExpr d c) (selectBlk d t) (selectBlk d e)
-selectStmt d (In p blk) = In p (selectBlk d blk)
-selectStmt d (For v e blk) = For v (selectExpr d e) (selectBlk d blk)
-selectStmt d (Let v e blk) = Let v (selectExpr d e) (selectBlk d blk)
-selectStmt d (Load e es) = Load (selectExpr d e) (map (selectExpr d) es)
