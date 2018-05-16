@@ -24,16 +24,13 @@ import DSL.Name
 
 -- | An environment is a map from keys to values.
 newtype Env k v = Env { envAsMap :: Map k v }
-  deriving (Eq,Show)
+  deriving (Eq,Show,Functor,Foldable)
 
 type VEnv k v = Env k (VOpt v)
 
 -- | Apply a function to the map that implements this environment.
 envOnMap :: (Map a b -> Map c d) -> Env a b -> Env c d
 envOnMap f (Env m) = Env (f m)
-
-instance Functor (Env k) where
-  fmap = envOnMap . fmap
 
 -- | Error thrown when a name is not found in the environment.
 data NotFound = forall k. (Eq k, Show k, Typeable k) => NotFound k [k]
