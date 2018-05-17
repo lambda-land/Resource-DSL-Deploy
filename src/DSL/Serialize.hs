@@ -14,6 +14,7 @@ import Data.Vector (fromList)
 import System.Directory (createDirectoryIfMissing)
 import System.FilePath (takeDirectory)
 import System.Exit
+import qualified Data.Set as S
 
 import qualified Data.ByteString.Lazy.Char8 as B
 
@@ -37,6 +38,7 @@ defaultReqs   = "inbox/requirements.json"
 defaultOutput = "outbox/resources.json"
 defaultError  = "outbox/error.json"
 defaultCtx    = "outbox/success.json"
+defaultBest   = "outbox/best.json"
 
 -- ** Errors
 
@@ -364,3 +366,13 @@ asProfile = Profile
 
 instance ToJSON Error where
   toJSON e = String (pretty e)
+
+instance ToJSON SuccessCtx where
+  toJSON (SuccessCtx b vs) = object
+    [ "context" .= toJSON b
+    , "cfgSpace" .= toJSON vs ]
+
+asSuccess :: ParseIt SuccessCtx
+asSuccess = SuccessCtx
+    <$> key "context" asBExpr
+    <*> key "cfgSpace" (S.fromList <$> eachInArray asText)

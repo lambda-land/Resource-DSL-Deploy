@@ -13,13 +13,14 @@ import System.Environment (getArgs)
 import System.Exit
 import qualified Data.Text as T
 import qualified Data.Set as S
-import Data.SBV (bnot,(&&&))
+import Data.SBV (bnot,(&&&),AllSatResult(..),SMTResult(..))
 
 import DSL.Types hiding (Check)
 import DSL.Model
 import DSL.Name
 import DSL.Profile
 import DSL.Resource
+import DSL.SAT
 import DSL.Serialize
 import DSL.Parser (parseBExprString)
 import DSL.V
@@ -45,9 +46,9 @@ runDriver = do
 
 getBExpr :: S.Set Var -> SelOpts -> Maybe BExpr
 getBExpr _ (Formula s) = case (parseBExprString s) of
-                         Right b -> Just b
-                         Left e -> do
-                           error $ "Could not parse selection:\n" ++ e
+                            Right b -> Just b
+                            Left e -> do
+                              error $ "Could not parse selection:\n" ++ e
 getBExpr _ (OnOff ns fs) =
   case (ns,fs) of
     (Just (x:xs), Just (y:ys)) -> Just ((f (x:xs)) &&& (g (y:ys)))
@@ -61,14 +62,18 @@ getBExpr _ (OnOff ns fs) =
     g [] = error "impossible"
     g [x] = bnot (BRef (T.pack x))
     g (x:xs) = bnot (BRef (T.pack x)) &&& g xs
-getBExpr vars (Total xs) = let
+getBExpr vars (Total xs) | null vars = Nothing
+                         | otherwise = let
                              xs' = fmap T.pack xs
-                             v = S.toList $ vars S.\\ (S.fromList xs')
+                             s = S.fromList xs' `S.intersection` vars
+                             xs'' = S.toList s
+                             vars' = S.toList $ vars S.\\ s
                            in
-                             totalHelper xs' v
+                             totalHelper xs'' vars'
 
 totalHelper :: [Var] -> [Var] -> Maybe BExpr
 totalHelper [] [] = Nothing
+totalHelper [] (y:ys) = Just $ foldr (\a b -> bnot (BRef a) &&& b) (bnot $ BRef y) ys
 totalHelper [x] ys = Just $ foldr (\a b -> bnot (BRef a) &&& b) (BRef x) ys
 totalHelper xs [y] = Just $ foldr (\a b -> BRef a &&& b) (bnot (BRef y)) xs
 totalHelper (x:xs) ys = Just $ foldr (\a b -> bnot (BRef a) &&& b)
@@ -115,26 +120,27 @@ runCheck opts = do
     let args = map (One . Lit . s) args'
     let vars = getVars dict' <> getVars init' <> getVars model' <> foldMap getVars args'
     let b = getBExpr vars (selection opts)
-    sctx <- runWithDict dict init (loadModel model args) `catchEffErr` (opts, 2,"Error executing application model ...", b)
+    sctx <- runWithDict dict init (loadModel model args) `catchEffErr` (opts, 2,"Error executing application model ...", b, vars)
     writeOutput (outputFile opts) sctx
     if noReqs opts then do
       writeError (errorFile opts) sctx
-      writeSuccess (successFile opts) sctx b
+      writeSuccess (successFile opts) sctx b vars
     else do
       reqs' <- readJSON (reqsFile opts) asProfile
       let reqs = s reqs'
       let (e, sctx') = runWithDict' dict sctx (loadProfile reqs [])
       writeError (errorFile opts) sctx'
-      writeSuccess (successFile opts) sctx' (getBExpr (vars <> getVars reqs') (selection opts))
+      let vars' = vars <> getVars reqs'
+      writeSuccess (successFile opts) sctx' (getBExpr vars' (selection opts)) vars'
       case e of
         (Left _) -> putStrLn "Requirements not satisfied ..." >> exitWith (ExitFailure 3)
         (Right _) -> return ()
     putStrLn "Success"
 
-catchEffErr :: (Either a b, StateCtx) -> (CheckOpts, Int, String, Maybe BExpr) -> IO StateCtx
-catchEffErr (Left _, s) (opts, code,msg,b) = do
+catchEffErr :: (Either a b, StateCtx) -> (CheckOpts, Int, String, Maybe BExpr, S.Set Var) -> IO StateCtx
+catchEffErr (Left _, s) (opts, code,msg,b,vs) = do
   writeError (errorFile opts) s
-  writeSuccess (successFile opts) s b
+  writeSuccess (successFile opts) s b vs
   putStrLn (msg)
   exitWith (ExitFailure code)
 catchEffErr (Right _, s) _ = return s
@@ -142,15 +148,34 @@ catchEffErr (Right _, s) _ = return s
 writeError :: FilePath -> StateCtx -> IO ()
 writeError fp (SCtx _ _ e) = writeJSON fp e
 
-writeSuccess :: FilePath -> StateCtx -> Maybe BExpr -> IO ()
-writeSuccess fp (SCtx _ s _) Nothing = writeJSON fp (bnot s)
-writeSuccess fp (SCtx _ s _) (Just b) = writeJSON fp (bnot s &&& b)
+writeSuccess :: FilePath -> StateCtx -> Maybe BExpr -> S.Set Var -> IO ()
+writeSuccess fp (SCtx _ s _) Nothing vs = writeJSON fp (SuccessCtx (bnot s) vs)
+writeSuccess fp (SCtx _ s _) (Just b) vs = writeJSON fp (SuccessCtx (bnot s &&& b) vs)
 
 writeOutput :: FilePath -> StateCtx -> IO ()
 writeOutput fp (SCtx o _ _) = writeJSON fp o
 
+writeBest :: FilePath -> AllSatResult -> IO ()
+writeBest fp r = writeFile fp (show r)
+
 runVerify :: Verify -> IO ()
-runVerify = _
+runVerify opts = do
+    s <- readJSON (successF opts) asSuccess
+    let b = case getBExpr (cfgSpc s) (verOpts opts) of
+              Just b -> b &&& (ctx s)
+              Nothing -> ctx s
+    r <- satResults (maxRes opts) b
+    writeBest (bestFile opts) r
+    if f r then
+      putStrLn "Success"
+    else do
+      putStrLn "No successful configurations found."
+      exitWith (ExitFailure 4)
+  where
+    f (AllSatResult (_, _, xs)) = foldr g True xs
+    g (Satisfiable _ _) b = b && True
+    g _ _ = False
+
 
 --
 -- * Command Line Arguments
@@ -188,8 +213,12 @@ data Example
      | CrossApp CrossAppOpts
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
-data Verify = VerifyOpts { verOpts :: SelOpts }
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
+data Verify = VerifyOpts {
+      verOpts :: SelOpts
+    , successF :: FilePath
+    , bestFile :: FilePath
+    , maxRes :: Int
+  } deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 
 getCommand :: IO Command
@@ -299,11 +328,29 @@ parseCheckOpts = CheckOpts
        <> value defaultError
        <> help "Global error value")
   <*> pathOption
-       ( long "success-context"
+       ( long "success-file"
        <> value defaultCtx
        <> help "Global success context")
   where
     pathOption mods = strOption (mods <> showDefault <> metavar "FILE")
 
 parseVerify :: Parser Verify
-parseVerify = VerifyOpts <$> parseSel
+parseVerify = VerifyOpts
+  <$> parseSel
+  <*> pathOption
+       ( long "success-file"
+       <> value defaultCtx
+       <> help "Global success context")
+  <*> pathOption
+       ( long "best-file"
+       <> value defaultBest
+       <> help "List of possible successful configurations")
+  <*> option auto
+       ( long "max-results"
+       <> short 'm'
+       <> value 25
+       <> showDefault
+       <> metavar "INTEGER"
+       <> help "Maximum successful configurations shown")
+  where
+    pathOption mods = strOption (mods <> showDefault <> metavar "FILE")

@@ -16,6 +16,7 @@ import Data.SBV (Boolean(..),SBool,SInteger,SInt8,SInt16,SInt32,SInt64)
 import qualified Data.SBV as SBV
 import Data.Fixed (mod')
 import Data.Text
+import Data.Set (Set)
 
 import DSL.Name
 
@@ -553,3 +554,6 @@ data Error = EnvE (NotFound)
            | EffE (EffectError)
            | StmtE (StmtError)
     deriving (Eq,Show)
+
+data SuccessCtx = SuccessCtx { ctx :: BExpr, cfgSpc :: Set Var }
+  deriving (Eq,Show)

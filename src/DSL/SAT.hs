@@ -1,7 +1,7 @@
 module DSL.SAT where
 
 import Control.Monad (liftM2)
-import Data.SBV (Boolean(..),SBool,sInt32,sBool,Symbolic,isSatisfiable)
+import Data.SBV (Boolean(..),SBool,sInt32,sBool,Symbolic,isSatisfiable,allSatWith,AllSatResult,z3,allSatMaxModelCount)
 import System.IO.Unsafe (unsafePerformIO)
 import Data.Text (unpack)
 
@@ -13,6 +13,9 @@ import DSL.Predicate
 --   and checked by a SAT solver.
 class Boolean b => SAT b where
   toSymbolic :: b -> Symbolic SBool
+
+satResults :: SAT b => Int -> b -> IO AllSatResult
+satResults i p = allSatWith z3{allSatMaxModelCount = Just i} $ toSymbolic p
 
 -- | Is the predicate satisfiable?
 sat :: SAT b => b -> Bool
