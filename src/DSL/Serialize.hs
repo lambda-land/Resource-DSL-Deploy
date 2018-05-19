@@ -38,7 +38,7 @@ defaultReqs   = "inbox/requirements.json"
 defaultOutput = "outbox/resources.json"
 defaultError  = "outbox/error.json"
 defaultCtx    = "outbox/success.json"
-defaultBest   = "outbox/best.json"
+defaultBest   = "outbox/best.txt"
 
 -- ** Errors
 

@@ -48,25 +48,25 @@ To see the options for a particular subcommand, you can use `--help` on that
 subcommand, for example:
 
 ```bash
-> stack exec resource-dsl -- check --help
+> stack exec resource-dsl -- run --help
 ```
 
 
-## Checking resource scenarios
+## Running resource scenarios
 
-Using the `check` subcommand, the executable can attempt to load an application
+Using the `run` subcommand, the executable can attempt to load an application
 model into an initial resource environment and optionally check whether the
 resulting resource environment satisfies a set of mission requirements.
 
 
 ### Inputs
 
-All inputs to the `check` subcommand are passed via JSON. The schemas for these
+All inputs to the `run` subcommand are passed via JSON. The schemas for these
 inputs can be found in the `json` subdirectory of this project.
 
 By default, inputs are passed via an `inbox` subdirectory in the current
 working directory. However, the location of each file can be changed using
-options to the `check` subcommand. 
+options to the `run` subcommand. 
 
 The following input files are required:
 
@@ -80,7 +80,7 @@ following input file.
  
  * `inbox/configuration.json` -- arguments to application model
 
-A user can also provide a _selection_ to the `check` subcommand.
+A user can also provide a _selection_ to the `run` subcommand.
 A selection sets certain features on or off prior to execution of the program.
 The simplest way to perform a selection is via the `--on` or `--off` options.
 The `--on` and `--off` options take as arguments a list of strings representing
@@ -88,7 +88,7 @@ the names of various features present in the program. For example, to run the
 program with features `A` and `B` on and feature `C` off, you would use this command:
 
 ```bash
-> stack exec resource-dsl -- check --on \["A","B"\] --off \["C"\]
+> stack exec resource-dsl -- run --on \[\"A\",\"B\"\] --off \[\"C\"\]
 ```
 
 If a feature is left unselected, then it is evaluated as if it were simultaneously
@@ -102,7 +102,7 @@ For example, the following expresses the same selection as the example above:
 
 
 ```bash
-> stack exec resource-dsl -- check -f "A&&B&&(!C)"
+> stack exec resource-dsl -- run -f "A&&B&&(!C)"
 ```
 
 If a total configuration is desired, where all features are set to be either on
@@ -113,7 +113,7 @@ that should be turned on (just like the `--on` option). The difference from the
 to off. For example, this command turns `A` and `B` on and all other features off:
 
 ```bash
-> stack exec resource-dsl -- check -t \["A","B"\]
+> stack exec resource-dsl -- run -t \[\"A\",\"B\"\]
 ```
 
 
@@ -123,14 +123,14 @@ provided in the following input file.
  
  * `inbox/requirements.json` -- mission requirements
 
-Alternatively, you can pass the `--no-reqs` option to the `check` subcommand to
+Alternatively, you can pass the `--no-reqs` option to the `run` subcommand to
 generate the output resource environment without checking it against any
 mission requirements.
 
 
 ### Outputs
 
-When the `check` subcommand is run, there are a number of possible outcomes.
+When the `run` subcommand is run, there are a number of possible outcomes.
 In the case that there is an error in loading the input, such as a missing
 file or an error parsing the JSON input, execution terminates with an exit
 code of 1.
@@ -156,6 +156,61 @@ There are three possible output files produced when the application is run:
   
 Only the first two files are produced in the case that the application model
 fails to load, exiting with code 2.
+
+## Checking a configuration
+
+As we saw above, we can specify specific features that can be turned on and off
+for a given model. We call a full group of these features a _configuration_. If
+a feature is set to be neither on or off when a call to `run` is made, it is run
+variationally, collecting results for both alternatives. This then produces a
+variational result, where some configurations pass the mission requirements while
+others may fail. In order to extract and query these variational results, our
+application provides the `check` subcommand.
+
+When run, the `check` subcommand will exit with exit code 0 if there is a least
+one successful configuration based off of the last call to `run`; otherwise, if there
+are no successful configurations, it will exit with code 1. If there are successful
+configurations they will be output to the output file, which defaults to `outbox/best.txt`.
+For example, this command will simply check the output of the last call to `run` for
+whether there were any succesful configurations:
+
+```bash
+> stack exec resource-dsl -- check
+```
+
+The `check` command needs to know where it can find the `success.json` file of a previous
+call to run. By default it simply looks in `outbox/success.json` but an alternate filepath
+can be provided via the `--success-file` option. The output file defaults to `outbox/best.txt`
+but this can be modified via the `--best-file` option.
+
+By default the `check` command outputs a maximum of 25 sample successful configurations in its
+output file. To change the maximum number of sample configurations use the `-m` or `--maxresults`
+option. For example, the following command reads its input from the file `old-success.json` and
+outputs a maximum of 10 results to `output.txt`:
+
+```bash
+> stack exec resource-dsl -- check -m 10 --success-file old-success.json --best-file output.txt
+```
+
+Finally, we can constrain the configurations we check. For example, say we have some features
+`A` and `B` and we would like to know if there are any successful configurations with `A` turned on
+and `B` turned off.
+We can check this using the same system of inputs described above for preconfiguring calls
+to `run`. So for our example, we would call:
+
+```bash
+> stack exec resource-dsl -- check --on \[\"A\"\] --off \[\"B\"\]
+```
+
+This would then output only configurations that were successful and included `A` on and `B` off.
+
+Similar to above, we can also pass boolean formulas describing configurations via the
+`-f` or `--formula` option.
+
+If we only wish to check a single configuration we can use the `-t` or `--total` option,
+which takes a list of features that should be turned on and sets all other features to
+off.
+
 
 ## Generating example inputs
 
@@ -205,7 +260,7 @@ environment we generated above, which fails on loading the application model
 (exit code 2) since the required `Ext.BT` resource is missing:
 
 ```bash
-> stack exec resource-dsl -- check --config [\"gps-bluetooth\"]
+> stack exec resource-dsl -- run --config [\"gps-bluetooth\"]
 ```
 
 Alternatively, we can load the `gps-usb` DFU, which loads successfully but
@@ -213,14 +268,14 @@ fails the mission requirements check (exit code 3) since the SAASM feature is
 not supported:
 
 ```bash
-> stack exec resource-dsl -- check --config [\"gps-usb\"]
+> stack exec resource-dsl -- run --config [\"gps-usb\"]
 ```
 
 Finally, we can load the `gps-saasm` DFU, which loads successfully and passes
 the mission requirements (exit code 0):
 
 ```bash
-> stack exec resource-dsl -- check --config [\"gps-saasm\"]
+> stack exec resource-dsl -- run --config [\"gps-saasm\"]
 ```
 
 
@@ -243,10 +298,10 @@ per minute, where images are scaled by a factor of 1.0 (i.e. no scaling).
 > stack exec resource-dsl -- example network --dict --model --reqs --init 5000 --config \(2,30,5,1.0\)
 ```
 
-We can check this configuration by executing the following command:
+We can run this configuration by executing the following command:
 
 ```bash
-> stack exec resource-dsl -- check
+> stack exec resource-dsl -- run
 ```
 
 However, this fails when checking the mission requirements (exit code 3) since
@@ -263,7 +318,7 @@ by a factor of 0.4 (i.e. 40% of the original size).
 This configuration passes the mission requirements (exit code 0):
 
 ```bash
-> stack exec resource-dsl -- check
+> stack exec resource-dsl -- run
 ```
 
 ## Cross Application Dependencies Example
@@ -316,7 +371,7 @@ Once the mission requirements are generated, check the example configuration aga
 by running this command:
 
 ```bash
-> stack exec resource-dsl -- check
+> stack exec resource-dsl -- run
 ```
 
 If there is some variant that meets the mission requirements, it will return with exit code 0. Otherwise,

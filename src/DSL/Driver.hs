@@ -38,11 +38,11 @@ runDriver :: IO ()
 runDriver = do
     cmd <- getCommand
     case cmd of
-      Check opts -> runCheck opts
+      Run opts -> run opts
       Example (Location opts) -> runLocation opts
       Example (Network opts)  -> runNetwork opts
       Example (CrossApp opts) -> runCrossApp opts
-      Verify opts -> runVerify opts
+      Check opts -> runCheck opts
 
 getBExpr :: S.Set Var -> SelOpts -> Maybe BExpr
 getBExpr _ (Formula s) = case (parseBExprString s) of
@@ -105,8 +105,8 @@ getSel (Total xs) = conf $ f xs
     f [x] = BRef (T.pack x)
     f (x:xs) = (BRef (T.pack x)) &&& f xs
 
-runCheck :: CheckOpts -> IO ()
-runCheck opts = do
+run :: RunOpts -> IO ()
+run opts = do
     let s = getSel (selection opts)
     dict' <- readJSON (dictFile opts) asDictionary
     let dict = s dict'
@@ -137,7 +137,7 @@ runCheck opts = do
         (Right _) -> return ()
     putStrLn "Success"
 
-catchEffErr :: (Either a b, StateCtx) -> (CheckOpts, Int, String, Maybe BExpr, S.Set Var) -> IO StateCtx
+catchEffErr :: (Either a b, StateCtx) -> (RunOpts, Int, String, Maybe BExpr, S.Set Var) -> IO StateCtx
 catchEffErr (Left _, s) (opts, code,msg,b,vs) = do
   writeError (errorFile opts) s
   writeSuccess (successFile opts) s b vs
@@ -158,8 +158,8 @@ writeOutput fp (SCtx o _ _) = writeJSON fp o
 writeBest :: FilePath -> AllSatResult -> IO ()
 writeBest fp r = writeFile fp (show r)
 
-runVerify :: Verify -> IO ()
-runVerify opts = do
+runCheck :: CheckOpts -> IO ()
+runCheck opts = do
     s <- readJSON (successF opts) asSuccess
     let b = case getBExpr (cfgSpc s) (verOpts opts) of
               Just b -> b &&& (ctx s)
@@ -182,9 +182,9 @@ runVerify opts = do
 --
 
 data Command
-     = Check CheckOpts
+     = Run RunOpts
      | Example Example
-     | Verify Verify
+     | Check CheckOpts
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 data SelOpts = Formula String
@@ -192,7 +192,7 @@ data SelOpts = Formula String
              | Total [String]
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
-data CheckOpts = CheckOpts
+data RunOpts = RunOpts
      { noReqs      :: Bool
      , configValue :: Maybe String
      , selection   :: SelOpts
@@ -213,7 +213,7 @@ data Example
      | CrossApp CrossAppOpts
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
-data Verify = VerifyOpts {
+data CheckOpts = CheckOpts {
       verOpts :: SelOpts
     , successF :: FilePath
     , bestFile :: FilePath
@@ -230,11 +230,11 @@ getCommand = getArgs >>= handleParseResult . execParserPure pref desc
 parseCommand :: Parser Command
 parseCommand = subparser
      ( command "run"
-        (info (Check <$> (helper <*> parseCheckOpts))
+        (info (Run <$> (helper <*> parseRunOpts))
         (progDesc ("Execute an application model on a given resource environment; "
           ++ "optionally run result against given mission requirements")))
     <> command "check"
-        (info (Verify <$> (helper <*> parseVerify))
+        (info (Check <$> (helper <*> parseCheck))
         (progDesc "Check a configuration against the latest run call"))
     <> command "example"
         (info (Example <$> (helper <*> parseExample))
@@ -279,8 +279,8 @@ parseSel = formula <|> onOff <|> total
           " that will be set to True and selected on. All other features will be" <>
           " set to False.") )
 
-parseCheckOpts :: Parser CheckOpts
-parseCheckOpts = CheckOpts
+parseRunOpts :: Parser RunOpts
+parseRunOpts = RunOpts
   <$> switch
        ( short 'n'
       <> long "no-reqs"
@@ -334,8 +334,8 @@ parseCheckOpts = CheckOpts
   where
     pathOption mods = strOption (mods <> showDefault <> metavar "FILE")
 
-parseVerify :: Parser Verify
-parseVerify = VerifyOpts
+parseCheck :: Parser CheckOpts
+parseCheck = CheckOpts
   <$> parseSel
   <*> pathOption
        ( long "success-file"
