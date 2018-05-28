@@ -77,6 +77,11 @@ instance Select Expr where
   getVars (P3 _ e1 e2 e3) = getVars e1 <> getVars e2 <> getVars e3
   getVars _ = mempty
 
+instance Select [V PVal] where
+  sel d xs = map (sel d) xs
+  conf d xs = map (conf d) xs
+  getVars xs = foldMap getVars xs
+
 instance Select a => Select (SegList a) where
   sel _ [] = []
   sel d ((Elems xs):ys) = Elems (map (sel d) xs) : sel d ys

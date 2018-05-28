@@ -331,31 +331,22 @@ To see the inputs that can be generated for this example, pass `--help` to the
 ```
 
 First, generate some input files. The following command generates the cross app
-example dictionary and application model.
+example dictionary, empty initial resource environment, and application model.
 
 ```bash
-> stack exec resource-dsl -- example crossapp --dict --model
-```
-
-Next, we generate the initial resource environment. The initial resource environment is specified
-by setting boolean values for whether the server or client support either AESNI or the JCE Unlimited
-Strength provisions. For example, to set an initial resource environement where the server supports both
-but the client does not, we would run the following command:
-
-```bash
-> stack exec resource-dsl -- example crossapp --init \{serverAESNI=True,clientAESNI=False,serverJCEUS=True,clientJCEUS=False\}
+> stack exec resource-dsl -- example crossapp --dict --model --init
 ```
 
 Next, we generate a configuration for the example. To do this, we choose an encryption provider
-to run on the server, another provider to run on the client, and a keysize to use with the
-encryption algorithm. For example, to use the default `javax` API on the server and `org.bouncycastle`
-on the client, with 128-bit encryption, you would call:
+to run on the server, and another provider to run on the client.
+For example, to use the default `javax` API on the server and `org.bouncycastle`
+on the client, you would call:
 
 ```bash
-> stack exec resource-dsl -- example crossapp --config \{serverProv=\"Javax\",clientProv=\"BouncyCastle\",keysize=128\}
+> stack exec resource-dsl -- example crossapp --config \{serverProv=\"Javax\",clientProv=\"BouncyCastle\"\}
 ```
 
-The available DFUs to load on the server and client are `Javax`, `BouncyCastle`, and `AESNI`.
+The available DFUs to load on the server and client are `Javax` and `BouncyCastle`.
 
 Next, generate the mission requirements. The requirements are specified as a 4-tuple made up
 of an algorithm, keysize, mode, and padding. The requirements check that the specified 4-tuple
@@ -364,15 +355,20 @@ command generates mission requirements that specify that both client and server 
 AES128 encryption in CBC mode with PKCS5 padding:
 
 ```bash
-> stack exec resource-dsl -- example crossapp --reqs \{algorithm=\"AES\",keysize=128,mode=\"CBC\",padding=\"PKCS5\"\}
+> stack exec resource-dsl -- example crossapp --reqs \{algorithm=\"AES\",keysize=16,mode=\"CBC\",padding=\"PKCS5Padding\"\}
 ```
 
-Once the mission requirements are generated, check the example configuration against the requirements
-by running this command:
+Once the mission requirements are generated, you can run the example configuration against the requirements
+by running this command.
 
 ```bash
-> stack exec resource-dsl -- run
+> stack exec resource-dsl -- run --total \[\"AES\",\"CBC\",\"PKCS5Padding\"\]
 ```
+
+The `--total` option will ensure that only code that pertains to the features we are interested in will run.
+In this case, we are only interested in the features for AES encryption, CBC mode, and PKCS5 padding, so we
+turn those on by passing them as a list to the `--total` option, turning all other features off.
+The application will still produce a result without the `--total` option, but it will run considerably slower.
 
 If there is some variant that meets the mission requirements, it will return with exit code 0. Otherwise,
 it will return with exit code 2 if some static condition was not met (e.g. the keysize didn't match the

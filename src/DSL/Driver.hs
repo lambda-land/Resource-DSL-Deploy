@@ -73,52 +73,35 @@ getBExpr vars (Total xs) | null vars = Nothing
 
 totalHelper :: [Var] -> [Var] -> Maybe BExpr
 totalHelper [] [] = Nothing
-totalHelper [] (y:ys) = Just $ foldr (\a b -> bnot (BRef a) &&& b) (bnot $ BRef y) ys
-totalHelper [x] ys = Just $ foldr (\a b -> bnot (BRef a) &&& b) (BRef x) ys
+totalHelper [] (y:ys) = Just $ foldr (\a b -> (bnot (BRef a)) &&& b) (bnot $ BRef y) ys
+totalHelper [x] ys = Just $ foldr (\a b -> (bnot (BRef a)) &&& b) (BRef x) ys
 totalHelper xs [y] = Just $ foldr (\a b -> BRef a &&& b) (bnot (BRef y)) xs
-totalHelper (x:xs) ys = Just $ foldr (\a b -> bnot (BRef a) &&& b)
+totalHelper (x:xs) ys = Just $ foldr (\a b -> (bnot (BRef a)) &&& b)
                               (foldr (\a b -> BRef a &&& b) (BRef x) xs)
                                ys
 
-getSel :: Select a => SelOpts -> (a -> a)
-getSel (Formula s) = case (parseBExprString s) of
-                       Right b -> sel b
-                       Left e -> do
-                         error $ "Could not parse selection:\n" ++ e
-getSel (OnOff ns fs) =
-  case (ns,fs) of
-    (Just (x:xs), Just (y:ys)) -> sel ((f (x:xs)) &&& (g (y:ys)))
-    (Just (x:xs), _) -> sel $ f (x:xs)
-    (_, Just (y:ys)) -> sel $ g (y:ys)
-    _ -> id
+getSel :: (Select a) => SelOpts -> a -> (S.Set Var, a)
+getSel opts a = (vars, a')
   where
-    f [] = error "impossible"
-    f [x] = BRef (T.pack x)
-    f (x:xs) = BRef (T.pack x) &&& f xs
-    g [] = error "impossible"
-    g [x] = bnot (BRef (T.pack x))
-    g (x:xs) = bnot (BRef (T.pack x)) &&& g xs
-getSel (Total []) = conf (BLit False)
-getSel (Total xs) = conf $ f xs
-  where
-    f [] = error "impossible"
-    f [x] = BRef (T.pack x)
-    f (x:xs) = (BRef (T.pack x)) &&& f xs
+    vars = getVars a
+    b = getBExpr vars opts
+    a' = case b of
+           Just b' -> case opts of
+             Total _ -> conf b' a
+             _       -> sel  b' a
+           Nothing -> a
 
 run :: RunOpts -> IO ()
 run opts = do
-    let s = getSel (selection opts)
-    dict' <- readJSON (dictFile opts) asDictionary
-    let dict = s dict'
-    init' <- readJSON (initFile opts) asResEnv
-    let init = s init'
-    model' <- readJSON (modelFile opts) asModel
-    let model = s model'
-    args' <- case configValue opts of
+    let s x = x >>= (\y -> return $ getSel (selection opts) y)
+    (dictVars, dict) <- s $ readJSON (dictFile opts) asDictionary
+    (initVars, init) <- s $ readJSON (initFile opts) asResEnv
+    (modelVars, model) <- s $ readJSON (modelFile opts) asModel
+    (argsVars, args') <- s $ case configValue opts of
               Just xs -> decodeJSON xs asConfig
               Nothing -> readJSON (configFile opts) asConfig
-    let args = map (One . Lit . s) args'
-    let vars = getVars dict' <> getVars init' <> getVars model' <> foldMap getVars args'
+    let args = map (One . Lit) args'
+    let vars = dictVars <> initVars <> modelVars <> argsVars
     let b = getBExpr vars (selection opts)
     sctx <- runWithDict dict init (loadModel model args) `catchEffErr` (opts, 2,"Error executing application model ...", b, vars)
     writeOutput (outputFile opts) sctx
@@ -126,11 +109,10 @@ run opts = do
       writeError (errorFile opts) sctx
       writeSuccess (successFile opts) sctx b vars
     else do
-      reqs' <- readJSON (reqsFile opts) asProfile
-      let reqs = s reqs'
+      (reqsVars,reqs) <- s $ readJSON (reqsFile opts) asProfile
       let (e, sctx') = runWithDict' dict sctx (loadProfile reqs [])
       writeError (errorFile opts) sctx'
-      let vars' = vars <> getVars reqs'
+      let vars' = vars <> reqsVars
       writeSuccess (successFile opts) sctx' (getBExpr vars' (selection opts)) vars'
       case e of
         (Left _) -> putStrLn "Requirements not satisfied ..." >> exitWith (ExitFailure 3)
