@@ -1,6 +1,7 @@
 module DSL.Sugar where
 
 import qualified Data.Text as T
+import qualified Data.Set as S
 
 import DSL.Name
 import DSL.Types
@@ -68,6 +69,33 @@ dim :: T.Text -> BExpr
 dim t | Right b <- parseBExprText t = b
       | Left s <- parseBExprText t = error s
       | otherwise = error "impossible"
+
+exclusive' :: S.Set T.Text -> S.Set T.Text -> Maybe BExpr
+exclusive' all yes = combine (yesExpr yesList) (noExpr noList)
+  where
+    no = S.difference all yes
+    noList = fmap (\t -> (bnot (BRef t))) (S.toList no)
+
+    noExpr :: [BExpr] -> Maybe BExpr
+    noExpr [] = Nothing
+    noExpr (x:xs) | Just b <- noExpr xs = Just (x &&& b)
+                  | otherwise           = Just x
+
+    yesList = fmap BRef (S.toList yes)
+
+    yesExpr :: [BExpr] -> Maybe BExpr
+    yesExpr [] = Nothing
+    yesExpr (x:xs) | Just b <- yesExpr xs = Just (x ||| b)
+                   | otherwise            = Just x
+
+    combine :: Maybe BExpr -> Maybe BExpr -> Maybe BExpr
+    combine (Just y) (Just n) = Just (y &&& n)
+    combine Nothing  (Just n) = Just n
+    combine (Just y) Nothing  = Just y
+    combine _        _        = Nothing
+
+exclusive :: [T.Text] -> [T.Text] -> Maybe BExpr
+exclusive all yes = exclusive' (S.fromList all) (S.fromList yes)
 
 {- TODO TODO TODO
 -- | Macro for an integer-case construct. Evaluates the expression, then

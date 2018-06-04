@@ -13,7 +13,7 @@ import System.Environment (getArgs)
 import System.Exit
 import qualified Data.Text as T
 import qualified Data.Set as S
-import Data.SBV (bnot,(&&&),AllSatResult(..),SMTResult(..))
+import Data.SBV (bnot,(&&&),AllSatResult(..))
 
 import DSL.Types hiding (Check)
 import DSL.Model
@@ -148,16 +148,11 @@ runCheck opts = do
               Nothing -> ctx s
     r <- satResults (maxRes opts) b
     writeBest (bestFile opts) r
-    if f r then
-      putStrLn "Success"
-    else do
+    if take 2 (show r) == "No" then do
       putStrLn "No successful configurations found."
       exitWith (ExitFailure 4)
-  where
-    f (AllSatResult (_, _, xs)) = foldr g True xs
-    g (Satisfiable _ _) b = b && True
-    g _ _ = False
-
+    else
+      putStrLn "Success"
 
 --
 -- * Command Line Arguments

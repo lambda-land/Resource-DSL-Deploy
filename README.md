@@ -331,10 +331,18 @@ To see the inputs that can be generated for this example, pass `--help` to the
 ```
 
 First, generate some input files. The following command generates the cross app
-example dictionary, empty initial resource environment, and application model.
+example dictionary, empty initial resource environment, and an empty set of requirements:
 
 ```bash
-> stack exec resource-dsl -- example crossapp --dict --model --init
+> stack exec resource-dsl -- example crossapp --dict --model --reqs
+```
+
+Next, we generate the initial resource environment. The only item in our initial resource environment
+is the possibility of including policy files that support the use of strong encryption (>128 bits).
+We pass `True` to the `--init` option to signal the presence of these files, and `False` otherwise:
+
+```bash
+> stack exec resource-dsl -- example crossapp --init True
 ```
 
 Next, we generate a configuration for the example. To do this, we choose an encryption provider
@@ -348,38 +356,65 @@ on the client, you would call:
 
 The available DFUs to load on the server and client are `Javax` and `BouncyCastle`.
 
-Next, generate the mission requirements. The requirements are specified as a 4-tuple made up
-of an algorithm, keysize, mode, and padding. The requirements check that the specified 4-tuple
-is available from the providers on both the server and the client. For example, the following
-command generates mission requirements that specify that both client and server support
-AES128 encryption in CBC mode with PKCS5 padding:
+There are several options for running the example program. If we wish to query multiple different
+configurations at once, or to have the application enumerate possible correct configurations for us,
+we simply use the command:
 
 ```bash
-> stack exec resource-dsl -- example crossapp --reqs \{algorithm=\"AES\",keysize=16,mode=\"CBC\",padding=\"PKCS5Padding\"\}
+> stack exec resource-dsl -- run
 ```
 
-Once the mission requirements are generated, you can run the example configuration against the requirements
-by running this command.
+This will run all possible configurations variationally. As such, it will take a minute or two to complete.
+Once completed, the user can use the `check` subcommand to query the variational results. For example,
+say we wish to know whether the AES128 in CTR mode with PKCS5 padding is supported. We would call:
 
 ```bash
-> stack exec resource-dsl -- run --total \[\"AES\",\"CBC\",\"PKCS5Padding\"\]
+> stack exec resource-dsl -- check --total \[\"AES\",\"CTR\",\"KSZ16\",\"PKCS5Padding\"\]
 ```
 
-The `--total` option will ensure that only code that pertains to the features we are interested in will run.
-In this case, we are only interested in the features for AES encryption, CBC mode, and PKCS5 padding, so we
-turn those on by passing them as a list to the `--total` option, turning all other features off.
-The application will still produce a result without the `--total` option, but it will run considerably slower.
+Similarly, if we wish to know if there are any successful configurations that use Blowfish and a keysize
+of 56 bits, we can use this command:
 
-If there is some variant that meets the mission requirements, it will return with exit code 0. Otherwise,
-it will return with exit code 2 if some static condition was not met (e.g. the keysize didn't match the
-algorithm) or exit code 3 if the particular 4-tuple specified in the mission requirements is not supported
-on both the client and server.
+```bash
+> stack exec resource-dsl -- check --on \[\"Blowfish\",\"KSZ8\"\]
+```
 
-The application will also output three report files into the outbox. `error.json` will contain a variational
+By examining `outbox/best.txt` we can then obtain some possible succesful configurations, if any exist.
+
+The other possible way to run the example program is by eliminating certain options by preconfiguring the
+program prior to execution. For example, if we know we are only interested in AES128 in CTR mode with PKCS5 padding
+we can preconfigure the program and avoid useless computation with this call:
+
+```bash
+> stack exec resource-dsl -- run --total \[\"AES\",\"CTR\",\"KSZ16\",\"PKCS5Padding\"\]
+```
+
+Similarly, we can turn off or on only certain features and then query the results using the `check`
+subcommmand as described above. For example, this preconfiguration turns DES on and CTR mode off:
+
+```bash
+> stack exec resource-dsl -- run --on \[\"DES\"\] --off \[\"CTR\"\]
+```
+
+In general if you know that you are only interested in certain features, or are uninterested in others,
+it is better to preconfigure the program in order to save computation time.
+
+The following features are supported and can be queried and turned on/off:
+
+Algorithms: `["AES", "ARIA", "Blowfish", "Camellia", "CAST5", "CAST6", "DES", "DESede", "DSTU7624", "GCM", "GOST28147", "IDEA", "Noekeon", "RC2", "RC5", "RC5_64", "RC6", "Rijndael", "SEED", "SEEDWrap", "Serpent_128", "Skipjack", "SM4", "TEA", "Threefish_256", "Threefish_512", "Threefish_1024", "Twofish", "XTEA"]`
+
+Modes: `["ECB", "CBC", "CTR", "CFB", "CTS", "OFB", "OpenPGPCFB", "PGPCFBBlock", "SICBlock"]`
+
+Paddings: `["ZeroBytePadding", "PKCS5Padding", "PKCS7Padding", "ISO10126_2Padding", "ISO7816_4Padding", "TBCPadding", "X923Padding", "NoPadding"]`
+
+Keysizes (in bytes): `["KSZ8", "KSZ16", "KSZ24", "KSZ32", "KSZ40", "KSZ48", "KSZ56", "KSZ64"]`
+
+The application will also output several report files into the outbox. `error.json` will contain a variational
 data structure containing any errors generated for a particular variant, such as failing to meet a particular
 mission requirement. `resources.json` will include the variational resource environment generated by running
-the example. Finally, `success.json` includes a boolean formula that denotes which variants, if any, did not
-encounter any errors and met all mission requirements.
+the example. `success.json` includes a boolean formula that denotes which variants, if any, did not
+encounter any errors and met all mission requirements. If the `check` subcommand was used, `best.txt`
+will contain some possible successful configurations for the given `check`, if any exist.
 
 [Stack]: http://docs.haskellstack.org/en/stable/README/
 [Z3]: https://github.com/Z3Prover/z3/releases
