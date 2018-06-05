@@ -20,11 +20,18 @@ import DSL.Serialize
 import DSL.Sugar
 import DSL.Options
 
+
 -- ** Initial environment
 
-crossAppResEnv :: Bool -> ResEnv
-crossAppResEnv True = envSingle "/StrongEncryptionPolicy" (One (Just Unit))
-crossAppResEnv False = envEmpty
+crossAppResEnv :: CrossAppInit -> ResEnv
+crossAppResEnv r = envFromList $ concatMap opt
+    [ ("/Server/AES-NI", serverAESNI r)
+    , ("/Server/StrongEncryptionPolicy", serverSEP r)
+    , ("/Client/AES-NI", clientAESNI r)
+    , ("/Client/StrongEncryptionPolicy", clientSEP r) ]
+  where
+    opt (_,False) = []
+    opt (n,True)  = [(n, One (Just Unit))]
 
 
 -- ** Application model
@@ -45,7 +52,8 @@ appModel = Model
     checkSEP :: Block
     checkSEP = [
         Split sepCtx
-          [Elems [checkUnit "/StrongEncryptionPolicy"]]
+          [Elems [ checkUnit "/Server/StrongEncryptionPolicy"
+                 , checkUnit "/Client/StrongEncryptionPolicy" ]]
           []
       ]
 
@@ -107,22 +115,24 @@ appModel = Model
 
 -- ** DFUs
 
-mkCrossAppDFU :: [T.Text] -> [T.Text] -> [T.Text] -> Model
-mkCrossAppDFU algs pads modes = Model []
-  (mk "Algorithm" algs ++ mk "Mode" modes ++ mk "Padding" pads)
+mkCrossAppDFU :: T.Text -> [T.Text] -> [T.Text] -> [T.Text] -> Model
+mkCrossAppDFU name algs pads modes = Model []
+  ([Elems [ create "DFU-Type" (dfu "cipher")
+          , create "DFU-Name" (dfu name) ]]
+      ++ mk "Algorithm" algs ++ mk "Mode" modes ++ mk "Padding" pads)
     where
-      mk name xs = foldMap (\a -> [Split (foldOthers a xs) [Elems[ create name (mkVExpr (S . Symbol $ a)) ]] []]) xs
+      mk name xs = foldMap (\a -> [Split (foldOthers a xs) [Elems [create name (mkVExpr (S . Symbol $ a)) ]] []]) xs
       others x xs = S.difference (S.fromList xs) (S.singleton x)
       foldOthers x xs = foldl' (\b a -> b &&& (bnot (BRef a))) (BRef x) (S.toList (others x xs))
 
 javaxDFU :: Model
-javaxDFU = mkCrossAppDFU
+javaxDFU = mkCrossAppDFU "Javax"
              ["AES", "Blowfish", "DES", "DESede", "RC2", "Rijndael"]
              ["PKCS5Padding", "NoPadding"]
              ["ECB", "CBC", "CTR", "CFB", "OFB", "CTS"]
 
 bouncyDFU :: Model
-bouncyDFU = mkCrossAppDFU
+bouncyDFU = mkCrossAppDFU "BouncyCastle"
               ["AES", "ARIA", "Blowfish", "Camellia", "CAST5", "CAST6", "DES", "DESede", "DSTU7624", "GCM", "GOST28147", "IDEA", "Noekeon", "RC2", "RC5", "RC6", "Rijndael", "SEED", "Skipjack", "SM4", "TEA", "Threefish_256", "Threefish_512", "Twofish", "XTEA"]
               ["ZeroBytePadding", "PKCS5Padding", "PKCS7Padding", "ISO10126_2Padding", "ISO7816_4Padding", "TBCPadding", "X923Padding", "NoPadding"]
               ["ECB", "CBC", "CTR", "CFB", "CTS", "OFB", "OpenPGPCFB", "PGPCFBBlock", "SICBlock"]
@@ -146,17 +156,24 @@ crossAppReqs = toProfile $ Model [] []
 -- * Driver
 --
 
-data CAConfig = CAConfig {
-    serverProv :: String,
-    clientProv :: String
-  } deriving (Show,Eq,Read,Data,Typeable,Generic)
+data CrossAppConfig = CrossAppConfig
+     { serverProv :: String
+     , clientProv :: String }
+  deriving (Show,Eq,Read,Data,Typeable,Generic)
+
+data CrossAppInit = CrossAppInit
+     { serverAESNI :: Bool
+     , serverSEP   :: Bool
+     , clientAESNI :: Bool
+     , clientSEP   :: Bool }
+  deriving (Eq,Read,Show,Data,Typeable,Generic)
 
 data CrossAppOpts = CrossAppOpts
      { genDict   :: Bool
      , genModel  :: Bool
-     , genInit   :: Maybe Bool
-     , genConfig :: Maybe CAConfig
-     , genReqs   :: Bool}
+     , genInit   :: Maybe CrossAppInit
+     , genConfig :: Maybe CrossAppConfig
+     , genReqs   :: Bool }
   deriving (Eq,Read,Show,Data,Typeable,Generic)
 
 parseCrossAppOpts :: Parser CrossAppOpts
@@ -169,13 +186,18 @@ parseCrossAppOpts = CrossAppOpts
        ( long "model"
       <> help "Generate application model" )
 
-  <*> (optional . option auto)
+  <*> (optional . option (readRecord "CrossAppInit"))
        ( long "init"
-      <> metavar "BOOL"
-      <> help ("Generate initial resource environment. Takes a boolean argument "
-      <> "where True indicates the presence of the StrongEncryptionPolicy files.") )
+      <> metavar "RECORD"
+      <> help ("Generate the initial resource environment. The argument RECORD "
+         <> "must contain all of the following fields, each of which is "
+         <> "followed by either 'True' or 'False': \n"
+         <> "  * serverAESNI\n"
+         <> "  * clientSEP\n"
+         <> "  * clientAESNI\n"
+         <> "  * clientSEP") )
 
-  <*> (optional . option (readRecord "CAConfig"))
+  <*> (optional . option (readRecord "CrossAppConfig"))
        ( long "config"
       <> metavar "(serverProv,clientProv)"
       <> help "Generate configuration by giving the name of the provider to use on the server and client" )
@@ -189,10 +211,10 @@ runCrossApp opts = do
     when (genDict opts)   (writeJSON defaultDict crossAppDFUs)
     when (genModel opts)  (writeJSON defaultModel appModel)
     case (genInit opts) of
-      Just b -> writeJSON defaultInit (crossAppResEnv b)
+      Just r  -> writeJSON defaultInit (crossAppResEnv r)
       Nothing -> return ()
     case (genConfig opts) of
-      Just (CAConfig s c) -> writeJSON defaultConfig (crossAppConfig (str2sym s) (str2sym c))
+      Just (CrossAppConfig s c) -> writeJSON defaultConfig (crossAppConfig (str2sym s) (str2sym c))
       Nothing -> return ()
     when (genReqs opts) (writeJSON defaultReqs crossAppReqs)
     where
