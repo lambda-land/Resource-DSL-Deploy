@@ -13,7 +13,26 @@ import DSL.Parser
 -- * Syntactic Sugar
 --
 
+-- ** Types
+
+-- | Non-variational primitive types.
+tUnit, tBool, tInt, tFloat, tSymbol :: V PType
+tUnit   = One TUnit
+tInt    = One TInt
+tBool   = One TBool
+tFloat  = One TFloat
+tSymbol = One TUnit
+
+
 -- ** Expressions
+
+-- | Non-variational variable reference.
+ref :: Var -> V Expr
+ref = One . Ref
+
+-- | Non-variational resource reference.
+res :: Path -> V Expr
+res = One . Res
 
 -- | Literal component ID.
 dfu :: Name -> V Expr

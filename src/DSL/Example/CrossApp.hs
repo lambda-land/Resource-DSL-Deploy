@@ -26,6 +26,7 @@ crossAppResEnv :: Bool -> ResEnv
 crossAppResEnv True = envSingle "/StrongEncryptionPolicy" (One (Just Unit))
 crossAppResEnv False = envEmpty
 
+
 -- ** Application model
 
 appModel = Model
@@ -33,12 +34,12 @@ appModel = Model
     Param "serverProvider" (One TSymbol),
     Param "clientProvider" (One TSymbol)
   ]
-  (checkSEP ++ checkRules ++ [ Elems [
-    In "/Server" [Elems[Load (One . Ref $ "serverProvider") []]],
-    In "/Client" [Elems[Load (One . Ref $ "clientProvider") []]],
-    check "/Server/Algorithm" (One TSymbol) (One (P2 (SS_B SEqu) val (One . Res $ "/Client/Algorithm"))),
-    check "/Server/Mode" (One TSymbol) (One (P2 (SS_B SEqu) val (One . Res $ "/Client/Mode"))),
-    check "/Server/Padding" (One TSymbol) (One (P2 (SS_B SEqu) val (One . Res $ "/Client/Padding")))
+  (checkSEP ++ checkRules ++ [Elems [
+    In "/Server" [Elems [Load (ref "serverProvider") []]],
+    In "/Client" [Elems [Load (ref "clientProvider") []]],
+    check "/Server/Algorithm" tSymbol (val .== res "/Client/Algorithm"),
+    check "/Server/Mode"      tSymbol (val .== res "/Client/Mode"),
+    check "/Server/Padding"   tSymbol (val .== res "/Client/Padding")
   ]])
   where
     checkSEP :: Block
@@ -94,7 +95,7 @@ appModel = Model
     kszRule :: T.Text -> [Int] -> Block
     kszRule alg is = [
         Split (BRef alg &&& foldOr (disallowed is))
-          [Elems[checkUnit "Keysize"]]
+          [Elems [checkUnit "Keysize"]]
           []
       ]
 
