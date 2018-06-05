@@ -363,19 +363,21 @@ data Fun = Fun Param (V Expr)
 
 -- | Expressions.
 data Expr
-     = Ref Var                 -- ^ variable reference
-     | Res Path                -- ^ resource reference
-     | Lit (V PVal)               -- ^ primitive literal
-     | P1  Op1 (V Expr)            -- ^ primitive unary function
-     | P2  Op2 (V Expr) (V Expr)       -- ^ primitive binary function
+     = Ref Var                             -- ^ variable reference
+     | Res Path                            -- ^ resource reference
+     | Lit (V PVal)                        -- ^ primitive literal
+     | P1  Op1 (V Expr)                    -- ^ primitive unary function
+     | P2  Op2 (V Expr) (V Expr)           -- ^ primitive binary function
      | P3  Op3 (V Expr) (V Expr) (V Expr)  -- ^ conditional expression
   deriving (Eq,Show)
 
 class Pretty a where
   pretty :: a -> Text
 
-data VEnvErr = NF NotFound
-             | forall a k. (Eq a, Show a, Typeable a, Pretty a, Eq k, Show k, Typeable k) => VNF k BExpr (VOpt a)
+data VEnvErr
+   = NF NotFound
+   | forall a k. (Eq a, Show a, Typeable a, Pretty a, Eq k, Show k, Typeable k)
+     => VNF k BExpr (VOpt a)
 
 instance Eq VEnvErr where
   (NF x) == (NF y) = x == y
