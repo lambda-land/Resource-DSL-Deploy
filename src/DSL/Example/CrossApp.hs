@@ -42,11 +42,11 @@ appModel = Model
     Param "clientProvider" (One TSymbol)
   ]
   (checkSEP ++ checkRules ++ [Elems [
-    In "/Server" [Elems [Load (ref "serverProvider") []]],
-    In "/Client" [Elems [Load (ref "clientProvider") []]],
-    check "/Server/Algorithm" tSymbol (val .== res "/Client/Algorithm"),
-    check "/Server/Mode"      tSymbol (val .== res "/Client/Mode"),
-    check "/Server/Padding"   tSymbol (val .== res "/Client/Padding")
+    In "/Server/Cipher" [Elems [Load (ref "serverProvider") []]],
+    In "/Client/Cipher" [Elems [Load (ref "clientProvider") []]],
+    check "/Server/Cipher/Algorithm" tSymbol (val .== res "/Client/Cipher/Algorithm"),
+    check "/Server/Cipher/Mode"      tSymbol (val .== res "/Client/Cipher/Mode"),
+    check "/Server/Cipher/Padding"   tSymbol (val .== res "/Client/Cipher/Padding")
   ]])
   where
     checkSEP :: Block
@@ -103,7 +103,7 @@ appModel = Model
     kszRule :: T.Text -> [Int] -> Block
     kszRule alg is = [
         Split (BRef alg &&& foldOr (disallowed is))
-          [Elems [checkUnit "Keysize"]]
+          [Elems [checkUnit "KeySize"]]
           []
       ]
 
@@ -115,27 +115,28 @@ appModel = Model
 
 -- ** DFUs
 
-mkCrossAppDFU :: T.Text -> [T.Text] -> [T.Text] -> [T.Text] -> Model
-mkCrossAppDFU name algs pads modes = Model []
-  ([Elems [ create "DFU-Type" (dfu "cipher")
-          , create "DFU-Name" (dfu name) ]]
-      ++ mk "Algorithm" algs ++ mk "Mode" modes ++ mk "Padding" pads)
+mkCrossAppDFU :: T.Text -> [T.Text] -> [T.Text] -> [T.Text] -> Block
+mkCrossAppDFU name algs pads modes =
+    [ Elems [ create "DFU-Type" (sym "Cipher")
+            , create "DFU-Name" (sym name) ]]
+        ++ mk "Algorithm" algs ++ mk "Mode" modes ++ mk "Padding" pads
     where
       mk name xs = foldMap (\a -> [Split (foldOthers a xs) [Elems [create name (mkVExpr (S . Symbol $ a)) ]] []]) xs
       others x xs = S.difference (S.fromList xs) (S.singleton x)
       foldOthers x xs = foldl' (\b a -> b &&& (bnot (BRef a))) (BRef x) (S.toList (others x xs))
 
 javaxDFU :: Model
-javaxDFU = mkCrossAppDFU "Javax"
+javaxDFU = Model [] $ mkCrossAppDFU "Javax"
              ["AES", "Blowfish", "DES", "DESede", "RC2", "Rijndael"]
              ["PKCS5Padding", "NoPadding"]
              ["ECB", "CBC", "CTR", "CFB", "OFB", "CTS"]
 
 bouncyDFU :: Model
-bouncyDFU = mkCrossAppDFU "BouncyCastle"
+bouncyDFU = Model [] $ mkCrossAppDFU "BouncyCastle"
               ["AES", "ARIA", "Blowfish", "Camellia", "CAST5", "CAST6", "DES", "DESede", "DSTU7624", "GCM", "GOST28147", "IDEA", "Noekeon", "RC2", "RC5", "RC6", "Rijndael", "SEED", "Skipjack", "SM4", "TEA", "Threefish_256", "Threefish_512", "Twofish", "XTEA"]
               ["ZeroBytePadding", "PKCS5Padding", "PKCS7Padding", "ISO10126_2Padding", "ISO7816_4Padding", "TBCPadding", "X923Padding", "NoPadding"]
               ["ECB", "CBC", "CTR", "CFB", "CTS", "OFB", "OpenPGPCFB", "PGPCFBBlock", "SICBlock"]
+              ++ [Elems [If (res "Algorithm" .== sym "AES") [Elems [checkUnit "../AES-NI"]] []]]
 
 crossAppDFUs :: Dictionary
 crossAppDFUs = modelDict [("Javax", javaxDFU), ("BouncyCastle", bouncyDFU)]

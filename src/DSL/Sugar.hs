@@ -34,9 +34,13 @@ ref = One . Ref
 res :: Path -> V Expr
 res = One . Res
 
+-- | Literal symbol name.
+sym :: Name -> V Expr
+sym = One . Lit . One . S . mkSymbol
+
 -- | Literal component ID.
 dfu :: Name -> V Expr
-dfu = One . Lit . One . S . mkSymbol
+dfu = sym
 
 -- | Primitive floor operation.
 pFloor :: V Expr -> Expr
