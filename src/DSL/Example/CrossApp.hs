@@ -1,7 +1,10 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module DSL.Example.CrossApp where
 
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
+import Data.Aeson hiding (Value)
 
 import Control.Monad (when)
 import Options.Applicative
@@ -24,14 +27,16 @@ import DSL.Options
 -- ** Initial environment
 
 crossAppResEnv :: CrossAppInit -> ResEnv
-crossAppResEnv r = envFromList $ concatMap opt
-    [ ("/Server/AES-NI", serverAESNI r)
-    , ("/Server/StrongEncryptionPolicy", serverSEP r)
-    , ("/Client/AES-NI", clientAESNI r)
-    , ("/Client/StrongEncryptionPolicy", clientSEP r) ]
+crossAppResEnv r = envFromList
+    [ ("/Server/AES-NI", ok $ serverAESNI r)
+    , ("/Server/StrongEncryptionPolicy", ok $ serverSEP r)
+    , ("/Client/AES-NI", ok $ clientAESNI r)
+    , ("/Client/StrongEncryptionPolicy", ok $ clientSEP r) ]
   where
-    opt (_,False) = []
-    opt (n,True)  = [(n, One (Just Unit))]
+    ok (Chc d l r) = Chc d (ok l) (ok r)
+    ok v@(One Nothing) = v
+    ok v@(One (Just Unit)) = v
+    ok _ = error "Only unit values are allowed in this example's initial resource environment."
 
 
 -- ** Application model
@@ -160,14 +165,14 @@ crossAppReqs = toProfile $ Model [] []
 data CrossAppConfig = CrossAppConfig
      { serverProv :: String
      , clientProv :: String }
-  deriving (Show,Eq,Read,Data,Typeable,Generic)
+  deriving (Show,Read,Eq,Data,Typeable,Generic,FromJSON)
 
 data CrossAppInit = CrossAppInit
-     { serverAESNI :: Bool
-     , serverSEP   :: Bool
-     , clientAESNI :: Bool
-     , clientSEP   :: Bool }
-  deriving (Eq,Read,Show,Data,Typeable,Generic)
+     { serverAESNI :: Value
+     , serverSEP   :: Value
+     , clientAESNI :: Value
+     , clientSEP   :: Value }
+  deriving (Eq,Read,Show,Data,Typeable,Generic,FromJSON)
 
 data CrossAppOpts = CrossAppOpts
      { genDict   :: Bool
@@ -187,7 +192,7 @@ parseCrossAppOpts = CrossAppOpts
        ( long "model"
       <> help "Generate application model" )
 
-  <*> (optional . option (readRecord "CrossAppInit"))
+  <*> (optional . option readRecord)
        ( long "init"
       <> metavar "RECORD"
       <> help ("Generate the initial resource environment. The argument RECORD "
@@ -198,7 +203,7 @@ parseCrossAppOpts = CrossAppOpts
          <> "  * clientAESNI\n"
          <> "  * clientSEP") )
 
-  <*> (optional . option (readRecord "CrossAppConfig"))
+  <*> (optional . option readRecord)
        ( long "config"
       <> metavar "(serverProv,clientProv)"
       <> help "Generate configuration by giving the name of the provider to use on the server and client" )

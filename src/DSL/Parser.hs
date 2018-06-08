@@ -44,6 +44,14 @@ parseBExprText = first parseErrorPretty . parse (topLevel bexpr) ""
 parseBExprString :: String -> Either String BExpr
 parseBExprString = parseBExprText . pack
 
+-- | Parse a Text value as a Value.
+parseValueText :: Text -> Either String Value
+parseValueText = first parseErrorPretty . parse (topLevel value) ""
+
+-- | Parse a String value as an expression.
+parseValueString :: String -> Either String Value
+parseValueString = parseValueText . pack
+
 --
 -- * Internal
 --
@@ -97,6 +105,11 @@ int = fmap fromInteger (lexeme L.decimal) <?> "integer literal"
 
 float :: Parser Double
 float = lexeme L.float <?> "float literal"
+
+maybe' :: Parser a -> Parser (Maybe a)
+maybe' some = none <|> Just <$> some <?> "maybe"
+  where
+    none = Nothing <$ rword "none"
 
 -- ** Integer Expression Parser
 
@@ -212,6 +225,11 @@ v' e = chc <|> one <?> "choice expression"
       r <- v' e
       verbatim "}"
       return (Chc d l r)
+
+-- ** Value Parser
+
+value :: Parser Value
+value = v (maybe' pval)
 
 -- ** Expression Parser
 

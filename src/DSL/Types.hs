@@ -8,7 +8,7 @@ import Prelude hiding (LT, GT)
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Except
-import Data.Typeable
+import Data.Data
 import Data.String (IsString(..))
 import Data.Text (pack, splitOn)
 import Data.Map.Strict (Map)
@@ -25,7 +25,7 @@ import DSL.Name
 
 -- | An environment is a map from keys to values.
 newtype Env k v = Env { envAsMap :: Map k v }
-  deriving (Eq,Show,Functor,Foldable)
+  deriving (Eq,Show,Data,Read,Functor,Foldable)
 
 type VEnv k v = Env k (VOpt v)
 
@@ -49,7 +49,7 @@ instance Show NotFound where
 
 -- | A path is either absolute or relative.
 data PathKind = Absolute | Relative
-  deriving (Eq,Ord,Show)
+  deriving (Eq,Data,Read,Ord,Show)
 
 -- | A path through a resource environment. Unlike resource IDs, paths may be
 --   relative, may contain "special" path names (such as ".." to refer to the
@@ -57,12 +57,12 @@ data PathKind = Absolute | Relative
 --   resource ID is a simple key in the resource environment, while a path is
 --   an intermediate object that can be manipulated in the language.
 data Path = Path PathKind [Name]
-  deriving (Eq,Ord,Show)
+  deriving (Eq,Data,Read,Ord,Show)
 
 -- | Error that can occur when converting paths.
 data PathError
      = CannotNormalize Path
-  deriving (Eq,Show)
+  deriving (Eq,Data,Read,Show)
 
 instance IsString Path where
   fromString ('/':s) = Path Absolute (splitOn "/" (pack s))
@@ -71,7 +71,7 @@ instance IsString Path where
 -- | Resource IDs are (absolute) paths from the root of the
 --   resource environment.
 newtype ResID = ResID [Name]
-  deriving (Eq,Monoid,Ord,Show)
+  deriving (Eq,Data,Read,Monoid,Ord,Show)
 
 instance IsString ResID where
   fromString ('/':s) = ResID (splitOn "/" (pack s))
@@ -82,7 +82,7 @@ instance IsString ResID where
 
 -- | Primitive base types.
 data PType = TUnit | TBool | TInt | TFloat | TSymbol
-  deriving (Eq,Show)
+  deriving (Eq,Data,Read,Show)
 
 -- | Primitive values.
 data PVal
@@ -91,7 +91,7 @@ data PVal
      | I Int
      | F Double
      | S Symbol
-  deriving (Eq,Show)
+  deriving (Eq,Data,Show,Read)
 
 --
 -- * Primitive operators
@@ -103,7 +103,7 @@ data Op1
      | B_B B_B    -- ^ unary boolean operator
      | N_N N_N    -- ^ unary numeric operator
      | F_I F_I    -- ^ unary float-to-integer operator
-  deriving (Eq,Show)
+  deriving (Eq,Data,Read,Show)
 
 -- | Primitive binary operators organized by type.
 data Op2
@@ -111,45 +111,45 @@ data Op2
      | NN_N NN_N  -- ^ binary numeric operator
      | NN_B NN_B  -- ^ numeric comparison operator
      | SS_B SS_B  -- ^ symbol comparison operator
-  deriving (Eq,Show)
+  deriving (Eq,Data,Read,Show)
 
 -- | Primitive ternary operator.
 data Op3 = Cond
-  deriving (Eq,Show)
+  deriving (Eq,Data,Read,Show)
 
 -- | Boolean negation.
 data B_B = Not
-  deriving (Eq,Show)
+  deriving (Eq,Data,Read,Show)
 
 -- | Unary numeric operators.
 data N_N = Abs | Neg | Sign
-  deriving (Eq,Show)
+  deriving (Eq,Data,Read,Show)
 
 -- | Unary float-to-integer operators.
 data F_I = Ceil | Floor | Round
-  deriving (Eq,Show)
+  deriving (Eq,Data,Read,Show)
 
 -- | Binary boolean operators.
 data BB_B = And | Or | XOr | Imp | Eqv
-  deriving (Eq,Show)
+  deriving (Eq,Data,Read,Show)
 
 -- | Binary numeric comparison operators.
 data NN_B = LT | LTE | Equ | Neq | GTE | GT
-  deriving (Eq,Show)
+  deriving (Eq,Data,Read,Show)
 
 -- | Binary numeric arithmetic operators.
 data NN_N = Add | Sub | Mul | Div | Mod
-  deriving (Eq,Show)
+  deriving (Eq,Data,Read,Show)
 
 data SS_B = SEqu
-  deriving (Eq,Show)
+  deriving (Eq,Data,Read,Show)
 
 -- | Type error applying primitive operator.
 data PrimTypeError
      = ErrorOp1 Op1 PVal
      | ErrorOp2 Op2 PVal PVal
      | ErrorOp3 Op3 PVal PVal PVal
-  deriving (Eq,Show)
+  deriving (Eq,Data,Read,Show)
 
 -- | Add division and modulus to the Num type class.
 class Num n => PrimN n where
@@ -259,7 +259,7 @@ data Pred
      = UPred            -- ^ trivial predicate on unit value
      | BPred Var BExpr  -- ^ predicate on boolean value
      | IPred Var BExpr  -- ^ predicate on integer value
-  deriving (Eq,Show)
+  deriving (Eq,Data,Read,Show)
 
 -- | Boolean expressions with variable references.
 data BExpr
@@ -268,7 +268,7 @@ data BExpr
      | OpB  B_B  BExpr
      | OpBB BB_B BExpr BExpr
      | OpIB NN_B IExpr IExpr
-  deriving (Eq,Show)
+  deriving (Eq,Data,Read,Show)
 
 -- | Integer expressions with variable references.
 data IExpr
@@ -276,7 +276,7 @@ data IExpr
      | IRef Var
      | OpI  N_N  IExpr
      | OpII NN_N IExpr IExpr
-  deriving (Eq,Show)
+  deriving (Eq,Data,Read,Show)
 
 -- Use SBV's Boolean type class for boolean expressions.
 instance Boolean BExpr where
@@ -318,7 +318,7 @@ instance Prim BExpr IExpr where
 -- VARIATION
 
 data V a = One a | Chc BExpr (V a) (V a)
-  deriving (Eq,Show,Typeable)
+  deriving (Eq,Read,Data,Show,Typeable)
 
 instance Functor V where
   fmap f (One v) = One . f $ v
@@ -340,7 +340,7 @@ type VOpt a = V (Maybe a)
 type SegList a = [Segment a]
 
 data Segment a = Elems [a] | Split BExpr (SegList a) (SegList a)
-  deriving (Eq,Show)
+  deriving (Eq,Data,Read,Show)
 
 type VList a = [VOpt a]
 
@@ -355,11 +355,11 @@ type VType = V PType
 
 -- | Named and primitively typed parameters.
 data Param = Param Var VType
-  deriving (Show,Eq)
+  deriving (Show,Data,Read,Eq)
 
 -- | Unary functions.
 data Fun = Fun Param (V Expr)
-  deriving (Eq,Show)
+  deriving (Eq,Data,Read,Show)
 
 -- | Expressions.
 data Expr
@@ -369,7 +369,7 @@ data Expr
      | P1  Op1 (V Expr)                    -- ^ primitive unary function
      | P2  Op2 (V Expr) (V Expr)           -- ^ primitive binary function
      | P3  Op3 (V Expr) (V Expr) (V Expr)  -- ^ conditional expression
-  deriving (Eq,Show)
+  deriving (Eq,Data,Read,Show)
 
 class Pretty a where
   pretty :: a -> Text
@@ -442,7 +442,7 @@ data Effect
      | Check  Fun
      | Modify Fun
      | Delete
-  deriving (Show,Eq)
+  deriving (Show,Data,Read,Eq)
 
 
 -- ** Errors
@@ -453,7 +453,7 @@ data EffectErrorKind
      | CheckTypeError
      | NoSuchResource
      | ResourceAlreadyExists
-  deriving (Show,Eq)
+  deriving (Show,Data,Read,Eq)
 
 -- | An error resulting from applying a resource effect.
 data EffectError = EffectError {
@@ -461,7 +461,7 @@ data EffectError = EffectError {
      effectErrorKind   :: EffectErrorKind,
      effectErrorResID  :: ResID,
      effectErrorValue  :: Maybe Value
-} deriving (Show,Eq)
+} deriving (Show,Data,Read,Eq)
 
 
 -- PROFILES
@@ -469,14 +469,14 @@ data EffectError = EffectError {
 -- | Resource profile: a parameterized account of all of the resource effects
 --   of a program or component.
 data Profile = Profile [Param] (Env Path (SegList Effect))
-  deriving (Show,Eq)
+  deriving (Show,Data,Read,Eq)
 
 
 -- MODELS
 
 -- | An application model.
 data Model = Model [Param] Block
-  deriving (Show,Eq)
+  deriving (Show,Eq,Data,Read)
 
 -- | Statement block.
 type Block = SegList Stmt
@@ -489,21 +489,21 @@ data Stmt
      | For Var (V Expr) Block   -- ^ loop over indexed sub-environments
      | Let Var (V Expr) Block   -- ^ extend the variable environment
      | Load (V Expr) [V Expr]     -- ^ load a sub-model or profile
-  deriving (Eq,Show)
+  deriving (Eq,Show,Data,Read)
 
 -- | Kinds of errors that can occur in statements.
 data StmtErrorKind
      = IfTypeError    -- ^ non-boolean condition
      | ForTypeError   -- ^ non-integer range bound
      | LoadTypeError  -- ^ not a component ID
-  deriving (Eq,Show)
+  deriving (Eq,Show,Data,Read)
 
 -- | Errors in statements.
 data StmtError = StmtError {
      stmtErrorStmt  :: Stmt,
      stmtErrorKind  :: StmtErrorKind,
      stmtErrorValue :: PVal
-} deriving (Eq,Show)
+} deriving (Eq,Show,Data,Read)
 
 
 -- RESOURCES
@@ -512,7 +512,7 @@ data StmtError = StmtError {
 data Entry
      = ProEntry Profile
      | ModEntry Model
-  deriving (Eq,Show)
+  deriving (Eq,Show,Data,Read)
 
 -- | Dictionary of profiles and models.
 type Dictionary = Env CompID Entry
@@ -539,7 +539,7 @@ data Context = Ctx {
     environment :: VarEnv,     -- ^ variable environment
     dictionary  :: Dictionary, -- ^ dictionary of profiles and models
     vCtx        :: BExpr       -- ^ current variational context
-} deriving (Show)
+} deriving (Show,Data,Read)
 
 type MonadEval m = (MonadError Mask m, MonadReader Context m, MonadState StateCtx m)
 
@@ -558,4 +558,4 @@ data Error = EnvE (NotFound)
     deriving (Eq,Show)
 
 data SuccessCtx = SuccessCtx { ctx :: BExpr, cfgSpc :: Set Var }
-  deriving (Eq,Show)
+  deriving (Eq,Show,Data,Read)

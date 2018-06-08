@@ -1,8 +1,20 @@
 module DSL.Options where
 
+import Data.Aeson
+import Data.String
+import Data.ByteString.Lazy ()
 import Options.Applicative
 
-readRecord :: (Read a) => String -> ReadM a
-readRecord name = eitherReader $ \arg -> case reads (name ++ " " ++ arg) of
-  [(r, "")] -> return r
-  _         -> Left $ "cannot parse value `" ++ arg ++ "'"
+import qualified DSL.Types as T
+import DSL.Pretty ()
+import DSL.Parser
+
+readRecord :: (FromJSON a) => ReadM a
+readRecord = eitherReader $ \arg -> case decode (fromString arg) of
+  Just r -> return r
+  _      -> Left $ "cannot parse value `" ++ arg ++ "'"
+
+instance FromJSON T.Value where
+  parseJSON = withText "Value" (\x -> case parseValueText x of
+                                        Right v -> return v
+                                        Left s -> fail s)

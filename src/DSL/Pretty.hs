@@ -23,8 +23,8 @@ instance Pretty Double where
   pretty = pack . show
 
 instance (Pretty a) => Pretty (Maybe a) where
-  pretty Nothing = "Nothing"
-  pretty (Just a) = concat ["Just (", pretty a, ")"]
+  pretty Nothing = "none"
+  pretty (Just a) = pretty a
 
 prettyParens :: Text -> Text
 prettyParens t = concat ["(", t, ")"]

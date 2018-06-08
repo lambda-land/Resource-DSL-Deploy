@@ -3,7 +3,7 @@ module DSL.Name where
 import Prelude hiding (head, tail)
 
 import Data.Text
-import Data.Typeable
+import Data.Data
 
 import Data.String (IsString(..))
 
@@ -21,7 +21,7 @@ type Var = Name
 -- | Named symbols, a la Lisp. Symbol names may contain '_' or '-' in addition
 --   to alpha-numeric characters. Symbols are printed as ':'-prefixed strings.
 newtype Symbol = Symbol Name
-  deriving (Eq,Ord,Show,Typeable)
+  deriving (Eq,Ord,Show,Read,Data,Typeable)
 
 -- | Get the name of a symbol.
 toName :: Symbol -> Name
