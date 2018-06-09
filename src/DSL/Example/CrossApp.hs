@@ -49,9 +49,9 @@ appModel = Model
   (checkSEP ++ checkRules ++ [Elems [
     In "/Server/Cipher" [Elems [Load (ref "serverProvider") []]],
     In "/Client/Cipher" [Elems [Load (ref "clientProvider") []]],
-    check "/Server/Cipher/Algorithm" tSymbol (val .== res "/Client/Cipher/Algorithm"),
-    check "/Server/Cipher/Mode"      tSymbol (val .== res "/Client/Cipher/Mode"),
-    check "/Server/Cipher/Padding"   tSymbol (val .== res "/Client/Cipher/Padding")
+    check "/Server/Cipher/Algorithm" tSymbol (val .==. res "/Client/Cipher/Algorithm"),
+    check "/Server/Cipher/Mode"      tSymbol (val .==. res "/Client/Cipher/Mode"),
+    check "/Server/Cipher/Padding"   tSymbol (val .==. res "/Client/Cipher/Padding")
   ]])
   where
     checkSEP :: Block
@@ -141,7 +141,7 @@ bouncyDFU = Model [] $ mkCrossAppDFU "BouncyCastle"
               ["AES", "ARIA", "Blowfish", "Camellia", "CAST5", "CAST6", "DES", "DESede", "DSTU7624", "GCM", "GOST28147", "IDEA", "Noekeon", "RC2", "RC5", "RC6", "Rijndael", "SEED", "Skipjack", "SM4", "TEA", "Threefish_256", "Threefish_512", "Twofish", "XTEA"]
               ["ZeroBytePadding", "PKCS5Padding", "PKCS7Padding", "ISO10126_2Padding", "ISO7816_4Padding", "TBCPadding", "X923Padding", "NoPadding"]
               ["ECB", "CBC", "CTR", "CFB", "CTS", "OFB", "OpenPGPCFB", "PGPCFBBlock", "SICBlock"]
-              ++ [Elems [If (res "Algorithm" .== sym "AES") [Elems [checkUnit "../AES-NI"]] []]]
+              ++ [Elems [If (res "Algorithm" .==. sym "AES") [Elems [checkUnit "../AES-NI"]] []]]
 
 crossAppDFUs :: Dictionary
 crossAppDFUs = modelDict [("Javax", javaxDFU), ("BouncyCastle", bouncyDFU)]

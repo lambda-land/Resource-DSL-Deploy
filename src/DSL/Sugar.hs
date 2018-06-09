@@ -21,7 +21,7 @@ tUnit   = One TUnit
 tInt    = One TInt
 tBool   = One TBool
 tFloat  = One TFloat
-tSymbol = One TUnit
+tSymbol = One TSymbol
 
 
 -- ** Expressions
@@ -119,6 +119,9 @@ exclusive' all yes = combine (yesExpr yesList) (noExpr noList)
 
 exclusive :: [T.Text] -> [T.Text] -> Maybe BExpr
 exclusive all yes = exclusive' (S.fromList all) (S.fromList yes)
+
+(.==.) :: V Expr -> V Expr -> V Expr
+x .==. y = (One (P2 (SS_B SEqu) x y))
 
 {- TODO TODO TODO
 -- | Macro for an integer-case construct. Evaluates the expression, then
