@@ -337,21 +337,43 @@ example dictionary, empty initial resource environment, and an empty set of requ
 > stack exec resource-dsl -- example crossapp --dict --model --reqs
 ```
 
-Next, we generate the initial resource environment. The only item in our initial resource environment
-is the possibility of including policy files that support the use of strong encryption (>128 bits).
-We pass `True` to the `--init` option to signal the presence of these files, and `False` otherwise:
+Next, we generate the initial resource environment. For the initial resource environment,
+the user can choose to configure the presence of both strong encryption policy files and AESNI
+support for both the server and the client. The user passes a JSON object as an argument to the
+`init` option with fields `serverAESNI`, `serverSEP`, `clientAESNI`, and `clientSEP`. The values
+for these fields should be strings representing _variational values_ for these initial resources.
+
+At their most basic, the variational values used as the values for these fields can be either `()`
+(the unit value, representing the presence of the resource) or `none` (the absence of the resource).
+For example, to create an initial resource environment with all possible resources present, a user would
+input the following:
 
 ```bash
-> stack exec resource-dsl -- example crossapp --init True
+> stack exec resource-dsl -- example crossapp --init '{ "serverAESNI": "()", "serverSEP": "()", "clientAESNI": "()", "clientSEP": "()" }'
 ```
+
+Similarly, to create an empty initial resource environment, we would call:
+
+```bash
+> stack exec resource-dsl -- example crossapp --init '{ "serverAESNI": "none", "serverSEP": "none", "clientAESNI": "none", "clientSEP": "none" }'
+```
+
+Variational values also allow a user to specify different values under the presence of certain features,
+including representing initial environments where a resource is both present and absent. To do this, we
+create a choice value, which has the form `[<dimension>]{<variational value>, <variational value>}`.
+For example, to represent both the presence and absence of the `serverAESNI` resource, we could
+include the key/value pair `"serverAESNI": "[sAESNI]{(),none}"`. This signals that when the feature
+`sAESNI` is enabled, then the `serverAESNI` resource is available, but otherwise it is unavailable.
 
 Next, we generate a configuration for the example. To do this, we choose an encryption provider
 to run on the server, and another provider to run on the client.
+We pass these arguments via a JSON object with fields `serverProv` and `clientProv`
+set to the name of the provider DFU to load on the server and client, respectively.
 For example, to use the default `javax` API on the server and `org.bouncycastle`
 on the client, you would call:
 
 ```bash
-> stack exec resource-dsl -- example crossapp --config \{serverProv=\"Javax\",clientProv=\"BouncyCastle\"\}
+> stack exec resource-dsl -- example crossapp --config '{ "serverProv": "Javax", "clientProv": "BouncyCastle" }'
 ```
 
 The available DFUs to load on the server and client are `Javax` and `BouncyCastle`.

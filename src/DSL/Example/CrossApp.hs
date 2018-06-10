@@ -195,18 +195,20 @@ parseCrossAppOpts = CrossAppOpts
   <*> (optional . option readRecord)
        ( long "init"
       <> metavar "RECORD"
-      <> help ("Generate the initial resource environment. The argument RECORD "
-         <> "must contain all of the following fields, each of which is "
-         <> "followed by either 'True' or 'False': \n"
-         <> "  * serverAESNI\n"
-         <> "  * clientSEP\n"
-         <> "  * clientAESNI\n"
-         <> "  * clientSEP") )
+      <> help ("Generate the initial resource environment. The argument RECORD"
+         <> " is a JSON object with the following fields: serverAESNI,"
+         <> " serverSEP, clientAESNI, and clientSEP. Each field's value"
+         <> " is a string representing a variational value. Only unit primitive values"
+         <> " are permitted in the variational value.") )
 
   <*> (optional . option readRecord)
        ( long "config"
-      <> metavar "(serverProv,clientProv)"
-      <> help "Generate configuration by giving the name of the provider to use on the server and client" )
+      <> metavar "RECORD"
+      <> help ("Generate configuration. The argument RECORD"
+         <> " is a JSON object with the following fields: serverProv, and clientProv."
+         <> " Each field's value is a string with the name of the DFU of the provider to load"
+         <> " on the server and client, respectively."
+        ) )
 
   <*> switch
        ( long "reqs"
