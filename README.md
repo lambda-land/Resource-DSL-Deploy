@@ -337,16 +337,19 @@ example dictionary, empty initial resource environment, and an empty set of requ
 > stack exec resource-dsl -- example crossapp --dict --model --reqs
 ```
 
-Next, we generate the initial resource environment. For the initial resource environment,
-the user can choose to configure the presence of both strong encryption policy files and AESNI
-support for both the server and the client. The user passes a JSON object as an argument to the
-`init` option with fields `serverAESNI`, `serverSEP`, `clientAESNI`, and `clientSEP`. The values
-for these fields should be strings representing _variational values_ for these initial resources.
+Next, we generate the initial resource environment. For the initial resource
+environment, the user can choose to configure the presence of both strong
+encryption policy files and AESNI support for both the server and the client.
+The user passes a JSON object as an argument to the `init` option with fields
+`serverAESNI`, `serverSEP`, `clientAESNI`, and `clientSEP`. The values for
+these fields should be strings representing _variational values_ for these
+initial resources.
 
-At their most basic, the variational values used as the values for these fields can be either `()`
-(the unit value, representing the presence of the resource) or `none` (the absence of the resource).
-For example, to create an initial resource environment with all possible resources present, a user would
-input the following:
+At their most basic, the variational values used as the values for these fields
+can be either `()` (the unit value, representing the presence of the resource)
+or `none` (the absence of the resource). For example, to create an initial
+resource environment with all possible resources present, a user would input
+the following:
 
 ```bash
 > stack exec resource-dsl -- example crossapp --init '{ "serverAESNI": "()", "serverSEP": "()", "clientAESNI": "()", "clientSEP": "()" }'
@@ -358,68 +361,77 @@ Similarly, to create an empty initial resource environment, we would call:
 > stack exec resource-dsl -- example crossapp --init '{ "serverAESNI": "none", "serverSEP": "none", "clientAESNI": "none", "clientSEP": "none" }'
 ```
 
-Variational values also allow a user to specify different values under the presence of certain features,
-including representing initial environments where a resource is both present and absent. To do this, we
-create a choice value, which has the form `[<dimension>]{<variational value>, <variational value>}`.
-For example, to represent both the presence and absence of the `serverAESNI` resource, we could
-include the key/value pair `"serverAESNI": "[sAESNI]{(),none}"`. This signals that when the feature
-`sAESNI` is enabled, then the `serverAESNI` resource is available, but otherwise it is unavailable.
+Variational values also allow a user to specify different values under the
+presence of certain features, including representing initial environments where
+a resource is both present and absent. To do this, we create a choice value,
+which has the form `[<dimension>]{<variational value>, <variational value>}`.
+For example, to represent both the presence and absence of the `serverAESNI`
+resource, we could include the key/value pair
+`"serverAESNI": "[sAESNI]{(),none}"`. This signals that when the feature `sAESNI`
+is enabled, then the `serverAESNI` resource is available, but otherwise it
+is unavailable.
 
-Next, we generate a configuration for the example. To do this, we choose an encryption provider
-to run on the server, and another provider to run on the client.
-We pass these arguments via a JSON object with fields `serverProv` and `clientProv`
-set to the name of the provider DFU to load on the server and client, respectively.
-For example, to use the default `javax` API on the server and `org.bouncycastle`
-on the client, you would call:
+Next, we generate a configuration for the example. To do this, we choose an
+encryption provider to run on the server, and another provider to run on the
+client. We pass these arguments via a JSON object with fields `serverProv` and
+`clientProv` set to the name of the provider DFU to load on the server and
+client, respectively. For example, to use the default `javax` API on the server
+and `org.bouncycastle` on the client, you would call:
 
 ```bash
 > stack exec resource-dsl -- example crossapp --config '{ "serverProv": "Javax", "clientProv": "BouncyCastle" }'
 ```
 
-The available DFUs to load on the server and client are `Javax` and `BouncyCastle`.
+The available DFUs to load on the server and client are `Javax` and
+`BouncyCastle`.
 
-There are several options for running the example program. If we wish to query multiple different
-configurations at once, or to have the application enumerate possible correct configurations for us,
-we simply use the command:
+There are several options for running the example program. If we wish to query
+multiple different configurations at once, or to have the application enumerate
+possible correct configurations for us, we simply use the command:
 
 ```bash
 > stack exec resource-dsl -- run
 ```
 
-This will run all possible configurations variationally. As such, it will take a minute or two to complete.
-Once completed, the user can use the `check` subcommand to query the variational results. For example,
-say we wish to know whether the AES128 in CTR mode with PKCS5 padding is supported. We would call:
+This will run all possible configurations variationally. As such, it will take
+a minute or two to complete. Once completed, the user can use the `check`
+subcommand to query the variational results. For example, say we wish to know
+whether the AES128 in CTR mode with PKCS5 padding is supported. We would call:
 
 ```bash
-> stack exec resource-dsl -- check --total \[\"AES\",\"CTR\",\"KSZ16\",\"PKCS5Padding\"\]
+> stack exec resource-dsl -- check --total '["AES","CTR","KSZ16","PKCS5Padding"]'
 ```
 
 Similarly, if we wish to know if there are any successful configurations that use Blowfish and a keysize
 of 56 bits, we can use this command:
 
 ```bash
-> stack exec resource-dsl -- check --on \[\"Blowfish\",\"KSZ8\"\]
+> stack exec resource-dsl -- check --on '["Blowfish","KSZ8"]'
 ```
 
-By examining `outbox/best.txt` we can then obtain some possible succesful configurations, if any exist.
+By examining `outbox/best.txt` we can then obtain some possible successful
+configurations, if any exist.
 
-The other possible way to run the example program is by eliminating certain options by preconfiguring the
-program prior to execution. For example, if we know we are only interested in AES128 in CTR mode with PKCS5 padding
-we can preconfigure the program and avoid useless computation with this call:
+The other possible way to run the example program is by eliminating certain
+options by preconfiguring the program prior to execution. For example, if we
+know we are only interested in AES128 in CTR mode with PKCS5 padding we can
+preconfigure the program and avoid useless computation with this call:
 
 ```bash
-> stack exec resource-dsl -- run --total \[\"AES\",\"CTR\",\"KSZ16\",\"PKCS5Padding\"\]
+> stack exec resource-dsl -- run --total '["AES","CTR","KSZ16","PKCS5Padding"]'
 ```
 
-Similarly, we can turn off or on only certain features and then query the results using the `check`
-subcommmand as described above. For example, this preconfiguration turns DES on and CTR mode off:
+Similarly, we can turn off or on only certain features and then query the
+results using the `check` subcommmand as described above. For example, this
+preconfiguration turns DES on and CTR mode off:
 
 ```bash
-> stack exec resource-dsl -- run --on \[\"DES\"\] --off \[\"CTR\"\]
+> stack exec resource-dsl -- run --on '["DES"]' --off '["CTR"]'
 ```
 
-In general if you know that you are only interested in certain features, or are uninterested in others,
-it is better to preconfigure the program in order to save computation time.
+In general if you know that you are only interested in certain features, or are
+uninterested in others, it is better to preconfigure the program in order to
+save computation time.
 
 The following features are supported and can be queried and turned on/off:
 
@@ -431,12 +443,86 @@ Paddings: `["ZeroBytePadding", "PKCS5Padding", "PKCS7Padding", "ISO10126_2Paddin
 
 Keysizes (in bytes): `["KSZ8", "KSZ16", "KSZ24", "KSZ32", "KSZ40", "KSZ48", "KSZ56", "KSZ64"]`
 
-The application will also output several report files into the outbox. `error.json` will contain a variational
-data structure containing any errors generated for a particular variant, such as failing to meet a particular
-mission requirement. `resources.json` will include the variational resource environment generated by running
-the example. `success.json` includes a boolean formula that denotes which variants, if any, did not
-encounter any errors and met all mission requirements. If the `check` subcommand was used, `best.txt`
-will contain some possible successful configurations for the given `check`, if any exist.
+The application will also output several report files into the outbox.
+`error.json` will contain a variational data structure containing any errors
+generated for a particular variant, such as failing to meet a particular
+mission requirement. `resources.json` will include the variational resource
+environment generated by running the example. `success.json` includes a boolean
+formula that denotes which variants, if any, did not encounter any errors and
+met all mission requirements. If the `check` subcommand was used, `best.txt`
+will contain some possible successful configurations for the given `check`, if
+any exist.
+
+
+### Peter's Cross-App Scenario
+
+This is a shorter, specific set of instructions to support the sequence of
+steps that Peter outlined in his email.
+
+  1. Generate the DFU dictionary, application model, and mission requirements.
+     
+     ```
+     > stack exec resource-dsl -- example crossapp --dict --model --reqs
+     ```
+  
+  2. Initialize the application model by indicating that you want to search all
+     cipher DFUs.
+     
+     ```
+     > stack exec resource-dsl -- example crossapp --config-all
+     ```
+  
+  3. Initialize the resource environment to the desired configuration, as
+     described above. For example, to indicate AES-NI support on the server
+     only, and strong-encryption support on neither:
+     
+     ```
+     > stack exec resource-dsl -- example crossapp --init '{ "serverAESNI": "()", "serverSEP": "none", "clientAESNI": "none", "clientSEP": "none" }'
+     ```
+
+  4. Now you can run the analysis. This will take a few minutes (takes ~7
+     minutes on a 2018 Thinkpad X1).
+
+     ```
+     > stack exec resource-dsl -- run
+     ```
+  
+     Alternatively, if you know some of the configuration parameters already
+     (e.g. the required key size), you can run the analysis more quickly by
+     specifying the known options in the `run` command. The more options you
+     specify, the faster the analysis will run. (Specifying the keysize alone
+     shaves a minute or two off the analysis.)
+
+     ```
+     > stack exec resource-dsl -- run --on '["KSZ16"]'
+     ```
+  
+  5. After running the analysis once, the success of various configurations can
+     be queried quickly and as many times as needed. For example, to simply
+     check whether any configuration is valid:
+
+     ```
+     > stack exec resource-dsl -- check
+     ```
+
+     This should return "Success" if there is a valid configuration. A list of
+     several valid configurations satisfying the `check` call can be found in
+     `outbox/best.txt`. This indicates a list of all of the configuration
+     options and their settings.
+     
+     Alternatively, to check whether there is a valid configuration that
+     satisfies some additional constraints, you can specify these by running
+     the `check` command with settings for various configuration options.
+     
+     For example, to check whether there is a valid configuration that uses
+     a key size of 16 bytes and the AES algorithm, run:
+
+     ```
+     > stack exec resource-dsl -- check --on '["KSZ16","AES"]'
+     ```
+
+     This will generate a new `outbox/best.txt` with configurations that
+     satisfy this check.
 
 [Stack]: http://docs.haskellstack.org/en/stable/README/
 [Z3]: https://github.com/Z3Prover/z3/releases
