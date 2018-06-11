@@ -93,6 +93,9 @@ data PVal
      | S Symbol
   deriving (Eq,Data,Show,Read)
 
+instance IsString PVal where
+  fromString = S . fromString
+
 --
 -- * Primitive operators
 --
@@ -312,6 +315,12 @@ instance Prim BExpr IExpr where
   (./=) = OpIB Neq
   (.>=) = OpIB GTE
   (.>)  = OpIB GT
+
+-- Construct references with string literals
+instance IsString BExpr where
+  fromString = BRef . pack
+instance IsString IExpr where
+  fromString = IRef . pack
 
 
 
