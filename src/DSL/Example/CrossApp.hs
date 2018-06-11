@@ -151,6 +151,10 @@ crossAppDFUs = modelDict [("Javax", javaxDFU), ("BouncyCastle", bouncyDFU)]
 crossAppConfig :: Symbol -> Symbol -> [V PVal]
 crossAppConfig s c = [One . S $ s, One . S $ c]
 
+crossAppConfigAll :: [V PVal]
+crossAppConfigAll = [ Chc "ServerJavax" (One "Javax") (One "BouncyCastle")
+                    , Chc "ClientJavax" (One "Javax") (One "BouncyCastle") ]
+
 --
 -- * Requirements
 --
@@ -175,11 +179,12 @@ data CrossAppInit = CrossAppInit
   deriving (Eq,Read,Show,Data,Typeable,Generic,FromJSON)
 
 data CrossAppOpts = CrossAppOpts
-     { genDict   :: Bool
-     , genModel  :: Bool
-     , genInit   :: Maybe CrossAppInit
-     , genConfig :: Maybe CrossAppConfig
-     , genReqs   :: Bool }
+     { genDict      :: Bool
+     , genModel     :: Bool
+     , genInit      :: Maybe CrossAppInit
+     , genConfig    :: Maybe CrossAppConfig
+     , genConfigAll :: Bool
+     , genReqs      :: Bool }
   deriving (Eq,Read,Show,Data,Typeable,Generic)
 
 parseCrossAppOpts :: Parser CrossAppOpts
@@ -211,6 +216,11 @@ parseCrossAppOpts = CrossAppOpts
         ) )
 
   <*> switch
+       ( long "config-all"
+      <> help ("Generate a configuration that explores all cipher DFUs."
+         <> " This overrides an argument to --config, if passed.") )
+
+  <*> switch
        ( long "reqs"
       <> help "Generate empty mission requirements" )
 
@@ -224,6 +234,7 @@ runCrossApp opts = do
     case (genConfig opts) of
       Just (CrossAppConfig s c) -> writeJSON defaultConfig (crossAppConfig (str2sym s) (str2sym c))
       Nothing -> return ()
+    when (genConfigAll opts) (writeJSON defaultConfig crossAppConfigAll)
     when (genReqs opts) (writeJSON defaultReqs crossAppReqs)
     where
       str2sym = Symbol . T.pack
