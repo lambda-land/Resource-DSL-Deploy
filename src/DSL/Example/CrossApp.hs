@@ -38,6 +38,16 @@ crossAppResEnv r = envFromList
     ok v@(One (Just Unit)) = v
     ok _ = error "Only unit values are allowed in this example's initial resource environment."
 
+crossAppResEnvAll :: ResEnv
+crossAppResEnvAll = envFromList
+    [ ("/Server/AES-NI", optional "ServerAESNI")
+    , ("/Server/StrongEncryptionPolicy", optional "ServerSEP")
+    , ("/Client/AES-NI", optional "ClientAESNI")
+    , ("/Client/StrongEncryptionPolicy", optional "ClientSEP") ]
+  where
+    optional d = Chc d (One (Just Unit)) (One Nothing)
+    
+
 
 -- ** Application model
 
@@ -146,6 +156,7 @@ bouncyDFU = Model [] $ mkCrossAppDFU "BouncyCastle"
 crossAppDFUs :: Dictionary
 crossAppDFUs = modelDict [("Javax", javaxDFU), ("BouncyCastle", bouncyDFU)]
 
+
 -- * Config
 
 crossAppConfig :: Symbol -> Symbol -> [V PVal]
@@ -182,6 +193,7 @@ data CrossAppOpts = CrossAppOpts
      { genDict      :: Bool
      , genModel     :: Bool
      , genInit      :: Maybe CrossAppInit
+     , genInitAll   :: Bool
      , genConfig    :: Maybe CrossAppConfig
      , genConfigAll :: Bool
      , genReqs      :: Bool }
@@ -205,6 +217,12 @@ parseCrossAppOpts = CrossAppOpts
          <> " serverSEP, clientAESNI, and clientSEP. Each field's value"
          <> " is a string representing a variational value. Only unit primitive values"
          <> " are permitted in the variational value.") )
+
+  <*> switch
+       ( long "init-all"
+      <> help ("Generate an initial resource environment that represents all"
+         <> " possible configurations of AES-NI and SEP on the client and server."
+         <> " This overrides an argument to --init, if passed.") )
 
   <*> (optional . option readRecord)
        ( long "config"
@@ -231,6 +249,7 @@ runCrossApp opts = do
     case (genInit opts) of
       Just r  -> writeJSON defaultInit (crossAppResEnv r)
       Nothing -> return ()
+    when (genInitAll opts) (writeJSON defaultInit crossAppResEnvAll)
     case (genConfig opts) of
       Just (CrossAppConfig s c) -> writeJSON defaultConfig (crossAppConfig (str2sym s) (str2sym c))
       Nothing -> return ()

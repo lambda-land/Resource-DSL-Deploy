@@ -480,6 +480,13 @@ steps that Peter outlined in his email.
      > stack exec resource-dsl -- example crossapp --init '{ "serverAESNI": "()", "serverSEP": "none", "clientAESNI": "none", "clientSEP": "none" }'
      ```
 
+     Alternatively, to explore all possible configurations of the resource
+     environment, you can use the `--init-all` option:
+
+     ```
+     > stack exec resource-dsl -- example crossapp --init-all
+     ```
+
   4. Now you can run the analysis. This will take a few minutes (takes ~7
      minutes on a 2018 Thinkpad X1).
 
