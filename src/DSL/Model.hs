@@ -1,60 +1,24 @@
 module DSL.Model where
 
-import Data.Data (Data,Typeable)
-import GHC.Generics (Generic)
-
 import Control.Monad (forM_)
-import Control.Monad.Catch (Exception,throwM)
-import Data.List (union)
+import Data.Foldable (foldl')
+import Data.SBV (bnot, (&&&))
 
+import DSL.Types
 import DSL.Effect
 import DSL.Environment
 import DSL.Expression
 import DSL.Name
 import DSL.Path
-import DSL.Primitive
 import DSL.Profile
 import DSL.Resource
+import DSL.SegList
 
 
 --
 -- * Components
 --
 
--- ** Syntax
-
--- | An application model.
-data Model = Model [Param] Block
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
-
--- | Statement block.
-type Block = [Stmt]
-
--- | Statement in an application model.
-data Stmt
-     = Do Path Effect       -- ^ apply an effect
-     | If Expr Block Block  -- ^ conditional statement
-     | In Path Block        -- ^ do work in a sub-environment
-     | For Var Expr Block   -- ^ loop over indexed sub-environments
-     | Let Var Expr Block   -- ^ extend the variable environment
-     | Load Expr [Expr]     -- ^ load a sub-model or profile
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
-
--- | Kinds of errors that can occur in statements.
-data StmtErrorKind
-     = IfTypeError    -- ^ non-boolean condition
-     | ForTypeError   -- ^ non-integer range bound
-     | LoadTypeError  -- ^ not a component ID
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
-
--- | Errors in statements.
-data StmtError = StmtError {
-     stmtErrorStmt  :: Stmt,
-     stmtErrorKind  :: StmtErrorKind,
-     stmtErrorValue :: PVal
-} deriving (Data,Eq,Generic,Read,Show,Typeable)
-
-instance Exception StmtError
 
 
 -- ** Operations
@@ -67,24 +31,29 @@ modelDict l = envFromList [(Symbol n, ModEntry m) | (n,m) <- l]
 profileDict :: [(Name,Model)] -> Dictionary
 profileDict l = envFromList [(Symbol n, ProEntry (toProfile m)) | (n,m) <- l]
 
--- | Convert a simple model into a profile. This allows writing profiles
---   with nicer syntax. Fails with a runtime error on a Load or If statement.
-toProfile :: Model -> Profile
-toProfile (Model xs stmts) =
-    Profile xs (envFromListAcc (concatMap (entries pathThis) stmts))
+vMergeEff :: Env Path (SegList Effect) -> (Path, Maybe BExpr, Effect) -> Env Path (SegList Effect)
+vMergeEff env (p, d, e) | Just es <- envLookup' p env = envExtend p (segSetInsert d e es) env
+                        | otherwise                   = envExtend p (segSetInsert d e []) env
+
+vEnvFromList :: [(Path, Maybe BExpr, Effect)] -> Env Path (SegList Effect)
+vEnvFromList = foldl' vMergeEff envEmpty
+
+toProfileEntries :: Path -> Maybe BExpr -> Block -> [(Path, Maybe BExpr, Effect)]
+toProfileEntries _ _ [] = []
+toProfileEntries p d ((Elems xs):ys) = fromElems p d xs ++ toProfileEntries p d ys
   where
-    entries pre (In path blk) = concatMap (entries (pathAppend pre path)) blk
-    entries pre (Do path eff) = [(pathAppend pre path, [eff])]
-    entries _ _ = error "toProfile: cannot convert model to profile"
+    fromElems _ _ [] = []
+    fromElems p d ((In path blk):xs) = toProfileEntries (pathAppend p path) d blk ++ fromElems p d xs
+    fromElems p d ((Do path eff):xs) = (pathAppend p path, d, eff):(fromElems p d xs)
+    fromElems _ _ _ = error "toProfile: cannot convert model to profile"
+toProfileEntries p Nothing ((Split d' l r):ys) = toProfileEntries p (Just d') l ++ toProfileEntries p (Just (bnot d')) r ++ toProfileEntries p Nothing ys
+toProfileEntries p (Just d) ((Split d' l r):ys) = toProfileEntries p (Just (d &&& d')) l ++ toProfileEntries p (Just (d &&& (bnot d'))) r ++ toProfileEntries p (Just d) ys
 
--- | Compose two models by sequencing the statements in their bodies.
---   Merges parameters by name.
-composeModels :: Model -> Model -> Model
-composeModels (Model ps1 b1) (Model ps2 b2) =
-    Model (union ps1 ps2) (b1 ++ b2)
+toProfile :: Model -> Profile
+toProfile (Model xs vstmts) =
+    Profile xs (vEnvFromList (toProfileEntries pathThis Nothing vstmts))
 
-instance MergeDup Model where
-  mergeDup = composeModels
+
 
 -- TODO: convert profiles to models, compose profiles and models
 
@@ -92,20 +61,21 @@ instance MergeDup Model where
 -- ** Semantics
 
 -- | Load a model into the current environment, prefixed by the given path.
-loadModel :: MonadEval m => Model -> [Expr] -> m ()
+loadModel :: MonadEval m => Model -> [V Expr] -> m ()
 loadModel (Model xs block) args = withArgs xs args (execBlock block)
 
 -- | Load a component by ID.
-loadComp :: MonadEval m => CompID -> [Expr] -> m ()
+loadComp :: MonadEval m => CompID -> [V Expr] -> m ()
 loadComp cid args = do
-    def <- getDict >>= envLookup cid
+    dict <- getDict
+    def <- promoteError (envLookup cid dict)
     case def of
       ProEntry profile -> loadProfile profile args
       ModEntry model   -> loadModel model args
 
 -- | Execute a block of statements.
 execBlock :: MonadEval m => Block -> m ()
-execBlock = mapM_ execStmt
+execBlock = segMapM_ execStmt
 
 -- | Execute a command in a sub-environment.
 execInSub :: MonadEval m => Path -> m a -> m a
@@ -120,28 +90,28 @@ execStmt (Do path eff) = do
     rID <- getResID path
     resolveEffect rID eff
 -- conditional statement
-execStmt stmt@(If cond tru fls) = do
-    val <- evalExpr cond
+execStmt stmt@(If cond tru fls) = unVM (do
+    val <- evalExprV cond
     case val of
-      B True  -> execBlock tru
-      B False -> execBlock fls
-      _ -> throwM (StmtError stmt IfTypeError val)
+      B True  -> toVM $ execBlock tru
+      B False -> toVM $ execBlock fls
+      _ -> VM $ vError (StmtE $ StmtError stmt IfTypeError val)) >> return ()
 -- do work in sub-environment
 execStmt (In path body) = execInSub path (execBlock body)
 -- loop over indexed sub-environments
-execStmt stmt@(For var expr body) = do
-    let iter i = execInSub (pathFor i) (withNewVar var (I i) (execBlock body))
-    val <- evalExpr expr
+execStmt stmt@(For var expr body) = unVM (do
+    let iter i = execInSub (pathFor i) (withNewVar var (One. Just . I $ i) (execBlock body))
+    val <- evalExprV expr
     case val of
-      I n -> forM_ [1..n] iter
-      _ -> throwM (StmtError stmt ForTypeError val)
+      I n -> toVM $ forM_ [1..n] iter
+      _ -> VM $ vError (StmtE $ StmtError stmt ForTypeError val)) >> return ()
 -- extend the variable environment
 execStmt (Let var expr body) = do
-    val <- evalExpr expr
+    val <- unVM $ evalExprV expr
     withNewVar var val (execBlock body)
 -- load a sub-module or profile
-execStmt stmt@(Load comp args) = do
-    res <- evalExpr comp
+execStmt stmt@(Load comp args) = unVM (do
+    res <- evalExprV comp
     case res of
-      S cid -> loadComp cid args
-      _ -> throwM (StmtError stmt LoadTypeError res)
+      S cid -> toVM $ loadComp cid args
+      _ -> VM $ vError (StmtE $ StmtError stmt LoadTypeError res)) >> return ()

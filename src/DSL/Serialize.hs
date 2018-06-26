@@ -9,26 +9,21 @@ import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Map.Strict (toAscList)
 import Data.Monoid ((<>))
 import Data.Scientific (floatingOrInteger,fromFloatDigits)
-import Data.String (fromString)
 import Data.Text (Text,intercalate,pack,unpack)
 import Data.Vector (fromList)
 import System.Directory (createDirectoryIfMissing)
 import System.FilePath (takeDirectory)
 import System.Exit
+import qualified Data.Set as S
 
 import qualified Data.ByteString.Lazy.Char8 as B
 
-import DSL.Effect
+import DSL.Types
 import DSL.Environment
-import DSL.Expression
-import DSL.Model
 import DSL.Name
 import DSL.Parser
 import DSL.Path
 import DSL.Pretty
-import DSL.Primitive
-import DSL.Profile
-import DSL.Resource
 
 
 --
@@ -41,7 +36,20 @@ defaultModel  = "inbox/model.json"
 defaultConfig = "inbox/configuration.json"
 defaultReqs   = "inbox/requirements.json"
 defaultOutput = "outbox/resources.json"
+defaultError  = "outbox/error.json"
+defaultCtx    = "outbox/success.json"
+defaultBest   = "outbox/best.txt"
 
+-- ** Errors
+
+type ParseIt a = Parse SchemaViolation a
+
+data SchemaViolation
+     = BadCase Text [Text] Text
+     | BadPVal Data.Aeson.Value
+     | ExprParseError Text Text
+     | BExprParseError Text Text
+  deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 --
 -- * Read/Write JSON
@@ -72,21 +80,6 @@ handleParseError loc (Left err) = do
     printParseError err
     exitWith (ExitFailure 1)
 
-
---
--- * Conversion
---
-
--- ** Errors
-
-type ParseIt a = Parse SchemaViolation a
-
-data SchemaViolation
-     = BadCase Text [Text] Text
-     | BadPVal Value
-     | ExprParseError String Text
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
-
 prettySchemaViolation :: SchemaViolation -> Text
 prettySchemaViolation (BadCase typ good bad) =
     "Invalid " <> typ <> " case: " <> bad
@@ -95,23 +88,68 @@ prettySchemaViolation (BadPVal bad) =
     "Invalid primitive value: " <> pack (show bad)
 prettySchemaViolation (ExprParseError msg bad) =
     "Error parsing expression: " <> bad
-    <> "\n" <> pack msg
+    <> "\n" <> msg
+prettySchemaViolation (BExprParseError msg bad) =
+    "Error parsing boolean expression: " <> bad
+    <> "\n" <> msg
 
 printParseError :: ParseError SchemaViolation -> IO ()
 printParseError = mapM_ (putStrLn . unpack) . displayError prettySchemaViolation
 
+asMaybe :: ParseIt a -> ParseIt (Maybe a)
+asMaybe asA = nothing <|> just
+  where
+    nothing = Nothing <$ asNull
+    just = Just <$> asA
 
--- ** Primitives
+asName :: ParseIt Name
+asName = asText
+
+instance ToJSON Symbol where
+  toJSON (Symbol n) = toJSON n
+
+asSymbol :: ParseIt Symbol
+asSymbol = mkSymbol <$> asName
+
+instance ToJSON Path where
+  toJSON = String . prettyPath
+
+asPath :: ParseIt Path
+asPath = fromTextPath <$> asText
+
+instance ToJSON ResID where
+  toJSON (ResID p) = toJSON p
+
+asResID :: ParseIt ResID
+asResID = ResID <$> eachInArray asName
+
+instance ToJSON BExpr where
+  toJSON = String . pretty
+
+asBExpr :: ParseIt BExpr
+asBExpr = do
+    t <- asText
+    case parseBExprText t of
+      Right e  -> pure e
+      Left msg -> throwCustomError (BExprParseError (pack msg) t)
+
+instance (ToJSON a) => ToJSON (V a) where
+  toJSON (One a) = object ["vtype" .= String "one", "one" .= toJSON a]
+  toJSON (Chc d l r) = object ["vtype" .= String "chc", "dim" .= d, "l" .= l, "r" .= r]
+
+asV :: ParseIt a -> ParseIt (V a)
+asV asA = do
+  vtype <- key "vtype" asText
+  case vtype of
+    "one" -> one
+    "chc" -> chc
+    _ -> throwCustomError (BadCase "vtype" ["one", "chc"] vtype)
+  where
+    one = One <$> key "one" asA
+    chc = Chc <$> key "dim" asBExpr <*> key "l" (asV asA) <*> key "r" (asV asA)
 
 instance ToJSON PType where
-  toJSON = String . pack . prettyPType
-
-instance ToJSON PVal where
-  toJSON Unit  = Null
-  toJSON (B b) = Bool b
-  toJSON (I i) = Number (fromInteger (toInteger i))
-  toJSON (F d) = Number (fromFloatDigits d)
-  toJSON (S s) = String (pack (toName s))
+  toJSON = String . pretty
 
 asPType :: ParseIt PType
 asPType = do
@@ -124,110 +162,51 @@ asPType = do
       "symbol" -> pure TSymbol
       _ -> throwCustomError (BadCase "primitive type" ["unit","bool","int","float","symbol"] t)
 
+instance ToJSON PVal where
+  toJSON Unit  = String "()"
+  toJSON (B b) = Bool b
+  toJSON (I i) = Number (fromInteger (toInteger i))
+  toJSON (F d) = Number (fromFloatDigits d)
+  toJSON (S s) = String (toName s)
+
 asPVal :: ParseIt PVal
 asPVal = do
     v <- asValue
     case v of
-      Null     -> pure Unit
       Bool b   -> pure (B b)
       Number n -> pure (either F I (floatingOrInteger n))
+      String "()" -> pure Unit
       String _ -> S <$> asSymbol
       _ -> throwCustomError (BadPVal v)
 
-asConfig :: ParseIt [PVal]
-asConfig = eachInArray asPVal
-
-
--- ** Functions and Expressions
+asConfig :: ParseIt [V PVal]
+asConfig = eachInArray (asV asPVal)
 
 instance ToJSON Param where
   toJSON (Param pname ptype) = object
-    [ "name" .= String (pack pname)
+    [ "name" .= String pname
     , "type" .= toJSON ptype ]
 
-instance ToJSON Fun where
-  toJSON (Fun param body) = object
-    [ "parameter" .= toJSON param
-    , "body"      .= toJSON body ]
+asParam :: ParseIt Param
+asParam = Param <$> key "name" asName <*> key "type" (asV asPType)
 
 instance ToJSON Expr where
-  toJSON = String . pack . prettyExpr
-
-asParam :: ParseIt Param
-asParam = Param <$> key "name" asName <*> key "type" asPType
-
-asFun :: ParseIt Fun
-asFun = Fun <$> key "parameter" asParam <*> key "body" asExpr
+  toJSON = String . pretty
 
 asExpr :: ParseIt Expr
 asExpr = do
     t <- asText
     case parseExprText t of
       Right e  -> pure e
-      Left msg -> throwCustomError (ExprParseError msg t)
+      Left msg -> throwCustomError (ExprParseError (pack msg) t)
 
+instance ToJSON Fun where
+  toJSON (Fun param body) = object
+    [ "parameter" .= toJSON param
+    , "body"      .= toJSON body ]
 
--- ** Names and Paths
-
-instance ToJSON Symbol where
-  toJSON (Symbol n) = toJSON n
-
-instance ToJSON ResID where
-  toJSON (ResID p) = toJSON p
-
-instance ToJSON Path where
-  toJSON = String . pack . prettyPath
-
-asName :: ParseIt Name
-asName = asString
-
-asSymbol :: ParseIt Symbol
-asSymbol = mkSymbol <$> asName
-
-asResID :: ParseIt ResID
-asResID = ResID <$> eachInArray asName
-
-asPath :: ParseIt Path
-asPath = fromString <$> asString
-
-
--- ** Environments
-
-instance (ToJSON k, ToJSON v) => ToJSON (Env k v) where
-  toJSON (Env m) = Array (fromList (map entry (toAscList m)))
-    where entry (k,v) = object [ "key" .= toJSON k, "value" .= toJSON v ]
-
-instance ToJSON Entry where
-  toJSON (ProEntry p) = object
-    [ "type"  .= String "profile"
-    , "entry" .= toJSON p ]
-  toJSON (ModEntry m) = object
-    [ "type"  .= String "model"
-    , "entry" .= toJSON m ]
-
-asEnv :: (Ord k, MergeDup v) => ParseIt k -> ParseIt v -> ParseIt (Env k v)
-asEnv asKey asVal = envFromListAcc <$> eachInArray entry
-  where entry = (,) <$> key "key" asKey <*> key "value" asVal
-
-asEntry :: ParseIt Entry
-asEntry = do
-    t <- key "type" asText
-    case t of
-      "profile" -> ProEntry <$> key "entry" asProfile
-      "model"   -> ModEntry <$> key "entry" asModel
-      _ -> throwCustomError (BadCase "dictionary entry" ["profile","model"] t)
-
-asVarEnv :: ParseIt VarEnv
-asVarEnv = asEnv asName asPVal
-
-asResEnv :: ParseIt ResEnv
-asResEnv = asEnv asResID asPVal
-
-asDictionary :: ParseIt Dictionary
-asDictionary = asEnv asSymbol asEntry
-
-
--- ** Effects and Profiles
+asFun :: ParseIt Fun
+asFun = Fun <$> key "parameter" asParam <*> key "body" (asV asExpr)
 
 instance ToJSON Effect where
   toJSON (Create expr) = object
@@ -242,28 +221,15 @@ instance ToJSON Effect where
   toJSON Delete = object
     [ "effect"     .= String "delete" ]
 
-instance ToJSON Profile where
-  toJSON (Profile xs effs) = object
-    [ "parameters" .= toJSON xs
-    , "effects"    .= toJSON effs ]
-
 asEffect :: ParseIt Effect
 asEffect = do
     eff <- key "effect" asText
     case eff of
-      "create" -> Create <$> key "expression" asExpr
+      "create" -> Create <$> key "expression" (asV asExpr)
       "check"  -> Check  <$> key "function" asFun
       "modify" -> Modify <$> key "function" asFun
       "delete" -> pure Delete
       _ -> throwCustomError (BadCase "effect" ["create","check","modify","delete"] eff)
-
-asProfile :: ParseIt Profile
-asProfile = Profile
-    <$> key "parameters" (eachInArray asParam)
-    <*> key "effects" (asEnv asPath (eachInArray asEffect))
-
-
--- ** Statements and Models
 
 instance ToJSON Stmt where
   toJSON (Do path eff) = object
@@ -281,12 +247,12 @@ instance ToJSON Stmt where
     , "body"      .= toJSON body ]
   toJSON (For x expr body) = object
     [ "statement" .= String "for"
-    , "variable"  .= String (pack x)
+    , "variable"  .= String x
     , "maximum"   .= toJSON expr
     , "body"      .= toJSON body ]
   toJSON (Let x bound body) = object
     [ "statement" .= String "let"
-    , "variable"  .= String (pack x)
+    , "variable"  .= String x
     , "bound"     .= toJSON bound
     , "body"      .= toJSON body ]
   toJSON (Load comp args) = object
@@ -294,36 +260,119 @@ instance ToJSON Stmt where
     , "component" .= toJSON comp
     , "arguments" .= toJSON args ]
 
-instance ToJSON Model where
-  toJSON (Model xs block) = object
-    [ "parameters" .= toJSON xs
-    , "block"      .= toJSON block ]
-
-asBlock :: ParseIt Block
-asBlock = eachInArray asStmt
-
 asStmt :: ParseIt Stmt
 asStmt = do
     stmt <- key "statement" asText
     case stmt of
       "do"   -> Do   <$> key "path"      asPath
                      <*> key "effect"    asEffect
-      "if"   -> If   <$> key "condition" asExpr
+      "if"   -> If   <$> key "condition" (asV asExpr)
                      <*> key "then"      asBlock
                      <*> key "else"      asBlock
       "in"   -> In   <$> key "context"   asPath
                      <*> key "body"      asBlock
       "for"  -> For  <$> key "variable"  asName
-                     <*> key "maximum"   asExpr
+                     <*> key "maximum"   (asV asExpr)
                      <*> key "body"      asBlock
       "let"  -> Let  <$> key "variable"  asName
-                     <*> key "bound"     asExpr
+                     <*> key "bound"     (asV asExpr)
                      <*> key "body"      asBlock
-      "load" -> Load <$> key "component" asExpr
-                     <*> key "arguments" (eachInArray asExpr)
+      "load" -> Load <$> key "component" (asV asExpr)
+                     <*> key "arguments" (eachInArray (asV asExpr))
       _ -> throwCustomError (BadCase "stmt" ["do","in","if","let","load"] stmt)
+
+instance (ToJSON a) => ToJSON (Segment a) where
+  toJSON (Elems xs) = object
+    [ "segType" .= String "elems"
+    , "elems" .= toJSON xs ]
+  toJSON (Split d l r) = object
+    [ "segType" .= String "split"
+    , "dim" .= toJSON d
+    , "l" .= toJSON l
+    , "r" .= toJSON r ]
+
+asSegment :: ParseIt a -> ParseIt (Segment a)
+asSegment asA = do
+  segType <- key "segType" asText
+  case segType of
+    "elems" -> elems
+    "split" -> split
+    _ -> throwCustomError (BadCase "segType" ["elems", "split"] segType)
+  where
+    elems = Elems <$> key "elems" (eachInArray asA)
+    split = Split
+      <$> key "dim" asBExpr
+      <*> key "l" (asSegList asA)
+      <*> key "r" (asSegList asA)
+
+asSegList :: ParseIt a -> ParseIt (SegList a)
+asSegList asA = eachInArray (asSegment asA)
+
+asBlock :: ParseIt Block
+asBlock = asSegList asStmt
+
+instance ToJSON Entry where
+  toJSON (ProEntry p) = object
+    [ "type"  .= String "profile"
+    , "entry" .= toJSON p ]
+  toJSON (ModEntry m) = object
+    [ "type"  .= String "model"
+    , "entry" .= toJSON m ]
+
+asEntry :: ParseIt Entry
+asEntry = do
+    t <- key "type" asText
+    case t of
+      "profile" -> ProEntry <$> key "entry" asProfile
+      "model"   -> ModEntry <$> key "entry" asModel
+      _ -> throwCustomError (BadCase "dictionary entry" ["profile","model"] t)
+
+instance (ToJSON k, ToJSON v) => ToJSON (Env k v) where
+  toJSON (Env m) = Array (fromList (map entry (toAscList m)))
+    where entry (k,v) = object [ "key" .= toJSON k, "value" .= toJSON v ]
+
+asEnv :: (Ord k, MergeDup v) => ParseIt k -> ParseIt v -> ParseIt (Env k v)
+asEnv asKey asVal = envFromListAcc <$> eachInArray entry
+  where entry = (,) <$> key "key" asKey <*> key "value" asVal
+
+asVarEnv :: ParseIt VarEnv
+asVarEnv = asEnv asName (asV (asMaybe asPVal))
+
+asResEnv :: ParseIt ResEnv
+asResEnv = asEnv asResID (asV (asMaybe asPVal))
+
+asDictionary :: ParseIt Dictionary
+asDictionary = asEnv asSymbol asEntry
+
+instance ToJSON Model where
+  toJSON (Model xs block) = object
+    [ "parameters" .= toJSON xs
+    , "block"      .= toJSON block ]
 
 asModel :: ParseIt Model
 asModel = Model
     <$> key "parameters" (eachInArray asParam)
     <*> key "block" asBlock
+
+instance ToJSON Profile where
+  toJSON (Profile xs effs) = object
+    [ "parameters" .= toJSON xs
+    , "effects"    .= toJSON effs ]
+
+asProfile :: ParseIt Profile
+asProfile = Profile
+    <$> key "parameters" (eachInArray asParam)
+    <*> key "effects" (asEnv asPath (asSegList asEffect))
+
+instance ToJSON Error where
+  toJSON e = String (pretty e)
+
+instance ToJSON SuccessCtx where
+  toJSON (SuccessCtx b vs) = object
+    [ "context" .= toJSON b
+    , "cfgSpace" .= toJSON vs ]
+
+asSuccess :: ParseIt SuccessCtx
+asSuccess = SuccessCtx
+    <$> key "context" asBExpr
+    <*> key "cfgSpace" (S.fromList <$> eachInArray asText)

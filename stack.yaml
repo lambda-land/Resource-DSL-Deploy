@@ -4,4 +4,4 @@
 # The resolver determines which packages are used to resolve the dependencies
 # in the Cabal build file.
 # https://www.stackage.org/lts-7.0
-resolver: lts-7.0
+resolver: lts-10.7

@@ -1,45 +1,23 @@
 module DSL.Value where
 
-import Data.Data (Data,Typeable)
-import GHC.Generics (Generic)
-
-import Control.Monad       (liftM2)
-import Control.Monad.Catch (MonadThrow)
-
-import DSL.Predicate (BExpr)
+import DSL.Types
 import DSL.Primitive
+import DSL.Resource
 
+applyPrim1 :: MonadEval m => Op1 -> VM m PVal -> VM m PVal
+applyPrim1 o v = do
+  p <- v
+  toVM $ promoteError (primOp1 o p)
 
---
--- * Values
---
+applyPrim2 :: MonadEval m => Op2 -> VM m PVal -> VM m PVal -> VM m PVal
+applyPrim2 o v1 v2 = do
+  p1 <- v1
+  p2 <- v2
+  toVM $ promoteError (primOp2 o p1 p2)
 
--- | Variational primitive values.
-data Value
-     = Prim PVal               -- ^ basic primitive value
-     | ChcV BExpr Value Value  -- ^ choice value
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
-
--- | Check whether a predicate is true for all leaves of a value.
---   A result of Nothing indicates a type error.
-allPrims :: (PVal -> Maybe Bool) -> Value -> Maybe Bool
-allPrims f (Prim v)     = f v
-allPrims f (ChcV _ l r) = liftM2 (&&) (allPrims f l) (allPrims f r)
-
--- | Check whether a value is equivalent to True.
---   A result of Nothing indicates a type error.
-valIsTrue :: Value -> Maybe Bool
-valIsTrue = allPrims isTrue
-  where isTrue (B b) = Just b
-        isTrue _     = Nothing
-
--- | Apply a primitive unary function to a value.
-applyPrim1 :: MonadThrow m => Op1 -> Value -> m Value
-applyPrim1 o (Prim v)     = fmap Prim (primOp1 o v)
-applyPrim1 o (ChcV d l r) = liftM2 (ChcV d) (applyPrim1 o l) (applyPrim1 o r)
-
--- | Apply a primitive binary function to two values.
-applyPrim2 :: MonadThrow m => Op2 -> Value -> Value -> m Value
-applyPrim2 o (Prim l) (Prim r) = fmap Prim (primOp2 o l r)
-applyPrim2 o (ChcV d ll lr) r  = liftM2 (ChcV d) (applyPrim2 o ll r) (applyPrim2 o lr r)
-applyPrim2 o l (ChcV d rl rr)  = liftM2 (ChcV d) (applyPrim2 o l rl) (applyPrim2 o l rr)
+applyPrim3 :: MonadEval m => Op3 -> VM m PVal -> VM m PVal -> VM m PVal -> VM m PVal
+applyPrim3 o v1 v2 v3 = do
+  p1 <- v1
+  p2 <- v2
+  p3 <- v3
+  toVM $ promoteError (primOp3 o p1 p2 p3)

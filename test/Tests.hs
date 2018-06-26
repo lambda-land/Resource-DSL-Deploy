@@ -1,18 +1,21 @@
 module Main where
 
 import Test.Tasty
-
-import DSL.Effect.Test
-import DSL.Expression.Test
-import DSL.Model.Test
-import DSL.Profile.Test
-import DSL.Serialize.Test
+import DSL.SAT.Test
+import DSL.V.Test
+import DSL.Primitive.Test
+import DSL.Value.Test
+--import DSL.Expression.Test
+import DSL.Parser.Test
 
 main :: IO ()
-main = defaultMain $ testGroup ""
-  [testResolveEffect
-  , testExpression
-  , testModel
-  , testProfile
-  , testSerialize
+main = defaultMain tests
+
+tests = testGroup "Tests" [
+    testSAT
+    , testV
+    , testPrim
+    , testValue
+    --, testExpr
+    , testParser
   ]

@@ -2,20 +2,16 @@ module DSL.Predicate where
 
 import Prelude hiding (LT,GT)
 
-import Data.Data (Data,Typeable)
-import GHC.Generics (Generic)
-
 import Data.Function (on)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
 import Data.SBV
 
-import DSL.Environment
+import DSL.Types
 import DSL.Name
+import DSL.Environment
 import DSL.Primitive
-import DSL.SAT
-
 
 --
 -- * Predicate Expressions
@@ -23,29 +19,6 @@ import DSL.SAT
 
 -- ** Abstract syntax
 
--- | Unary boolean predicates.
-data Pred
-     = UPred            -- ^ trivial predicate on unit value
-     | BPred Var BExpr  -- ^ predicate on boolean value
-     | IPred Var BExpr  -- ^ predicate on integer value
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
-
--- | Boolean expressions with variable references.
-data BExpr
-     = BLit Bool
-     | BRef Var
-     | OpB  B_B  BExpr
-     | OpBB BB_B BExpr BExpr
-     | OpIB NN_B IExpr IExpr
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
-
--- | Integer expressions with variable references.
-data IExpr
-     = ILit Int
-     | IRef Var
-     | OpI  N_N  IExpr
-     | OpII NN_N IExpr IExpr
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 -- | The set of boolean variables referenced in a boolean expression.
 boolVars :: BExpr -> Set Var
@@ -79,44 +52,6 @@ renameVar old new (OpIB o l r) = OpIB o (renameVar' l) (renameVar' r)
     renameVar' p@(IRef v)   = if v == old then IRef new else p
     renameVar' (OpI o e)    = OpI o (renameVar' e)
     renameVar' (OpII o l r) = OpII o (renameVar' l) (renameVar' r)
-
-
--- ** Syntactic sugar
-
--- Use SBV's Boolean type class for boolean expressions.
-instance Boolean BExpr where
-  true  = BLit True
-  false = BLit False
-  bnot  = OpB Not
-  (&&&) = OpBB And
-  (|||) = OpBB Or
-  (<+>) = OpBB XOr
-  (==>) = OpBB Imp
-  (<=>) = OpBB Eqv
-
--- Use Num type class for integer arithmetic.
-instance Num IExpr where
-  fromInteger = ILit . fromInteger
-  abs    = OpI Abs
-  negate = OpI Neg
-  signum = OpI Sign
-  (+)    = OpII Add
-  (-)    = OpII Sub
-  (*)    = OpII Mul
-  
--- Other integer arithmetic primitives.
-instance PrimN IExpr where
-  (./) = OpII Div
-  (.%) = OpII Mod
-
--- Integer comparison primitives.
-instance Prim BExpr IExpr where
-  (.<)  = OpIB LT
-  (.<=) = OpIB LTE
-  (.==) = OpIB Equ
-  (./=) = OpIB Neq
-  (.>=) = OpIB GTE
-  (.>)  = OpIB GT
 
 
 -- ** Substitution
@@ -184,10 +119,3 @@ toBool = evalBExpr
 -- | Evaluate a boolean expression to a symbolic boolean.
 toSBool :: Env Var SBool -> Env Var SInt32 -> BExpr -> SBool
 toSBool = evalBExpr
-
--- Enable satisfiability checking of boolean expressions.
-instance SAT BExpr where
-  toSymbolic e = do
-    mb <- symEnv sBool (boolVars e)
-    mi <- symEnv sInt32 (intVars e)
-    return (toSBool mb mi e)

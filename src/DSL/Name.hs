@@ -1,7 +1,9 @@
 module DSL.Name where
 
-import Data.Data (Data,Typeable)
-import GHC.Generics (Generic)
+import Prelude hiding (head, tail)
+
+import Data.Text
+import Data.Data
 
 import Data.String (IsString(..))
 
@@ -11,7 +13,7 @@ import Data.String (IsString(..))
 --
 
 -- | Miscellaneous name.
-type Name = String
+type Name = Text
 
 -- | Variable name.
 type Var = Name
@@ -19,20 +21,20 @@ type Var = Name
 -- | Named symbols, a la Lisp. Symbol names may contain '_' or '-' in addition
 --   to alpha-numeric characters. Symbols are printed as ':'-prefixed strings.
 newtype Symbol = Symbol Name
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Ord,Show,Read,Data,Typeable)
 
 -- | Get the name of a symbol.
 toName :: Symbol -> Name
-toName (Symbol n) = ':' : n
+toName (Symbol n) = ':' `cons` n
 
 -- | Construct a symbol from a string. Strips a ':'-prefix if it exists.
 --   Does not check whether the symbol contains only valid characters.
 mkSymbol :: Name -> Symbol
-mkSymbol (':':n) = Symbol n
-mkSymbol n       = Symbol n
+mkSymbol n | head n == ':' = Symbol (tail n)
+           | otherwise     = Symbol n
 
 -- | Component (DFU) IDs are symbols.
 type CompID = Symbol
 
 instance IsString Symbol where
-  fromString = mkSymbol
+  fromString = mkSymbol . pack

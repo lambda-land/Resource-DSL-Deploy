@@ -6,14 +6,12 @@ import GHC.Generics (Generic)
 import Control.Monad (when)
 import Data.List (intercalate,subsequences)
 import Options.Applicative
+import Data.Monoid
+import qualified Data.Text as T
 
+import DSL.Types
 import DSL.Environment
-import DSL.Expression
 import DSL.Model
-import DSL.Path
-import DSL.Primitive
-import DSL.Profile
-import DSL.Resource
 import DSL.Serialize
 import DSL.Sugar
 
@@ -26,8 +24,8 @@ import DSL.Sugar
 
 -- | Location-provider application model. The input parameter is the ID of the
 --   location provider to use.
-appModel = Model [Param "provider" TSymbol]
-    [ Load (Ref "provider") [] ]
+appModel = Model [Param "provider" (One TSymbol)]
+    [ Elems [ Load (One . Ref $ "provider") [] ]]
 
 
 -- ** DFUs
@@ -45,75 +43,75 @@ locationDFUs = profileDict
 -- | Use built-in android GPS API.
 gpsAndroid :: Model
 gpsAndroid = Model []
-    [ In "GPS"
-      [ checkUnit "SAT"
-      , checkUnit "Dev" ]
+    [ Elems [ In "GPS"
+      [ Elems [ checkUnit "SAT"
+      , checkUnit "Dev" ]]
     , createUnit "Location"
-    ]
+    ]]
 
 -- | Bluetooth-based GPS.
 gpsBluetooth :: Model
 gpsBluetooth = Model []
-    [ In "GPS" [checkUnit "SAT"]
-    , In "Ext" [checkUnit "BT"]
+    [ Elems [ In "GPS" [ Elems [checkUnit "SAT"]]
+    , In "Ext" [ Elems [checkUnit "BT"]]
     , createUnit "Location"
-    ]
+    ]]
 
 -- | Generic USB-based GPS.
 gpsUsb :: Model
 gpsUsb = Model []
-    [ In "GPS" [checkUnit "SAT"]
-    , In "Ext" [checkUnit "USB"]
+    [ Elems [ In "GPS" [ Elems [checkUnit "SAT"]]
+    , In "Ext" [ Elems [checkUnit "USB"]]
     , createUnit "Location"
-    ]
+    ]]
 
 -- | USB-based SAASM GPS.
 gpsSaasm :: Model
 gpsSaasm = Model []
-    [ In "GPS" [checkUnit "SAT"]
-    , In "Ext" [checkUnit "USB"]
+    [ Elems [ In "GPS" [ Elems [checkUnit "SAT"]]
+    , In "Ext" [ Elems [checkUnit "USB"]]
     , createUnit "Location"
-    , In "Location" [createUnit "SAASM"]
-    ]
+    , In "Location" [ Elems [createUnit "SAASM"]]
+    ]]
 
 -- | Manual / dead reckoning location capability.
 deadReck :: Model
 deadReck = Model []
-    [ checkUnit "UI"
+    [ Elems [ checkUnit "UI"
     , createUnit "Location"
-    ]
+    ]]
 
 
 -- ** Initial environments
 
 -- | All relevant initial environments for the location scenario.
-locationEnvs :: [(String, ResEnv)]
+locationEnvs :: [(T.Text, ResEnv)]
 locationEnvs = [(toID ps, toEnv ps) | ps <- tail (subsequences paths)]
   where
-    toEnv = envFromList . map (\p -> (ResID p, Unit))
-    toID  = intercalate "+" . map (intercalate ".")
+    toEnv = envFromList . fmap (\p -> (ResID p, One . Just $ Unit))
+    toID  = T.intercalate "+" . fmap (T.intercalate ".")
     paths = [["GPS","SAT"],["GPS","Dev"],["Ext","USB"],["Ext","BT"],["UI"]]
 
 -- | Lookup a location environment by ID.
-lookupLocationEnv :: Monad m => String -> m ResEnv
+lookupLocationEnv :: Monad m => T.Text -> m ResEnv
 lookupLocationEnv envID = case lookup envID locationEnvs of
     Just env -> return env
-    Nothing -> fail $ "bad environment ID, try one of: \n" ++ ids
-  where ids = intercalate "\n" (map fst locationEnvs)
+    Nothing -> fail . T.unpack $ "bad environment ID, try one of: \n" <> ids
+  where ids = T.intercalate "\n" (fmap fst locationEnvs)
 
 
 -- ** Mission requirements
 
 -- | Require location.
 hasLocation :: Profile
-hasLocation = toProfile $ Model [] [checkUnit "Location"]
+hasLocation = toProfile $ Model [] [ Elems [checkUnit "Location"]]
 
 -- | Require SAASM location.
 hasSaasm :: Profile
 hasSaasm = toProfile $ Model []
-    [ checkUnit "Location"
-    , In "Location" [checkUnit "SAASM"]
-    ]
+    [ Elems [ checkUnit "Location"
+    , In "Location" [ Elems [checkUnit "SAASM"]]
+    ]]
 
 -- | All relevant mission requirements for the location scenario.
 locationReqs :: [(String, Profile)]
@@ -126,11 +124,12 @@ locationReqs = [("location", hasLocation), ("saasm", hasSaasm)]
 
 -- ** Basic Tests
 
+{-
 runLocationTest :: String -> Int -> IO ResEnv
 runLocationTest initID dfuID = do
-    init <- lookupLocationEnv initID
+    init <- lookupLocationEnv (T.pack initID)
     snd <$> runWithDict locationDFUs init (loadModel appModel [Lit (I dfuID)])
-
+-}
 
 -- ** Driver Plugin
 
@@ -147,11 +146,11 @@ parseLocationOpts = LocationOpts
   <$> switch
        ( long "dict"
       <> help "Generate DFU dictionary" )
-  
+
   <*> switch
        ( long "model"
       <> help "Generate application model" )
-  
+
   <*> switch
        ( long "reqs"
       <> help "Generate mission requirements" )
@@ -164,7 +163,7 @@ parseLocationOpts = LocationOpts
        ( long "init"
       <> metavar "STRING"
       <> help ("Generate initial resource environment; valid strings: "
-               ++ intercalate ", " (map fst locationEnvs)) )
+               ++ intercalate ", " (fmap (T.unpack . fst) locationEnvs)) )
 
 runLocation :: LocationOpts -> IO ()
 runLocation opts = do
@@ -173,5 +172,5 @@ runLocation opts = do
     when (genReqs opts)  (writeJSON defaultReqs hasLocation)
     when (genSaasm opts) (writeJSON defaultReqs hasSaasm)
     case genInit opts of
-      Just k  -> lookupLocationEnv k >>= writeJSON defaultInit
+      Just k  -> lookupLocationEnv (T.pack k) >>= writeJSON defaultInit
       Nothing -> return ()
