@@ -130,13 +130,19 @@ appModel = Model
 
 -- ** DFUs
 
+allAlgs = ["AES", "ARIA", "Blowfish", "Camellia", "CAST5", "CAST6", "DES", "DESede", "DSTU7624", "GCM", "GOST28147", "IDEA", "Noekeon", "RC2", "RC5", "RC6", "Rijndael", "SEED", "Skipjack", "SM4", "TEA", "Threefish_256", "Threefish_512", "Twofish", "XTEA"]
+allPads = ["ZeroBytePadding", "PKCS5Padding", "PKCS7Padding", "ISO10126_2Padding", "ISO7816_4Padding", "TBCPadding", "X923Padding", "NoPadding"]
+allModes = ["ECB", "CBC", "CTR", "CFB", "CTS", "OFB", "OpenPGPCFB", "PGPCFBBlock", "SICBlock"]
+
 mkCrossAppDFU :: T.Text -> [T.Text] -> [T.Text] -> [T.Text] -> Block
 mkCrossAppDFU name algs pads modes =
     [ Elems [ create "DFU-Type" (sym "Cipher")
             , create "DFU-Name" (sym name) ]]
-        ++ mk "Algorithm" algs ++ mk "Mode" modes ++ mk "Padding" pads
+        ++ mk "Algorithm" algs allAlgs
+        ++ mk "Mode" modes allModes
+        ++ mk "Padding" pads allPads
     where
-      mk name xs = foldMap (\a -> [Split (foldOthers a xs) [Elems [create name (mkVExpr (S . Symbol $ a)) ]] []]) xs
+      mk name good all = foldMap (\a -> [Split (foldOthers a all) [Elems [create name (mkVExpr (S . Symbol $ a)) ]] []]) good
       others x xs = S.difference (S.fromList xs) (S.singleton x)
       foldOthers x xs = foldl' (\b a -> b &&& (bnot (BRef a))) (BRef x) (S.toList (others x xs))
 
@@ -144,13 +150,10 @@ javaxDFU :: Model
 javaxDFU = Model [] $ mkCrossAppDFU "Javax"
              ["AES", "Blowfish", "DES", "DESede", "RC2", "Rijndael"]
              ["PKCS5Padding", "NoPadding"]
-             ["ECB", "CBC", "CTR", "CFB", "OFB", "CTS"]
+             ["ECB", "CBC", "CTR", "CFB", "CTS", "OFB"]
 
 bouncyDFU :: Model
-bouncyDFU = Model [] $ mkCrossAppDFU "BouncyCastle"
-              ["AES", "ARIA", "Blowfish", "Camellia", "CAST5", "CAST6", "DES", "DESede", "DSTU7624", "GCM", "GOST28147", "IDEA", "Noekeon", "RC2", "RC5", "RC6", "Rijndael", "SEED", "Skipjack", "SM4", "TEA", "Threefish_256", "Threefish_512", "Twofish", "XTEA"]
-              ["ZeroBytePadding", "PKCS5Padding", "PKCS7Padding", "ISO10126_2Padding", "ISO7816_4Padding", "TBCPadding", "X923Padding", "NoPadding"]
-              ["ECB", "CBC", "CTR", "CFB", "CTS", "OFB", "OpenPGPCFB", "PGPCFBBlock", "SICBlock"]
+bouncyDFU = Model [] $ mkCrossAppDFU "BouncyCastle" allAlgs allPads allModes
               ++ [Elems [If (res "Algorithm" .==. sym "AES") [Elems [checkUnit "../AES-NI"]] []]]
 
 crossAppDFUs :: Dictionary
