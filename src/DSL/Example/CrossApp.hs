@@ -9,8 +9,8 @@ import Data.Aeson hiding (Value)
 import Control.Monad (when)
 import Options.Applicative
 import Data.Foldable
+import Data.List ((\\))
 import Data.Monoid
-import Data.Maybe (fromJust)
 import Data.SBV ((|||),(&&&),bnot)
 import qualified Data.Text as T
 import qualified Data.Set as S
@@ -61,24 +61,17 @@ appModel = Model
     In "/Client/Cipher" [Elems [Load (ref "clientProvider") []]],
     check "/Server/Cipher/Algorithm" tSymbol (val .==. res "/Client/Cipher/Algorithm"),
     check "/Server/Cipher/Mode"      tSymbol (val .==. res "/Client/Cipher/Mode"),
+    check "/Server/Cipher/KeySize"   tSymbol (val .==. res "/Client/Cipher/KeySize"),
     check "/Server/Cipher/Padding"   tSymbol (val .==. res "/Client/Cipher/Padding")
   ]])
   where
     checkSEP :: Block
     checkSEP = [
-        Split sepCtx
+        Split (foldOr (mkKeys [24,32,40,48,56,64]))
           [Elems [ checkUnit "/Server/StrongEncryptionPolicy"
                  , checkUnit "/Client/StrongEncryptionPolicy" ]]
           []
       ]
-
-    mkKsz :: [Int] -> [T.Text]
-    mkKsz = fmap (\i -> "KSZ" <> (T.pack . show) i)
-
-    allKsz = mkKsz [8,16,24,32,40,48,56,64]
-
-    sepCtx :: BExpr
-    sepCtx = fromJust (exclusive allKsz (mkKsz [24,32,40,48,56,64]))
 
     algRules = [
         ("AES", [16, 24, 32]),
@@ -113,16 +106,14 @@ appModel = Model
       ]
 
     checkRules :: Block
-    checkRules = foldMap (uncurry kszRule) algRules
+    checkRules = foldMap (uncurry keyRule) algRules
 
-    kszRule :: T.Text -> [Int] -> Block
-    kszRule alg is = [
-        Split (BRef alg &&& foldOr (disallowed is))
-          [Elems [checkUnit "KeySize"]]
+    keyRule :: T.Text -> [Int] -> Block
+    keyRule alg is = [
+        Split (BRef alg &&& foldOr (allKeys \\ (mkKeys is)))
+          [Elems [checkUnit "Fail"]]
           []
       ]
-
-    disallowed is = S.toList $ S.fromList allKsz `S.difference` S.fromList (mkKsz is)
 
     foldOr [] = BLit False
     foldOr [x] = BRef x
@@ -130,9 +121,14 @@ appModel = Model
 
 -- ** DFUs
 
+mkKeys :: [Int] -> [T.Text]
+mkKeys = fmap (\i -> "KSZ" <> (T.pack . show) i)
+
 allAlgs = ["AES", "ARIA", "Blowfish", "Camellia", "CAST5", "CAST6", "DES", "DESede", "DSTU7624", "GCM", "GOST28147", "IDEA", "Noekeon", "RC2", "RC5", "RC6", "Rijndael", "SEED", "Skipjack", "SM4", "TEA", "Threefish_256", "Threefish_512", "Twofish", "XTEA"]
 allPads = ["ZeroBytePadding", "PKCS5Padding", "PKCS7Padding", "ISO10126_2Padding", "ISO7816_4Padding", "TBCPadding", "X923Padding", "NoPadding"]
+allKeys = mkKeys [8,16,24,32,40,48,56,64]
 allModes = ["ECB", "CBC", "CTR", "CFB", "CTS", "OFB", "OpenPGPCFB", "PGPCFBBlock", "SICBlock"]
+
 
 mkCrossAppDFU :: T.Text -> [T.Text] -> [T.Text] -> [T.Text] -> Block
 mkCrossAppDFU name algs pads modes =
@@ -141,6 +137,7 @@ mkCrossAppDFU name algs pads modes =
         ++ mk "Algorithm" algs allAlgs
         ++ mk "Mode" modes allModes
         ++ mk "Padding" pads allPads
+        ++ mk "KeySize" allKeys allKeys
     where
       mk name good all = foldMap (\a -> [Split (foldOthers a all) [Elems [create name (mkVExpr (S . Symbol $ a)) ]] []]) good
       others x xs = S.difference (S.fromList xs) (S.singleton x)
