@@ -3,12 +3,16 @@ module DSL.Example.SwapDau where
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
+import Control.Monad (when)
 import Data.Aeson
 import Data.Aeson.BetterErrors
 import Data.Aeson.Types (listValue)
 import Data.Map.Strict (toAscList)
+import Options.Applicative hiding ((<|>))
+import System.Exit
 
 import DSL.Environment
+import DSL.Model
 import DSL.Name
 import DSL.Serialize
 import DSL.Types
@@ -76,6 +80,15 @@ data ResponseDau = MkResponseDau {
      replaces :: [Name]
    , resDau   :: Dau PVal
 } deriving (Data,Typeable,Generic,Eq,Show)
+
+
+--
+-- * Find replacement
+--
+
+-- | Find replacement DAUs in the given dictionary.
+findReplacement :: Dictionary -> Request -> Maybe Response
+findReplacement = undefined
 
 
 --
@@ -161,3 +174,59 @@ asResponseDau = do
     rs <- key "replaces" (eachInArray asText)
     d <- asDau asPVal
     return (MkResponseDau rs d)
+
+
+--
+-- * Driver options
+--
+
+defaultRequestFile, defaultResponseFile :: FilePath
+defaultRequestFile  = "inbox/swap-request.json"
+defaultResponseFile = "outbox/swap-response.json"
+
+data SwapOpts = MkSwapOpts {
+     swapGenDauDict   :: Bool
+   , swapRunSearch    :: Bool
+   , swapRequestFile  :: FilePath
+   , swapResponseFile :: FilePath
+} deriving (Data,Typeable,Generic,Eq,Read,Show)
+
+parseSwapOpts :: Parser SwapOpts
+parseSwapOpts = MkSwapOpts
+    <$> switch
+         ( long "init"
+        <> help "Generate DAU dictionary" )
+
+    <*> switch
+         ( long "run"
+        <> help "Run the search for replacement DAUs" )
+
+    <*> pathOption
+         ( long "request-file"
+        <> value defaultRequestFile
+        <> help "Path to the JSON request file" )
+
+    <*> pathOption
+         ( long "response-file"
+        <> value defaultResponseFile
+        <> help "Path to the JSON response file" )
+  where
+    pathOption mods = strOption (mods <> showDefault <> metavar "FILE")
+
+runSwap :: SwapOpts -> IO ()
+runSwap opts = do
+    when (swapGenDauDict opts) $ do
+      writeJSON defaultDict (modelDict []) -- TODO generate real dictionary
+      putStrLn "Dictionary generated."
+    when (swapRunSearch opts) $ do
+      dict <- readJSON defaultDict asDictionary
+      req  <- readJSON (swapRequestFile opts) asRequest
+      putStrLn "Searching for replacement DAUs ..."
+      case findReplacement dict req of
+        Just res -> do 
+          let resFile = swapResponseFile opts
+          writeJSON resFile res
+          putStrLn ("Success. Response written to: " ++ resFile)
+        Nothing -> do
+          putStrLn "No replacement DAUs found."
+          exitWith (ExitFailure 3)
