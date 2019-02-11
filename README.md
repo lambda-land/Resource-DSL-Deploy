@@ -80,26 +80,27 @@ following input file.
  
  * `inbox/configuration.json` -- arguments to application model
 
-A user can also provide a _selection_ to the `run` subcommand.
-A selection sets certain features on or off prior to execution of the program.
-The simplest way to perform a selection is via the `--on` or `--off` options.
-The `--on` and `--off` options take as arguments a list of strings representing
-the names of various features present in the program. For example, to run the
-program with features `A` and `B` on and feature `C` off, you would use this command:
+A user can also provide a _selection_ to the `run` subcommand. A selection sets
+certain features on or off prior to execution of the program. The simplest way
+to perform a selection is via the `--on` or `--off` options. The `--on` and
+`--off` options take as arguments a list of strings representing the names of
+various features present in the program. For example, to run the program with
+features `A` and `B` on and feature `C` off, you would use this command:
 
 ```bash
 > stack exec resource-dsl -- run --on \[\"A\",\"B\"\] --off \[\"C\"\]
 ```
 
-If a feature is left unselected, then it is evaluated as if it were simultaneously
-on and off, producing a _variational_ value at the end that describes both alternatives.
+If a feature is left unselected, then it is evaluated as if it were
+simultaneously on and off, producing a _variational_ value at the end that
+describes both alternatives.
 
-Selections can also be specified via the `-f` or `--formula` option, which takes a
-boolean formula that performs a selection. This allows for more expressiveness in
-describing selections, as a user can describe any valid boolean formula using the
-literals `true` and `false`, negation `!`, disjunction `||`, and conjunction `&&`.
-For example, the following expresses the same selection as the example above:
-
+Selections can also be specified via the `-f` or `--formula` option, which
+takes a boolean formula that performs a selection. This allows for more
+expressiveness in describing selections, as a user can describe any valid
+boolean formula using the literals `true` and `false`, negation `!`,
+disjunction `||`, and conjunction `&&`. For example, the following expresses
+the same selection as the example above:
 
 ```bash
 > stack exec resource-dsl -- run -f "A&&B&&(!C)"
@@ -110,12 +111,12 @@ or off with no variational evaluation performed, the user can use the `-t` or
 `--total` option, which takes a list of the strings representing the features
 that should be turned on (just like the `--on` option). The difference from the
 `--on` option is that all other features left unspecified are assumed to be set
-to off. For example, this command turns `A` and `B` on and all other features off:
+to off. For example, this command turns `A` and `B` on and all other features
+off:
 
 ```bash
 > stack exec resource-dsl -- run -t \[\"A\",\"B\"\]
 ```
-
 
 Finally, the resulting resource environment can be checked against a set of
 mission requirements, which is itself just another resource profile, which is
@@ -137,21 +138,21 @@ code of 1.
 
 Once the input is successfully loaded, the model is loaded into the given
 environment. If all variants produce an error, execution terminates with an
-exit code of 2. Otherwise, if at least one variant successfully loads, execution
-proceeds to the next step.
+exit code of 2. Otherwise, if at least one variant successfully loads,
+execution proceeds to the next step.
 
-If provided with requirements, the resulting resource environment is then checked
-for whether those requirements are satisfied. If all variants fail to satisfy the
-given requirements, the application exits with exit code 3.
+If provided with requirements, the resulting resource environment is then
+checked for whether those requirements are satisfied. If all variants fail to
+satisfy the given requirements, the application exits with exit code 3.
 
 If at least one variant is successful, the application exits with exit code 0.
 
 There are three possible output files produced when the application is run:
 
   * `outbox/error.json` -- A variational value containing either the error
-  message for a particular variant, or `null` if no error exists.
-  * `outbox/success.json` -- A boolean expression that indicating which variants,
-  if any, are in success states.
+    message for a particular variant, or `null` if no error exists.
+  * `outbox/success.json` -- A boolean expression that indicating which
+    variants, if any, are in success states.
   * `outbox/resources.json` -- The resulting resource environment.
   
 Only the first two files are produced in the case that the application model
@@ -161,55 +162,59 @@ fails to load, exiting with code 2.
 
 As we saw above, we can specify specific features that can be turned on and off
 for a given model. We call a full group of these features a _configuration_. If
-a feature is set to be neither on or off when a call to `run` is made, it is run
-variationally, collecting results for both alternatives. This then produces a
-variational result, where some configurations pass the mission requirements while
-others may fail. In order to extract and query these variational results, our
-application provides the `check` subcommand.
+a feature is set to be neither on or off when a call to `run` is made, it is
+run variationally, collecting results for both alternatives. This then produces
+a variational result, where some configurations pass the mission requirements
+while others may fail. In order to extract and query these variational results,
+our application provides the `check` subcommand.
 
 When run, the `check` subcommand will exit with exit code 0 if there is a least
-one successful configuration based off of the last call to `run`; otherwise, if there
-are no successful configurations, it will exit with code 1. If there are successful
-configurations they will be output to the output file, which defaults to `outbox/best.txt`.
-For example, this command will simply check the output of the last call to `run` for
-whether there were any succesful configurations:
+one successful configuration based off of the last call to `run`; otherwise, if
+there are no successful configurations, it will exit with code 1. If there are
+successful configurations they will be output to the output file, which
+defaults to `outbox/best.txt`. For example, this command will simply check the
+output of the last call to `run` for whether there were any successful
+configurations:
 
 ```bash
 > stack exec resource-dsl -- check
 ```
 
-The `check` command needs to know where it can find the `success.json` file of a previous
-call to run. By default it simply looks in `outbox/success.json` but an alternate filepath
-can be provided via the `--success-file` option. The output file defaults to `outbox/best.txt`
-but this can be modified via the `--best-file` option.
+The `check` command needs to know where it can find the `success.json` file of
+a previous call to run. By default it simply looks in `outbox/success.json` but
+an alternate filepath can be provided via the `--success-file` option. The
+output file defaults to `outbox/best.txt` but this can be modified via the
+`--best-file` option.
 
-By default the `check` command outputs a maximum of 25 sample successful configurations in its
-output file. To change the maximum number of sample configurations use the `-m` or `--maxresults`
-option. For example, the following command reads its input from the file `old-success.json` and
-outputs a maximum of 10 results to `output.txt`:
+By default the `check` command outputs a maximum of 25 sample successful
+configurations in its output file. To change the maximum number of sample
+configurations use the `-m` or `--maxresults` option. For example, the
+following command reads its input from the file `old-success.json` and outputs
+a maximum of 10 results to `output.txt`:
 
 ```bash
 > stack exec resource-dsl -- check -m 10 --success-file old-success.json --best-file output.txt
 ```
 
-Finally, we can constrain the configurations we check. For example, say we have some features
-`A` and `B` and we would like to know if there are any successful configurations with `A` turned on
-and `B` turned off.
-We can check this using the same system of inputs described above for preconfiguring calls
-to `run`. So for our example, we would call:
+Finally, we can constrain the configurations we check. For example, say we have
+some features `A` and `B` and we would like to know if there are any successful
+configurations with `A` turned on and `B` turned off. We can check this using
+the same system of inputs described above for preconfiguring calls to `run`. So
+for our example, we would call:
 
 ```bash
 > stack exec resource-dsl -- check --on \[\"A\"\] --off \[\"B\"\]
 ```
 
-This would then output only configurations that were successful and included `A` on and `B` off.
+This would then output only configurations that were successful and included
+`A` on and `B` off.
 
-Similar to above, we can also pass boolean formulas describing configurations via the
-`-f` or `--formula` option.
+Similar to above, we can also pass boolean formulas describing configurations
+via the `-f` or `--formula` option.
 
-If we only wish to check a single configuration we can use the `-t` or `--total` option,
-which takes a list of features that should be turned on and sets all other features to
-off.
+If we only wish to check a single configuration we can use the `-t` or
+`--total` option, which takes a list of features that should be turned on and
+sets all other features to off.
 
 
 ## Generating example inputs
@@ -331,7 +336,8 @@ To see the inputs that can be generated for this example, pass `--help` to the
 ```
 
 First, generate some input files. The following command generates the cross app
-example dictionary, empty initial resource environment, and an empty set of requirements:
+example dictionary, empty initial resource environment, and an empty set of
+requirements:
 
 ```bash
 > stack exec resource-dsl -- example crossapp --dict --model --reqs
