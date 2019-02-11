@@ -43,7 +43,7 @@ runDriver = do
       Example (CrossApp opts) -> runCrossApp opts
       Example (Location opts) -> runLocation opts
       Example (Network opts)  -> runNetwork opts
-      Example (Swap opts)     -> runSwap opts
+      Swap opts  -> runSwap opts
       Check opts -> runCheck opts
 
 getBExpr :: S.Set Var -> SelOpts -> Maybe BExpr
@@ -164,6 +164,7 @@ data Command
      = Run RunOpts
      | Example Example
      | Check CheckOpts
+     | Swap SwapOpts
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 data SelOpts = Formula String
@@ -189,7 +190,6 @@ data Example
      = Location LocationOpts
      | Network  NetworkOpts
      | CrossApp CrossAppOpts
-     | Swap     SwapOpts
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 data CheckOpts = CheckOpts {
@@ -217,7 +217,11 @@ parseCommand = subparser
         (progDesc "Check a configuration against the latest run call"))
     <> command "example"
         (info (Example <$> (helper <*> parseExample))
-        (progDesc "Generate example inputs and put them in the inbox")) )
+        (progDesc "Generate example inputs and put them in the inbox"))
+    <> command "swap-dau"
+        (info (Swap <$> (helper <*> parseSwapOpts))
+        (progDesc "Find replacement DAUs"))
+     )
 
 parseExample :: Parser Example
 parseExample = subparser
@@ -230,9 +234,6 @@ parseExample = subparser
     <> command "crossapp"
         (info (CrossApp <$> (helper <*> parseCrossAppOpts))
         (progDesc "Cross application dependencies example"))
-    <> command "swap-dau"
-        (info (Swap <$> (helper <*> parseSwapOpts))
-        (progDesc "Find replacement DAUs example"))
      )
 
 parseSel :: Parser SelOpts

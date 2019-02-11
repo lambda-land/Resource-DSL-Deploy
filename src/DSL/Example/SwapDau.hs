@@ -97,7 +97,7 @@ triviallyConfigure (MkRequest ds) = MkResponse (map configDau ds)
     configAttr (OneOf vs)  = head vs
     configAttr (Range v _) = v
 
--- | Find replacement DAUs in the given dictionary.
+-- | Find replacement DAUs in the given dictionary. TODO
 findReplacement :: Dictionary -> Request -> Maybe Response
 findReplacement _ req = Just (triviallyConfigure req)
 
@@ -227,7 +227,7 @@ parseSwapOpts = MkSwapOpts
 runSwap :: SwapOpts -> IO ()
 runSwap opts = do
     when (swapGenDauDict opts) $ do
-      writeJSON defaultDict (modelDict []) -- TODO generate real dictionary
+      writeJSON defaultDict (modelDict [])  -- TODO generate the real dictionary
       putStrLn "Dictionary generated."
     when (swapRunSearch opts) $ do
       dict <- readJSON defaultDict asDictionary
