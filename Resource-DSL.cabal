@@ -14,10 +14,18 @@ source-repository head
   branch:   master
 
 -- NOTE: sbv also requires z3 executable on PATH!
+-- TODO: refactor and remove -Wno-orphans option
 library
   hs-source-dirs:   src
   default-language: Haskell2010
-  ghc-options:      -W -Wredundant-constraints
+  ghc-options:
+    -Wall
+    -Wredundant-constraints
+    -Wno-missing-signatures
+    -Wno-name-shadowing
+    -Wno-orphans
+    -Wno-unused-do-bind
+    -W
   default-extensions:
       ConstraintKinds
     , DeriveDataTypeable
@@ -40,10 +48,10 @@ library
     , directory
     , exceptions
     , filepath
-    , json-schema
     , megaparsec
     , mtl
     , optparse-applicative
+    , parser-combinators
     , sbv
     , scientific
     , split

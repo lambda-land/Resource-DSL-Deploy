@@ -5,7 +5,6 @@ import GHC.Generics (Generic)
 
 import Control.Monad (when)
 import Options.Applicative
-import Data.Monoid
 
 import DSL.Types
 import DSL.Environment

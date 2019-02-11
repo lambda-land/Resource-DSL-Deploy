@@ -21,7 +21,9 @@ import Data.Set (Set)
 import DSL.Name
 
 
--- ENVIRONMENTS
+--
+-- * Environments
+--
 
 -- | An environment is a map from keys to values.
 newtype Env k v = Env { envAsMap :: Map k v }
@@ -45,7 +47,9 @@ instance Show NotFound where
   show (NotFound k ks) = "NotFound (" ++ show k ++ ") (" ++ show ks ++ ")"
 
 
--- PATHS
+--
+-- * Paths
+--
 
 -- | A path is either absolute or relative.
 data PathKind = Absolute | Relative
@@ -68,17 +72,18 @@ instance IsString Path where
   fromString ('/':s) = Path Absolute (splitOn "/" (pack s))
   fromString s       = Path Relative (splitOn "/" (pack s))
 
--- | Resource IDs are (absolute) paths from the root of the
---   resource environment.
+-- | Resource IDs are absolute paths from the root of the resource environment.
 newtype ResID = ResID [Name]
-  deriving (Eq,Data,Read,Monoid,Ord,Show)
+  deriving (Eq,Data,Read,Semigroup,Monoid,Ord,Show)
 
 instance IsString ResID where
   fromString ('/':s) = ResID (splitOn "/" (pack s))
   fromString s       = ResID (splitOn "/" (pack s))
 
 
--- PRIMITIVES
+--
+-- * Primitives
+--
 
 -- | Primitive base types.
 data PType = TUnit | TBool | TInt | TFloat | TSymbol
@@ -95,10 +100,6 @@ data PVal
 
 instance IsString PVal where
   fromString = S . fromString
-
---
--- * Primitive operators
---
 
 -- | Primitive unary operators organized by type.
 data Op1
@@ -255,7 +256,9 @@ instance Prim SBool SInt64 where
   (.>)  = (SBV..>)
 
 
--- PREDICATES
+--
+-- * Predicates
+--
 
 -- | Unary boolean predicates.
 data Pred
@@ -323,24 +326,26 @@ instance IsString IExpr where
   fromString = IRef . pack
 
 
+--
+-- * Variation
+--
 
--- VARIATION
-
+-- | Variational values implemented as formula choice trees.
 data V a = One a | Chc BExpr (V a) (V a)
   deriving (Eq,Read,Data,Show,Typeable)
 
 instance Functor V where
-  fmap f (One v) = One . f $ v
+  fmap f (One v)     = One . f $ v
   fmap f (Chc d l r) = Chc d (fmap f l) (fmap f r)
 
 instance Applicative V where
   pure = One
-  (One f) <*> v = fmap f v
-  (Chc d f g) <*> v = Chc d (f <*> v) (g <*> v)
+  One f     <*> v = fmap f v
+  Chc d f g <*> v = Chc d (f <*> v) (g <*> v)
 
 instance Monad V where
-  (One v) >>= f = f v
-  (Chc d l r) >>= f = Chc d (l >>= f) (r >>= f)
+  One v     >>= f = f v
+  Chc d l r >>= f = Chc d (l >>= f) (r >>= f)
 
 newtype VM m a = VM { unVM :: (m (VOpt a)) }
 
@@ -360,7 +365,9 @@ type Mask = VOpt Error
 type VType = V PType
 
 
--- EXPRESSIONS
+--
+-- * Expressions
+--
 
 -- | Named and primitively typed parameters.
 data Param = Param Var VType
@@ -380,8 +387,14 @@ data Expr
      | P3  Op3 (V Expr) (V Expr) (V Expr)  -- ^ conditional expression
   deriving (Eq,Data,Read,Show)
 
+
+-- ** Pretty printing
+
 class Pretty a where
   pretty :: a -> Text
+
+
+-- ** Errors
 
 data VEnvErr
    = NF NotFound
@@ -400,9 +413,10 @@ instance Show VEnvErr where
   show (VNF k b v) = "VNF (" ++ show k ++ ") (" ++ show b ++ ") (" ++ show v ++ ")"
 
 -- | Type error caused by passing argument of the wrong type.
-data ExprError = ArgTypeError Param Value PType PVal
-               | VarNotFound VEnvErr
-               | ResNotFound VEnvErr
+data ExprError
+   = ArgTypeError Param Value PType PVal
+   | VarNotFound VEnvErr
+   | ResNotFound VEnvErr
   deriving (Eq,Show)
 
 -- Use SBV's Boolean type class for boolean predicates.
@@ -441,7 +455,9 @@ instance Prim (V Expr) (V Expr) where
   n .> n' = One (P2 (NN_B GT) n n')
 
 
--- EFFECTS
+--
+-- * Effects
+--
 
 -- ** Type
 
@@ -473,7 +489,9 @@ data EffectError = EffectError {
 } deriving (Show,Data,Read,Eq)
 
 
--- PROFILES
+--
+-- * Profiles
+--
 
 -- | Resource profile: a parameterized account of all of the resource effects
 --   of a program or component.
@@ -481,7 +499,9 @@ data Profile = Profile [Param] (Env Path (SegList Effect))
   deriving (Show,Data,Read,Eq)
 
 
--- MODELS
+--
+-- * Models
+--
 
 -- | An application model.
 data Model = Model [Param] Block
@@ -515,7 +535,9 @@ data StmtError = StmtError {
 } deriving (Eq,Show,Data,Read)
 
 
--- RESOURCES
+--
+-- * Dictionaries
+--
 
 -- | Dictionary entry.
 data Entry
@@ -525,6 +547,7 @@ data Entry
 
 -- | Dictionary of profiles and models.
 type Dictionary = Env CompID Entry
+
 
 --
 -- * Evaluation Monad
@@ -556,7 +579,9 @@ type MonadEval m = (MonadError Mask m, MonadReader Context m, MonadState StateCt
 type EvalM a = ExceptT Mask (StateT StateCtx (Reader Context)) a
 
 
--- ERROR
+--
+-- * Errors
+--
 
 data Error = EnvE (NotFound)
            | PathE (PathError)

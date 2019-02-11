@@ -30,6 +30,8 @@ import DSL.Pretty
 -- * Default File Paths
 --
 
+defaultDict, defaultInit, defaultModel, defaultConfig, defaultReqs,
+  defaultOutput, defaultError, defaultCtx, defaultBest :: FilePath
 defaultDict   = "inbox/dictionary.json"
 defaultInit   = "inbox/resources.json"
 defaultModel  = "inbox/model.json"

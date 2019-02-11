@@ -2,13 +2,12 @@ module DSL.Pretty where
 
 import Prelude hiding (LT,GT,concat,unwords,unlines)
 import Data.Text
-import Data.Monoid
-
 
 import DSL.Types
 import DSL.Name
 
-class (Pretty a) => PrettyTerm a where
+
+class Pretty a => PrettyTerm a where
   prettyTerm :: a -> Text
   prettyTerm = pretty
 
@@ -22,7 +21,7 @@ instance Pretty Int where
 instance Pretty Double where
   pretty = pack . show
 
-instance (Pretty a) => Pretty (Maybe a) where
+instance Pretty a => Pretty (Maybe a) where
   pretty Nothing = "none"
   pretty (Just a) = pretty a
 
@@ -62,6 +61,7 @@ instance Pretty Op2 where
   pretty (NN_N o) = pretty o
   pretty (SS_B o) = pretty o
 
+
 -- ** Integer Expressions
 
 instance PrettyTerm IExpr where
@@ -77,6 +77,7 @@ instance Pretty IExpr where
   pretty (OpII o l r) = concat [prettyTerm l, pretty o, prettyTerm r]
   pretty ie = prettyTerm ie
 
+
 -- ** Boolean Expressions
 
 instance PrettyTerm BExpr where
@@ -90,13 +91,14 @@ instance Pretty BExpr where
   pretty (OpIB o l r) = concat [prettyTerm l, pretty o, prettyTerm r]
   pretty be = prettyTerm be
 
+
 -- ** Variability
 
-instance (PrettyTerm a) => PrettyTerm (V a) where
+instance PrettyTerm a => PrettyTerm (V a) where
   prettyTerm (One a) = prettyTerm a
   prettyTerm v = pretty v
 
-instance (Pretty a) => Pretty (V a) where
+instance Pretty a => Pretty (V a) where
   pretty (One a) = pretty a
   pretty (Chc d l r) = concat ["[", prettyTerm d, "]{", pretty l, ",", pretty r, "}"]
 

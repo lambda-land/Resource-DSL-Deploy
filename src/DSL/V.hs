@@ -4,7 +4,7 @@ import DSL.Types
 import DSL.Name
 import DSL.SAT
 import qualified Data.Set as S
-import Data.Monoid
+
 
 class Select a where
   sel :: BExpr -> a -> a

@@ -31,7 +31,7 @@ success = Right
 
 lit = Lit . One
 
-runp p = first parseErrorPretty . parse (topLevel p) ""
+runp p = first errorBundlePretty . parse (topLevel p) ""
 
 parseBool = testGroup "booleans"
   [

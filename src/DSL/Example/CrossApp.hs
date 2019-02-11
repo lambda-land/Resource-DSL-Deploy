@@ -10,7 +10,6 @@ import Control.Monad (when)
 import Options.Applicative
 import Data.Foldable
 import Data.List ((\\))
-import Data.Monoid
 import Data.SBV ((|||),(&&&),bnot)
 import qualified Data.Text as T
 import qualified Data.Set as S

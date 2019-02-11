@@ -17,7 +17,6 @@ import DSL.Pretty ()
 -- * Expressions
 --
 
-
 (??) :: V Expr -> (V Expr, V Expr) -> Expr
 c ?? (t,e) = P3 Cond c t e
 
@@ -27,6 +26,7 @@ infix 1 ??
 isArgTypeError :: ExprError -> Bool
 isArgTypeError (ArgTypeError _ _ _ _) = True
 isArgTypeError _ = False
+
 
 -- ** Semantics
 

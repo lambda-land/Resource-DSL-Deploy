@@ -4,13 +4,12 @@ import Prelude hiding (LT,GT)
 
 import Control.Applicative (empty,liftA2)
 import Data.Void
-import Data.Monoid
 
 import Data.Bifunctor (first)
 import Data.Text (Text, pack, cons)
 
+import Control.Monad.Combinators.Expr
 import Text.Megaparsec
-import Text.Megaparsec.Expr
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
@@ -30,7 +29,7 @@ topLevel p = between sc eof p
 
 -- | Parse a Text value as an expression.
 parseExprText :: Text -> Either String Expr
-parseExprText = first parseErrorPretty . parse (topLevel expr) ""
+parseExprText = first errorBundlePretty . parse (topLevel expr) ""
 
 -- | Parse a String value as an expression.
 parseExprString :: String -> Either String Expr
@@ -38,7 +37,7 @@ parseExprString = parseExprText . pack
 
 -- | Parse a Text value as an expression.
 parseBExprText :: Text -> Either String BExpr
-parseBExprText = first parseErrorPretty . parse (topLevel bexpr) ""
+parseBExprText = first errorBundlePretty . parse (topLevel bexpr) ""
 
 -- | Parse a String value as an expression.
 parseBExprString :: String -> Either String BExpr
@@ -46,7 +45,7 @@ parseBExprString = parseBExprText . pack
 
 -- | Parse a Text value as a Value.
 parseValueText :: Text -> Either String Value
-parseValueText = first parseErrorPretty . parse (topLevel value) ""
+parseValueText = first errorBundlePretty . parse (topLevel value) ""
 
 -- | Parse a String value as an expression.
 parseValueString :: String -> Either String Value
