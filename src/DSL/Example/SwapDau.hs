@@ -86,9 +86,20 @@ data ResponseDau = MkResponseDau {
 -- * Find replacement
 --
 
+-- | Trivially configure a request into a response.
+triviallyConfigure :: Request -> Response
+triviallyConfigure (MkRequest ds) = MkResponse (map configDau ds)
+  where
+    configDau (MkRequestDau _ (MkDau i ps mc oc)) =
+        MkResponseDau [i] (MkDau i (map configPort ps) mc oc)
+    configPort (MkPort i as) = MkPort i (fmap configAttr as)
+    configAttr (Exactly v) = v
+    configAttr (OneOf vs)  = head vs
+    configAttr (Range v _) = v
+
 -- | Find replacement DAUs in the given dictionary.
 findReplacement :: Dictionary -> Request -> Maybe Response
-findReplacement = undefined
+findReplacement _ req = Just (triviallyConfigure req)
 
 
 --
