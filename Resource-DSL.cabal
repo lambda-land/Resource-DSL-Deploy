@@ -59,7 +59,7 @@ library
     , vector
 
   exposed-modules:
-    DSL.Driver
+      DSL.Driver
     , DSL.Effect
     , DSL.Environment
     , DSL.Expression
@@ -81,9 +81,10 @@ library
     , DSL.V
     , DSL.VEnv
     , DSL.Value
+    , DSL.Example.CrossApp
     , DSL.Example.Location
     , DSL.Example.Network
-    , DSL.Example.CrossApp
+    , DSL.Example.SwRI
 
 executable resource-dsl
   hs-source-dirs:   app
