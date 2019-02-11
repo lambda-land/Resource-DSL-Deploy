@@ -1,4 +1,4 @@
-module DSL.Example.SwRI where
+module DSL.Example.SwapDau where
 
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
