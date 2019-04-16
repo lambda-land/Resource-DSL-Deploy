@@ -22,30 +22,35 @@ import DSL.Types
 -- * Types
 --
 
--- ** Ports and DAUs
+-- ** Ports
 
--- | A DAU is a discrete component in a larger system. It has an ID, several
---   named ports, and a fixed monetary cost.
---   TODO: For some reason, it also has a fixed "opportunity cost", according
---   to the spec, but that seems wrong to me.
-data Dau a = MkDau {
-     dauID   :: Name      -- ^ the globally unique ID of this DAU
-   , ports   :: [Port a]  -- ^ a mapping from port IDs to values or constraints
-   , monCost :: Integer   -- ^ the fixed monetary cost of the DAU
-   , oppCost :: Integer   -- ^ the fixed opportunity cost (?) of the DAU
-} deriving (Data,Typeable,Generic,Eq,Show)
+-- | A list of ports.
+type Ports a = [Port a]
 
--- | A port is a named connection to a DAU. Each port may contain several
---   named attributes. For a fully configured DAU, the values of the port
---   attributes will be of type 'PVal', while for an unconfigured DAU, the
---   values of port attributes will be 'Constraint', which capture the
---   range of possible values the port can take on.
+-- | A list of port groups.
+type PortGroups a = [PortGroup a]
+
+-- | Named attributes associated with a port. For a fully configured DAU,
+--   the values of the port attributes will be of type 'PVal', while for an
+--   unconfigured DAU, the values of port attributes will be 'Constraint',
+--   which captures the range of possible values the port can take on.
+type PortAttrs a = Env Name a
+
+-- | A port is a named connection to a DAU and its associated attributes.
 data Port a = MkPort {
-     portID :: Name
-   , attrs  :: Env Name a
+     portID    :: Name
+   , portFunc  :: Name
+   , portAttrs :: PortAttrs a
 } deriving (Data,Typeable,Generic,Eq,Show)
 
--- | A constraint on a port in a DAU.
+-- | A port group is a set of ports with identical attributes.
+data PortGroup a = MkPortGroup {
+     groupIDs   :: [Name]      -- ^ list of port IDs in this group
+   , groupAttrs :: Env Name a  -- ^ attributes shared among ports in the group
+   , groupSize  :: Int         -- ^ number of ports in the group
+}
+
+-- | A constraint on a port in an unconfigured DAU.
 data Constraint
    = Exactly PVal
    | OneOf   [PVal]
@@ -53,7 +58,20 @@ data Constraint
   deriving (Data,Typeable,Generic,Eq,Show)
 
 
--- ** BBN interface
+-- ** DAUs
+
+-- | A DAU is a discrete component in a larger system. It has an ID, several
+--   named ports, and a fixed monetary cost. The ports of a DAU may be either
+--   grouped or ungrouped; the type parameter 'p' is used to range over these
+--   two possibilities.
+data Dau p = MkDau {
+     dauID   :: Name      -- ^ globally unique ID of this DAU
+   , ports   :: p         -- ^ named ports
+   , monCost :: Integer   -- ^ fixed monetary cost of the DAU
+} deriving (Data,Typeable,Generic,Eq,Show)
+
+
+-- ** Requests and Responses
 
 -- | An adaptation request contains the relevant DAUs that may need to be
 --   replaced.
@@ -66,7 +84,7 @@ data Request = MkRequest {
 --   system it lives in.
 data RequestDau = MkRequestDau {
      replace :: Bool
-   , reqDau  :: Dau Constraint
+   , reqDau  :: Dau (Ports Constraint)
 } deriving (Data,Typeable,Generic,Eq,Show)
 
 -- | An adaptation response consists of configured DAUs.
@@ -78,7 +96,7 @@ data Response = MkResponse {
 --   corresponding request, whose ports are configured to single values.
 data ResponseDau = MkResponseDau {
      replaces :: [Name]
-   , resDau   :: Dau PVal
+   , resDau   :: Dau (Ports PVal)
 } deriving (Data,Typeable,Generic,Eq,Show)
 
 
@@ -90,9 +108,9 @@ data ResponseDau = MkResponseDau {
 triviallyConfigure :: Request -> Response
 triviallyConfigure (MkRequest ds) = MkResponse (map configDau ds)
   where
-    configDau (MkRequestDau _ (MkDau i ps mc oc)) =
-        MkResponseDau [i] (MkDau i (map configPort ps) mc oc)
-    configPort (MkPort i as) = MkPort i (fmap configAttr as)
+    configDau (MkRequestDau _ (MkDau i ps mc)) =
+        MkResponseDau [i] (MkDau i (map configPort ps) mc)
+    configPort (MkPort i fn as) = MkPort i fn (fmap configAttr as)
     configAttr (Exactly v) = v
     configAttr (OneOf vs)  = head vs
     configAttr (Range v _) = v
@@ -106,33 +124,33 @@ findReplacement _ req = Just (triviallyConfigure req)
 -- * JSON serialization of BBN interface
 --
 
-instance ToJSON a => ToJSON (Dau a) where
+instance ToJSON a => ToJSON (Dau (Ports a)) where
   toJSON d = object
     [ "GloballyUniqueId"            .= String (dauID d)
     , "Port"                        .= listValue toJSON (ports d)
-    , "BBNDauMonetaryCost"          .= Number (fromInteger (monCost d))
-    , "BBNDauOpportunityCost"       .= Number (fromInteger (oppCost d)) ]
+    , "BBNDauMonetaryCost"          .= Number (fromInteger (monCost d)) ]
 
-asDau :: ParseIt a -> ParseIt (Dau a)
+asDau :: ParseIt a -> ParseIt (Dau (Ports a))
 asDau asVal = do
     i <- key "GloballyUniqueId" asText
     ps <- key "Port" (eachInArray (asPort asVal))
     mc <- key "BBNDauMonetaryCost" asIntegral
-    oc <- key "BBNDauOpportunityCost" asIntegral
-    return (MkDau i ps mc oc)
+    return (MkDau i ps mc)
 
 instance ToJSON a => ToJSON (Port a) where
-  toJSON p = object (pid : pattrs)
+  toJSON p = object (pid : pfn : pattrs)
     where
       pid = "GloballyUniqueId" .= portID p
-      pattrs = map entry (toAscList (envAsMap (attrs p)))
+      pfn = "BBNPortFunctionality" .= portFunc p
+      pattrs = map entry (toAscList (envAsMap (portAttrs p)))
       entry (k,v) = k .= toJSON v
 
 asPort :: ParseIt a -> ParseIt (Port a)
 asPort asVal = do
     i <- key "GloballyUniqueId" asText
+    fn <- key "BBNPortFunctionality" asText
     kvs <- eachInObject asVal 
-    return (MkPort i (envFromList (filter notID kvs)))
+    return (MkPort i fn (envFromList (filter notID kvs)))
   where
     notID (k,_) = k /= "GloballyUniqueId"
 
