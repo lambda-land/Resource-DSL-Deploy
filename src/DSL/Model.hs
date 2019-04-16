@@ -19,8 +19,6 @@ import DSL.SegList
 -- * Components
 --
 
-
-
 -- ** Operations
 
 -- | Construct a model dictionary from an association list of models.

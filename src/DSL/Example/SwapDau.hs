@@ -191,26 +191,29 @@ asResponseDau = do
 -- * Driver options
 --
 
-defaultRequestFile, defaultResponseFile :: FilePath
+defaultDictFile, defaultRequestFile, defaultResponseFile :: FilePath
+defaultDictFile     = "inbox/swap-dictionary.json"
 defaultRequestFile  = "inbox/swap-request.json"
 defaultResponseFile = "outbox/swap-response.json"
 
 data SwapOpts = MkSwapOpts {
-     swapGenDauDict   :: Bool
-   , swapRunSearch    :: Bool
+     swapRunSearch    :: Bool
+   , swapDictFile     :: FilePath
    , swapRequestFile  :: FilePath
    , swapResponseFile :: FilePath
 } deriving (Data,Typeable,Generic,Eq,Read,Show)
 
 parseSwapOpts :: Parser SwapOpts
 parseSwapOpts = MkSwapOpts
-    <$> switch
-         ( long "init"
-        <> help "Generate DAU dictionary" )
 
-    <*> switch
+    <$> switch
          ( long "run"
         <> help "Run the search for replacement DAUs" )
+
+    <*> pathOption
+         ( long "dict-file"
+        <> value defaultDictFile
+        <> help "Path to the JSON DAU dictionary file" )
 
     <*> pathOption
          ( long "request-file"
@@ -226,11 +229,8 @@ parseSwapOpts = MkSwapOpts
 
 runSwap :: SwapOpts -> IO ()
 runSwap opts = do
-    when (swapGenDauDict opts) $ do
-      writeJSON defaultDict (modelDict [])  -- TODO generate the real dictionary
-      putStrLn "Dictionary generated."
     when (swapRunSearch opts) $ do
-      dict <- readJSON defaultDict asDictionary
+      dict <- readJSON (swapDictFile opts) asDictionary -- TODO use DAU format
       req  <- readJSON (swapRequestFile opts) asRequest
       putStrLn "Searching for replacement DAUs ..."
       case findReplacement dict req of
