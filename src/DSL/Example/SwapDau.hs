@@ -7,7 +7,9 @@ import Control.Monad (when)
 import Data.Aeson
 import Data.Aeson.BetterErrors
 import Data.Aeson.Types (listValue)
-import Data.Map.Strict (toAscList)
+import Data.List (nubBy)
+import Data.Text (pack)
+import Data.String (fromString)
 import Options.Applicative hiding ((<|>))
 import System.Exit
 
@@ -15,6 +17,7 @@ import DSL.Environment
 import DSL.Model
 import DSL.Name
 import DSL.Serialize
+import DSL.Sugar
 import DSL.Types
 
 
@@ -38,16 +41,17 @@ type PortAttrs a = Env Name a
 
 -- | A port is a named connection to a DAU and its associated attributes.
 data Port a = MkPort {
-     portID    :: Name
-   , portFunc  :: Name
-   , portAttrs :: PortAttrs a
+     portID    :: Name          -- ^ unique ID
+   , portFunc  :: Name          -- ^ core functionality of this port
+   , portAttrs :: PortAttrs a   -- ^ named port attributes
 } deriving (Data,Typeable,Generic,Eq,Show)
 
 -- | A port group is a set of ports with identical attributes.
 data PortGroup a = MkPortGroup {
-     groupIDs   :: [Name]      -- ^ list of port IDs in this group
-   , groupAttrs :: Env Name a  -- ^ attributes shared among ports in the group
-   , groupSize  :: Int         -- ^ number of ports in the group
+     groupIDs   :: [Name]       -- ^ list of port IDs in this group
+   , groupFunc  :: Name         -- ^ functionality of the ports in this group
+   , groupAttrs :: PortAttrs a  -- ^ attributes shared among ports in the group
+   , groupSize  :: Int          -- ^ number of ports in the group
 }
 
 -- | A constraint on a port in an unconfigured DAU.
@@ -101,6 +105,47 @@ data ResponseDau = MkResponseDau {
 
 
 --
+-- * DSL Encoding
+--
+
+-- | Group ports with identical attributes together.
+groupPorts :: Eq a => Ports a -> PortGroups a
+groupPorts ps = do
+    MkPort _ fn as <- unique
+    let qs = filter (\p -> as == portAttrs p) ps
+    return (MkPortGroup (map portID qs) fn as (length qs))
+  where
+    unique = nubBy same ps
+    same p1 p2 = portFunc p1 == portFunc p2 && portAttrs p1 == portAttrs p2
+
+-- | Encode a set of available port groups as a DSL model.
+providePortGroups :: PortGroups Constraint -> Model
+providePortGroups gs = Model [] [Elems (zipWith portGroup gs [1..])]
+  where
+    portGroup g i =
+        In (fromString ("Group/" ++ show i))
+        [ Elems [
+          create "Functionality" (sym (groupFunc g))
+        , create "PortCount" (fromInteger (toInteger (groupSize g)))
+        , In "Attributes"
+          [ Elems (map attr (envToList (groupAttrs g))) ]
+        ]]
+      where
+        attr (n,c) = Do (Path Relative [n]) (effect c)
+          where
+            dim = pack (show i ++ ":") <> n
+            effect (Exactly v)   = Create (One (Lit (One v)))
+            effect (OneOf vs)    = let ds = map (\i -> dim <> (pack (':' : show i))) [1..]
+                                   in Create (One (Lit (chcN ds vs)))
+            effect (Range lo hi) = Create (One (Lit (Chc (BRef dim) (One lo) (One hi))))
+            -- TODO only allows configuring for one of the extremes...
+
+-- | Translate a constrained DAU into a DSL model.
+encodeDau :: Dau (PortGroups Constraint) -> Model
+encodeDau dau = Model [] []
+
+
+--
 -- * Find replacement
 --
 
@@ -126,9 +171,9 @@ findReplacement _ req = Just (triviallyConfigure req)
 
 instance ToJSON a => ToJSON (Dau (Ports a)) where
   toJSON d = object
-    [ "GloballyUniqueId"            .= String (dauID d)
-    , "Port"                        .= listValue toJSON (ports d)
-    , "BBNDauMonetaryCost"          .= Number (fromInteger (monCost d)) ]
+    [ "GloballyUniqueId"   .= String (dauID d)
+    , "Port"               .= listValue toJSON (ports d)
+    , "BBNDauMonetaryCost" .= Number (fromInteger (monCost d)) ]
 
 asDau :: ParseIt a -> ParseIt (Dau (Ports a))
 asDau asVal = do
@@ -142,7 +187,7 @@ instance ToJSON a => ToJSON (Port a) where
     where
       pid = "GloballyUniqueId" .= portID p
       pfn = "BBNPortFunctionality" .= portFunc p
-      pattrs = map entry (toAscList (envAsMap (portAttrs p)))
+      pattrs = map entry (envToList (portAttrs p))
       entry (k,v) = k .= toJSON v
 
 asPort :: ParseIt a -> ParseIt (Port a)

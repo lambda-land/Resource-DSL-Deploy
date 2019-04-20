@@ -13,6 +13,16 @@ import DSL.Parser
 -- * Syntactic Sugar
 --
 
+-- ** Variational values
+
+-- | Construct an n-ary choice by cascading binary choices drawn from the
+--   given list of dimensions.
+chcN :: [Var] -> [a] -> V a
+chcN _      [a]    = One a
+chcN (d:ds) (a:as) = Chc (BRef d) (One a) (chcN ds as)
+chcN _ _ = error "chcN: illegal arguments"
+
+
 -- ** Types
 
 -- | Non-variational primitive types.

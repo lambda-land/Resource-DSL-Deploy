@@ -35,6 +35,10 @@ envSingle = Env .: Map.singleton
 envFromList :: Ord k => [(k,v)] -> Env k v
 envFromList = Env . Map.fromList
 
+-- | Convert an environment into an association list.
+envToList :: Env k v -> [(k,v)]
+envToList (Env m) = Map.toList m
+
 -- | Construct an environment from an association list, merging duplicates.
 envFromListAcc :: (Ord k, MergeDup m) => [(k,m)] -> Env k m
 envFromListAcc []        = envEmpty
@@ -76,6 +80,7 @@ composeModels (Model ps1 b1) (Model ps2 b2) =
 instance MergeDup Model where
   mergeDup = composeModels
 
+
 -- ** Operations
 
 -- | Check whether an environment contains a particular name.
@@ -106,7 +111,6 @@ envLookup k (Env m) = (maybe notFound Right . Map.lookup k) m
 -- | Lookup a binding in an environment, returning an optional value.
 envLookup' :: (Ord k) => k -> Env k v -> Maybe v
 envLookup' k (Env m) = Map.lookup k m
-
 
 -- | Apply a result-less monadic action to all key-value pairs.
 envMapM_ :: Monad m => (k -> v -> m ()) -> Env k v -> m ()

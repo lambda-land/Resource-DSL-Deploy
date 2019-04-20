@@ -512,12 +512,12 @@ type Block = SegList Stmt
 
 -- | Statement in an application model.
 data Stmt
-     = Do Path Effect       -- ^ apply an effect
+     = Do Path Effect           -- ^ apply an effect
      | If (V Expr) Block Block  -- ^ conditional statement
-     | In Path Block        -- ^ do work in a sub-environment
+     | In Path Block            -- ^ do work in a sub-environment
      | For Var (V Expr) Block   -- ^ loop over indexed sub-environments
      | Let Var (V Expr) Block   -- ^ extend the variable environment
-     | Load (V Expr) [V Expr]     -- ^ load a sub-model or profile
+     | Load (V Expr) [V Expr]   -- ^ load a sub-model or profile
   deriving (Eq,Show,Data,Read)
 
 -- | Kinds of errors that can occur in statements.
