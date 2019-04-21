@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-type-defaults #-}
+
 module DSL.Example.SwapDau where
 
 import Data.Data (Data,Typeable)
@@ -14,7 +16,6 @@ import Options.Applicative hiding ((<|>))
 import System.Exit
 
 import DSL.Environment
-import DSL.Model
 import DSL.Name
 import DSL.Serialize
 import DSL.Sugar
@@ -108,6 +109,10 @@ data ResponseDau = MkResponseDau {
 -- * DSL Encoding
 --
 
+-- | Group ports with identical attributes together within a DAU.
+groupPortsInDau :: Eq a => Dau (Ports a) -> Dau (PortGroups a)
+groupPortsInDau (MkDau n ps c) = MkDau n (groupPorts ps) c
+
 -- | Group ports with identical attributes together.
 groupPorts :: Eq a => Ports a -> PortGroups a
 groupPorts ps = do
@@ -118,31 +123,48 @@ groupPorts ps = do
     unique = nubBy same ps
     same p1 p2 = portFunc p1 == portFunc p2 && portAttrs p1 == portAttrs p2
 
--- | Encode a set of available port groups as a DSL model.
-providePortGroups :: PortGroups Constraint -> Model
-providePortGroups gs = Model [] [Elems (zipWith portGroup gs [1..])]
-  where
-    portGroup g i =
-        In (fromString ("Group/" ++ show i))
-        [ Elems [
-          create "Functionality" (sym (groupFunc g))
-        , create "PortCount" (fromInteger (toInteger (groupSize g)))
-        , In "Attributes"
-          [ Elems (map attr (envToList (groupAttrs g))) ]
-        ]]
-      where
-        attr (n,c) = Do (Path Relative [n]) (effect c)
-          where
-            dim = pack (show i ++ ":") <> n
-            effect (Exactly v)   = Create (One (Lit (One v)))
-            effect (OneOf vs)    = let ds = map (\i -> dim <> (pack (':' : show i))) [1..]
-                                   in Create (One (Lit (chcN ds vs)))
-            effect (Range lo hi) = Create (One (Lit (Chc (BRef dim) (One lo) (One hi))))
-            -- TODO only allows configuring for one of the extremes...
 
--- | Translate a constrained DAU into a DSL model.
-encodeDau :: Dau (PortGroups Constraint) -> Model
-encodeDau dau = Model [] []
+--
+-- * DSL encoding
+--
+
+-- ** Provisions
+
+-- | Encode a provided DAU as a DSL model.
+provideGroupedDau :: Dau (PortGroups Constraint) -> Model
+provideGroupedDau (MkDau n gs c) = Model []
+    [ Elems [
+      modify "MonetaryCost" TInt (One (Ref "$val") + fromInteger c)
+    , In (Path Relative [n]) [
+        Elems (zipWith (providePortGroup n) gs [1..])
+      ]
+    ]]
+
+-- | Encode a list of provided port groups as a DSL model.
+providePortGroup :: Name -> PortGroup Constraint -> Int -> Stmt
+providePortGroup pre g i =
+    In (fromString ("Group/" ++ show i))
+    [ Elems [
+      create "Functionality" (sym (groupFunc g))
+    , create "PortCount" (fromInteger (toInteger (groupSize g)))
+    , In "Attributes" [ Elems (do
+        ((n,c),i) <- zip (envToList (groupAttrs g)) [1..]
+        return (providePortAttr (pre <> pack (':' : show i)) n c)
+    )]]]
+
+-- | Encode a provided port attribute as a DSL statement.
+providePortAttr :: Name -> Name -> Constraint -> Stmt
+providePortAttr pre att c = Do (Path Relative [att]) (effect c)
+  where
+    dim = pre <> ":" <> att
+    effect (Exactly v)   = Create (One (Lit (One v)))
+    effect (OneOf vs)    = let ds = map (\i -> dim <> (pack (':' : show i))) [1..]
+                           in Create (One (Lit (chcN ds vs)))
+    effect (Range lo hi) = Create (One (Lit (Chc (BRef dim) (One lo) (One hi))))
+      -- TODO only allows configuring for one of the extremes...
+
+
+-- ** Requirements
 
 
 --
