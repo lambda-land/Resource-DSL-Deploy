@@ -4,13 +4,13 @@ import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
 import Control.Monad (when)
+import Data.SBV (Boolean(..))
 import Options.Applicative
 
 import DSL.Types
 import DSL.Environment
 import DSL.Expression
 import DSL.Model
-import DSL.Primitive
 import DSL.Serialize
 import DSL.Sugar
 

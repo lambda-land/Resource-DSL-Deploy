@@ -1,15 +1,4 @@
-module DSL.Primitive
-  (primOp1, primOp2, primOp3
-  , primType
-  , opB_B
-  , opN_N
-  , opF_I
-  , opBB_B
-  , opNN_B
-  , opNN_N
-  , Boolean(..)
-  , PrimN(..), Prim(..)
-  ) where
+module DSL.Primitive where
 
 import Prelude hiding (LT,GT)
 
