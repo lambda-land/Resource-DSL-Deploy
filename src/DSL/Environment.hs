@@ -5,6 +5,7 @@ import Data.Composition ((.:))
 import Data.Typeable
 import Data.List (union)
 
+import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 
 import DSL.Types
@@ -34,10 +35,6 @@ envSingle = Env .: Map.singleton
 -- | Construct an environment from an association list.
 envFromList :: Ord k => [(k,v)] -> Env k v
 envFromList = Env . Map.fromList
-
--- | Convert an environment into an association list.
-envToList :: Env k v -> [(k,v)]
-envToList (Env m) = Map.toList m
 
 -- | Construct an environment from an association list, merging duplicates.
 envFromListAcc :: (Ord k, MergeDup m) => [(k,m)] -> Env k m
@@ -82,6 +79,14 @@ instance MergeDup Model where
 
 
 -- ** Operations
+
+-- | Convert an environment into an association list.
+envToList :: Env k v -> [(k,v)]
+envToList (Env m) = Map.toList m
+
+-- | Apply a function to the map that implements this environment.
+envOnMap :: (Map a b -> Map c d) -> Env a b -> Env c d
+envOnMap f (Env m) = Env (f m)
 
 -- | Check whether an environment contains a particular name.
 envHas :: Ord k => k -> Env k v -> Bool
