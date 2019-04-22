@@ -9,11 +9,15 @@ import Control.Monad (when)
 import Data.Aeson
 import Data.Aeson.BetterErrors
 import Data.Aeson.Types (listValue)
-import Data.List (nubBy)
+import Data.Function (on)
+import Data.List (nubBy,sortBy,subsequences)
 import Data.Text (pack)
 import Data.String (fromString)
 import Options.Applicative hiding ((<|>))
 import System.Exit
+
+import Data.Set (Set)
+import qualified Data.Set as Set
 
 import DSL.Environment
 import DSL.Name
@@ -75,6 +79,10 @@ data Dau p = MkDau {
    , monCost :: Integer   -- ^ fixed monetary cost of the DAU
 } deriving (Data,Typeable,Generic,Eq,Show)
 
+-- | A DAU dictionary is a list of DAUs whose ports have been grouped, sorted
+--   by monetary cost.
+type DauDict = [Dau (PortGroups Constraint)]
+
 
 -- ** Requests and Responses
 
@@ -106,8 +114,16 @@ data ResponseDau = MkResponseDau {
 
 
 --
--- * DSL Encoding
+-- * Dictionaries
 --
+
+-- | Monetary cost of a dictionary.
+monCostDict :: DauDict -> Integer
+monCostDict = sum . map monCost
+
+-- | Convert a list of ungrouped DAUs into a DAU dictionary.
+createDict :: [Dau (Ports Constraint)] -> DauDict
+createDict ds = sortBy (compare `on` monCost) (map groupPortsInDau ds)
 
 -- | Group ports with identical attributes together within a DAU.
 groupPortsInDau :: Eq a => Dau (Ports a) -> Dau (PortGroups a)
@@ -122,6 +138,29 @@ groupPorts ps = do
   where
     unique = nubBy same ps
     same p1 p2 = portFunc p1 == portFunc p2 && portAttrs p1 == portAttrs p2
+
+-- | Filter dictionary to include only DAUs that provide relevant
+--   functionalities.
+filterDict :: Set Name -> DauDict -> DauDict
+filterDict fns ds = filter (any relevant . map groupFunc . ports) ds
+  where
+    relevant fn = Set.member fn fns
+
+-- | Sort a list of dictionaries by monetary cost. Note that this forces
+--   computing all subsequences of the dictionary up front and so will
+--   only scale to dictionaries of 20 or so relevant DAUs. If we instead
+--   apply some basic heuristics (e.g. limit to 2-3 replacement DAUs), we
+--   can lazily explore this space and so scale better.
+sortDicts :: [DauDict] -> [DauDict]
+sortDicts = sortBy (compare `on` monCostDict)
+
+-- | All subsequences of a list up to a maximum length.
+subsUpToLength :: Int -> [a] -> [[a]]
+subsUpToLength k xs = [] : subs k xs
+  where
+    subs 0 _      = []
+    subs _ []     = []
+    subs k (x:xs) = map (x:) (subsUpToLength (k-1) xs) ++ subs k xs
 
 
 --
@@ -164,9 +203,6 @@ providePortAttr pre att c = Do (Path Relative [att]) (effect c)
       -- TODO only allows configuring for one of the extremes...
 
 
--- ** Requirements
-
-
 --
 -- * Find replacement
 --
@@ -182,8 +218,8 @@ triviallyConfigure (MkRequest ds) = MkResponse (map configDau ds)
     configAttr (OneOf vs)  = head vs
     configAttr (Range v _) = v
 
--- | Find replacement DAUs in the given dictionary. TODO
-findReplacement :: Dictionary -> Request -> Maybe Response
+-- | Find replacement DAUs in the given dictionary.
+findReplacement :: DauDict -> Request -> Maybe Response
 findReplacement _ req = Just (triviallyConfigure req)
 
 
@@ -318,7 +354,7 @@ runSwap opts = do
       dict <- readJSON (swapDictFile opts) asDictionary -- TODO use DAU format
       req  <- readJSON (swapRequestFile opts) asRequest
       putStrLn "Searching for replacement DAUs ..."
-      case findReplacement dict req of
+      case findReplacement undefined req of
         Just res -> do 
           let resFile = swapResponseFile opts
           writeJSON resFile res
