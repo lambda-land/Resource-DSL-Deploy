@@ -10,7 +10,7 @@ import Data.Aeson
 import Data.Aeson.BetterErrors
 import Data.Aeson.Types (listValue)
 import Data.Function (on)
-import Data.List (nubBy,sortBy,subsequences)
+import Data.List (nubBy,sortBy)
 import Data.Text (pack)
 import Data.String (fromString)
 import Options.Applicative hiding ((<|>))
@@ -79,9 +79,9 @@ data Dau p = MkDau {
    , monCost :: Integer   -- ^ fixed monetary cost of the DAU
 } deriving (Data,Typeable,Generic,Eq,Show)
 
--- | A DAU dictionary is a list of DAUs whose ports have been grouped, sorted
---   by monetary cost.
-type DauDict = [Dau (PortGroups Constraint)]
+-- | A DAU inventory is a list of available DAUs, sorted by monetary cost,
+--   where the ports in each DAU have been organized into groups.
+type Inventory = [Dau (PortGroups Constraint)]
 
 
 -- ** Requests and Responses
@@ -114,16 +114,16 @@ data ResponseDau = MkResponseDau {
 
 
 --
--- * Dictionaries
+-- * Inventories
 --
 
--- | Monetary cost of a dictionary.
-monCostDict :: DauDict -> Integer
-monCostDict = sum . map monCost
+-- | Monetary cost of a (sub-)inventory.
+inventoryCost :: Inventory -> Integer
+inventoryCost = sum . map monCost
 
--- | Convert a list of ungrouped DAUs into a DAU dictionary.
-createDict :: [Dau (Ports Constraint)] -> DauDict
-createDict ds = sortBy (compare `on` monCost) (map groupPortsInDau ds)
+-- | Convert a list of ungrouped DAUs into a DAU inventory.
+createInventory :: [Dau (Ports Constraint)] -> Inventory
+createInventory ds = sortBy (compare `on` monCost) (map groupPortsInDau ds)
 
 -- | Group ports with identical attributes together within a DAU.
 groupPortsInDau :: Eq a => Dau (Ports a) -> Dau (PortGroups a)
@@ -139,20 +139,20 @@ groupPorts ps = do
     unique = nubBy same ps
     same p1 p2 = portFunc p1 == portFunc p2 && portAttrs p1 == portAttrs p2
 
--- | Filter dictionary to include only DAUs that provide relevant
+-- | Filter inventory to include only DAUs that provide relevant
 --   functionalities.
-filterDict :: Set Name -> DauDict -> DauDict
-filterDict fns ds = filter (any relevant . map groupFunc . ports) ds
+filterInventory :: Set Name -> Inventory -> Inventory
+filterInventory fns ds = filter (any relevant . map groupFunc . ports) ds
   where
     relevant fn = Set.member fn fns
 
--- | Sort a list of dictionaries by monetary cost. Note that this forces
---   computing all subsequences of the dictionary up front and so will
+-- | Sort a list of inventories by monetary cost. Note that this forces
+--   computing all subsequences of the inventory up front and so will
 --   only scale to dictionaries of 20 or so relevant DAUs. If we instead
 --   apply some basic heuristics (e.g. limit to 2-3 replacement DAUs), we
 --   can lazily explore this space and so scale better.
-sortDicts :: [DauDict] -> [DauDict]
-sortDicts = sortBy (compare `on` monCostDict)
+sortInventories :: [Inventory] -> [Inventory]
+sortInventories = sortBy (compare `on` inventoryCost)
 
 -- | All subsequences of a list up to a maximum length.
 subsUpToLength :: Int -> [a] -> [[a]]
@@ -218,8 +218,8 @@ triviallyConfigure (MkRequest ds) = MkResponse (map configDau ds)
     configAttr (OneOf vs)  = head vs
     configAttr (Range v _) = v
 
--- | Find replacement DAUs in the given dictionary.
-findReplacement :: DauDict -> Request -> Maybe Response
+-- | Find replacement DAUs in the given inventory.
+findReplacement :: Inventory -> Request -> Maybe Response
 findReplacement _ req = Just (triviallyConfigure req)
 
 
@@ -312,16 +312,16 @@ asResponseDau = do
 -- * Driver options
 --
 
-defaultDictFile, defaultRequestFile, defaultResponseFile :: FilePath
-defaultDictFile     = "inbox/swap-dictionary.json"
-defaultRequestFile  = "inbox/swap-request.json"
-defaultResponseFile = "outbox/swap-response.json"
+defaultInventoryFile, defaultRequestFile, defaultResponseFile :: FilePath
+defaultInventoryFile = "inbox/swap-inventory.json"
+defaultRequestFile   = "inbox/swap-request.json"
+defaultResponseFile  = "outbox/swap-response.json"
 
 data SwapOpts = MkSwapOpts {
-     swapRunSearch    :: Bool
-   , swapDictFile     :: FilePath
-   , swapRequestFile  :: FilePath
-   , swapResponseFile :: FilePath
+     swapRunSearch     :: Bool
+   , swapInventoryFile :: FilePath
+   , swapRequestFile   :: FilePath
+   , swapResponseFile  :: FilePath
 } deriving (Data,Typeable,Generic,Eq,Read,Show)
 
 parseSwapOpts :: Parser SwapOpts
@@ -332,9 +332,9 @@ parseSwapOpts = MkSwapOpts
         <> help "Run the search for replacement DAUs" )
 
     <*> pathOption
-         ( long "dict-file"
-        <> value defaultDictFile
-        <> help "Path to the JSON DAU dictionary file" )
+         ( long "inventory-file"
+        <> value defaultInventoryFile
+        <> help "Path to the JSON DAU inventory file" )
 
     <*> pathOption
          ( long "request-file"
@@ -351,7 +351,7 @@ parseSwapOpts = MkSwapOpts
 runSwap :: SwapOpts -> IO ()
 runSwap opts = do
     when (swapRunSearch opts) $ do
-      dict <- readJSON (swapDictFile opts) asDictionary -- TODO use DAU format
+      dict <- readJSON (swapInventoryFile opts) asDictionary -- TODO use DAU format
       req  <- readJSON (swapRequestFile opts) asRequest
       putStrLn "Searching for replacement DAUs ..."
       case findReplacement undefined req of
