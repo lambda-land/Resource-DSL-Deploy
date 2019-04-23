@@ -13,12 +13,14 @@ import Data.Function (on)
 import Data.List (nubBy,sortBy,subsequences)
 import qualified Data.Set as Set
 import Data.Text (pack)
+import Data.SBV (Boolean(..))
 import Data.String (fromString)
 import Options.Applicative hiding ((<|>))
 import System.Exit
 
 import DSL.Environment
 import DSL.Name
+import DSL.Primitive
 import DSL.Serialize
 import DSL.Sugar
 import DSL.Types
@@ -187,14 +189,12 @@ toDictionary = envFromList . map entry
 -- | Encode a provided DAU as a DSL model.
 provideGroupedDau :: Dau (PortGroups Constraint) -> Model
 provideGroupedDau (MkDau n gs c) = Model []
-    [ Elems [
-      modify "MonetaryCost" TInt (One (Ref "$val") + fromInteger c)
-    , In (Path Relative [n]) [
-        Elems (zipWith (providePortGroup n) gs [1..])
-      ]
-    ]]
+    [ Elems $
+        modify "/MonetaryCost" TInt (val + fromInteger c)
+      : zipWith (providePortGroup n) gs [1..]
+    ]
 
--- | Encode a list of provided port groups as a DSL model.
+-- | Encode a provided port group as a DSL statement.
 providePortGroup :: Name -> PortGroup Constraint -> Int -> Stmt
 providePortGroup pre g i =
     In (fromString ("Group/" ++ show i))
@@ -203,20 +203,33 @@ providePortGroup pre g i =
     , create "PortCount" (fromInteger (toInteger (groupSize g)))
     , In "Attributes" [ Elems (do
         ((n,c),i) <- zip (envToList (groupAttrs g)) [1..]
-        return (providePortAttr (pre <> pack (':' : show i)) n c)
+        return (providePortAttr (pre <> pack ('+' : show i)) n c)
     )]]]
 
 -- | Encode a provided port attribute as a DSL statement.
 providePortAttr :: Name -> Name -> Constraint -> Stmt
 providePortAttr pre att c = Do (Path Relative [att]) (effect c)
   where
-    dim = pre <> ":" <> att
+    dim = pre <> "+" <> att
     effect (Exactly v)   = Create (One (Lit (One v)))
-    effect (OneOf vs)    = let ds = map (\i -> dim <> (pack (':' : show i))) [1..]
+    effect (OneOf vs)    = let ds = map (\i -> dim <> (pack ('+' : show i))) [1..]
                            in Create (One (Lit (chcN ds vs)))
     effect (Range lo hi) = Create (One (Lit (Chc (BRef dim) (One lo) (One hi))))
       -- TODO only allows configuring for one of the extremes...
 
+
+-- ** Requirements
+
+-- | Encode a required port attribute as a DSL statement.
+requirePortAttr :: Name -> Constraint -> Stmt
+requirePortAttr att c = check (Path Relative [att]) (One (ptype c)) (body c)
+  where
+    ptype (Exactly v)  = primType v
+    ptype (OneOf vs)   = primType (head vs)
+    ptype (Range lo _) = primType lo
+    body (Exactly v)   = val .== lit v
+    body (OneOf vs)    = foldr1 (|||) [val .== lit v | v <- vs]
+    body (Range lo hi) = val .== lit lo ||| val .== lit hi
 
 --
 -- * Find replacement
