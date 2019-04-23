@@ -193,7 +193,8 @@ toDictionary = envFromList . map entry
 provideDau :: Dau (PortGroups Constraint) -> Model
 provideDau (MkDau n gs c) = Model []
     [ Elems $
-        modify "/MonetaryCost" TInt (val + fromInteger c)
+        modify "/Groups" TInt (val + lit (I (length gs)))
+      : modify "/MonetaryCost" TInt (val + fromInteger c)
       : zipWith (providePortGroup n) gs [1..]
     ]
 
@@ -240,7 +241,7 @@ requirePortGroup g =
       -- keep track of the ports we still have to match for this group
       create "/PortsToMatch" (lit (I (groupSize g)))
       -- 
-    , For "i" 1  -- TODO need to track total group numbers
+    , For "i" (res "/Groups")
       [ Elems [
         -- if there are ports left to match and ports left in this group
         If (res "/PortsToMatch" .> 0 ||| res "PortCount" .> 0)
@@ -327,7 +328,8 @@ findReplacement mx inv req = do
     main = requireDaus daus
     model i = Model [] $
         [ Elems $
-          create "/MonetaryCost" 0
+          create "/Groups" 0
+        : create "/MonetaryCost" 0
         : [Load (sym (dauID d)) [] | d <- i]
         ] <> main
     test i = runWithDict dict envEmpty (loadModel (model i) [])
