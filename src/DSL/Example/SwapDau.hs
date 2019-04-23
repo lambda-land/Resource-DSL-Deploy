@@ -328,9 +328,11 @@ asResponseDau = do
 -- * Driver
 --
 
-defaultMaxDaus, defaultIntervals :: Int
+defaultMaxDaus :: Int
 defaultMaxDaus   = 2
-defaultIntervals = 2
+
+-- defaultIntervals :: Int
+-- defaultIntervals = 2
 
 defaultInventoryFile, defaultRequestFile, defaultResponseFile :: FilePath
 defaultInventoryFile = "inbox/swap-inventory.json"
@@ -340,7 +342,7 @@ defaultResponseFile  = "outbox/swap-response.json"
 data SwapOpts = MkSwapOpts {
      swapRunSearch     :: Bool
    , swapMaxDaus       :: Int
-   , swapMaxIntervals  :: Int
+   -- , swapMaxIntervals  :: Int
    , swapInventoryFile :: FilePath
    , swapRequestFile   :: FilePath
    , swapResponseFile  :: FilePath
@@ -358,10 +360,10 @@ parseSwapOpts = MkSwapOpts
         <> value defaultMaxDaus
         <> help "Max number of DAUs to include in  response; 0 for no limit" )
     
-    <*> intOption 
-         ( long "range-intervals"
-        <> value defaultIntervals
-        <> help "Number of intervals to use for range constraints" )
+    -- <*> intOption 
+    --      ( long "range-intervals"
+    --     <> value defaultIntervals
+    --     <> help "Number of intervals to use for range constraints" )
 
     <*> pathOption
          ( long "inventory-file"
