@@ -228,8 +228,15 @@ triviallyConfigure (MkRequest ds) = MkResponse (map configDau ds)
     configAttr (Range v _) = v
 
 -- | Find replacement DAUs in the given inventory.
-findReplacement :: [Inventory] -> Request -> Maybe Response
-findReplacement _ req = Just (triviallyConfigure req)
+findReplacement :: Int -> Inventory -> Request -> Maybe Response
+findReplacement mx inv req = Just (triviallyConfigure req)
+  where
+    toReplace = map (groupPortsInDau . reqDau)
+        $ filter replace
+        $ reqDaus req
+    toSearch = sortInventories $
+        let filtered = filterInventory (concatMap ports toReplace) inv
+        in (if mx > 0 then subsUpToLength mx else subsequences) filtered
 
 
 --
@@ -383,23 +390,15 @@ parseSwapOpts = MkSwapOpts
     intOption mods = option auto (mods <> showDefault <> metavar "INT")
     pathOption mods = strOption (mods <> showDefault <> metavar "FILE")
 
+-- | Main driver.
 runSwap :: SwapOpts -> IO ()
 runSwap opts = do
     
     when (swapRunSearch opts) $ do
-      
       req <- readJSON (swapRequestFile opts) asRequest
-      
       MkSetInventory daus <- readJSON (swapInventoryFile opts) asSetInventory
-      let inv = filterInventory undefined (createInventory daus)  -- TODO
-      
-      let maxDaus = swapMaxDaus opts
-      let searchInvs = sortInventories $
-            (if maxDaus > 0 then subsUpToLength maxDaus else subsequences) inv
-      
       putStrLn "Searching for replacement DAUs ..."
-      
-      case findReplacement undefined req of -- TODO
+      case findReplacement (swapMaxDaus opts) (createInventory daus) req of
         Just res -> do 
           let resFile = swapResponseFile opts
           writeJSON resFile res
