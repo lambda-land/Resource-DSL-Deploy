@@ -19,8 +19,11 @@ import Options.Applicative hiding ((<|>))
 import System.Exit
 
 import DSL.Environment
+import DSL.Model
 import DSL.Name
 import DSL.Primitive
+import DSL.Resource
+import DSL.SAT
 import DSL.Serialize
 import DSL.Sugar
 import DSL.Types
@@ -273,6 +276,7 @@ requirePortAttr att c = check (Path Relative [att]) (One (ptype c)) (body c)
     body (OneOf vs)    = foldr1 (|||) [val .== lit v | v <- vs]
     body (Range lo hi) = val .== lit lo ||| val .== lit hi
 
+
 --
 -- * Find replacement
 --
@@ -303,8 +307,24 @@ toSearch size daus inv = sortInventories $
     filtered = filterInventory (concatMap ports daus) inv
 
 -- | Find replacement DAUs in the given inventory.
-findReplacement :: Int -> Inventory -> Request -> Maybe Response
-findReplacement mx inv req = Just (triviallyConfigure req)
+findReplacement :: Int -> Inventory -> Request -> IO (Maybe Response)
+findReplacement mx inv req = case loop invs of
+    Nothing -> return Nothing
+    Just ctx -> do 
+      r <- satResults 1 ctx
+      writeFile "outbox/swap-solution.txt" (show r)
+      return Nothing
+  where
+    dict = toDictionary inv
+    daus = toReplace req
+    invs = toSearch mx daus inv
+    main = requireDaus daus
+    test i = runWithDict dict envEmpty $ loadModel
+        (Model [] ([Elems [Load (sym (dauID d)) [] | d <- i]] <> main)) []
+    loop []     = Nothing
+    loop (i:is) = case test i of
+        (Left _, _) -> loop is
+        (Right _, SCtx _ ctx _) -> Just (bnot ctx)
 
 
 --
@@ -466,7 +486,8 @@ runSwap opts = do
       req <- readJSON (swapRequestFile opts) asRequest
       MkSetInventory daus <- readJSON (swapInventoryFile opts) asSetInventory
       putStrLn "Searching for replacement DAUs ..."
-      case findReplacement (swapMaxDaus opts) (createInventory daus) req of
+      result <- findReplacement (swapMaxDaus opts) (createInventory daus) req
+      case result of
         Just res -> do 
           let resFile = swapResponseFile opts
           writeJSON resFile res
