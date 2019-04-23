@@ -362,9 +362,10 @@ asPort asVal = do
     i <- key "GloballyUniqueId" asText
     fn <- key "BBNPortFunctionality" asText
     kvs <- eachInObject asVal 
-    return (MkPort i fn (envFromList (filter notID kvs)))
+    return (MkPort i fn (envFromList (filter isAttr kvs)))
   where
-    notID (k,_) = k /= "GloballyUniqueId"
+    exclude = ["GloballyUniqueId", "BBNPortFunctionality"]
+    isAttr (k,_) = not (elem k exclude)
 
 instance ToJSON Constraint where
   toJSON (Exactly v)   = toJSON v
