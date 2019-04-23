@@ -312,6 +312,7 @@ findReplacement mx inv req = do
     -- debugging
     writeJSON "outbox/swap-dictionary-debug.json" dict
     writeJSON "outbox/swap-model-debug.json" (model (invs !! 1))
+    putStrLn (show (test (invs !! 1)))
     -- do search
     case loop invs of
       Nothing -> return Nothing
@@ -324,7 +325,11 @@ findReplacement mx inv req = do
     daus = toReplace req
     invs = toSearch mx daus inv
     main = requireDaus daus
-    model i = Model [] ([Elems [Load (sym (dauID d)) [] | d <- i]] <> main)
+    model i = Model [] $
+        [ Elems $
+          create "/MonetaryCost" 0
+        : [Load (sym (dauID d)) [] | d <- i]
+        ] <> main
     test i = runWithDict dict envEmpty (loadModel (model i) [])
     loop []     = Nothing
     loop (i:is) = case test i of
