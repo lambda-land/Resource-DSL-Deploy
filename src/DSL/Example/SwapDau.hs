@@ -243,26 +243,24 @@ requirePortGroup g =
       -- 
     , For "i" (res "/Groups")
       [ Elems [
-        -- if there are ports left to match and ports left in this group
-        If (res "/PortsToMatch" .> 0 ||| res "PortCount" .> 0)
-        [ Elems [
-          -- check to make sure everything matches ...
-          check "Functionality" tSymbol (val .==. sym (groupFunc g))
-        , In "Attributes" [ Elems (do
+        -- if there are ports left to match, ports left in this group,
+        -- and this group provides the right functionality
+        if' (res "/PortsToMatch" .> 0
+               &&& res "PortCount" .> 0
+               &&& res "Functionality" .==. sym (groupFunc g)) [
+          In "Attributes" [ Elems (do
             (n,c) <- envToList (groupAttrs g)
             return (requirePortAttr n c)
           )]
           -- if so, update the ports available and required
-        , If (res "/PortsToMatch" .> res "PortCount")
-          [ Elems [
+        , if' (res "/PortsToMatch" .> res "PortCount") [
             modify "PortCount" TInt 0
           , modify "/PortsToMatch" TInt (val - res "PortCount")
-          ]]
-          [ Elems [
+          ] [
             modify "PortCount" TInt (val - res "/PortsToMatch")
           , modify "/PortsToMatch" TInt 0
-          ]]
-        ]] []
+          ]
+        ] []
       ]]
     ]]
 

@@ -91,6 +91,10 @@ modify' p t e = Do p (Modify (Fun (Param "$val" t) e))
 modify :: Path -> PType -> V Expr -> Stmt
 modify p t e = modify' p (One t) e
 
+-- | Conditional statement.
+if' :: V Expr -> [Stmt] -> [Stmt] -> Stmt
+if' c t e = If c [Elems t] [Elems e]
+
 -- | Reference the current value of a resource.
 --   For use with the 'check' and 'modify' smart constructors.
 val :: V Expr
