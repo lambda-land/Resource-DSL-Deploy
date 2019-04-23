@@ -178,6 +178,12 @@ subsUpToLength k xs = [] : subs k xs
 
 -- ** Provisions
 
+-- | Translate a DAU inventory into a dictionary.
+toDictionary :: Inventory -> Dictionary
+toDictionary = envFromList . map entry
+  where
+    entry d = (mkSymbol (dauID d), ModEntry (provideGroupedDau d))
+
 -- | Encode a provided DAU as a DSL model.
 provideGroupedDau :: Dau (PortGroups Constraint) -> Model
 provideGroupedDau (MkDau n gs c) = Model []
