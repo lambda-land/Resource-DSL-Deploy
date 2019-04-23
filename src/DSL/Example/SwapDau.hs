@@ -239,14 +239,14 @@ requirePortGroup g =
     [ Elems [
       -- keep track of the ports we still have to match for this group
       create "/PortsToMatch" (lit (I (groupSize g)))
-      -- while there are ports left to match
-    , For "i" (res "/PortsToMatch" .> 0)
+      -- 
+    , For "i" 1  -- TODO need to track total group numbers
       [ Elems [
-        -- if there are ports in this group available
-        If (res "PortCount" .> 0)
+        -- if there are ports left to match and ports left in this group
+        If (res "/PortsToMatch" .> 0 ||| res "PortCount" .> 0)
         [ Elems [
           -- check to make sure everything matches ...
-          check "Functionality" tSymbol (val .== sym (groupFunc g))
+          check "Functionality" tSymbol (val .==. sym (groupFunc g))
         , In "Attributes" [ Elems (do
             (n,c) <- envToList (groupAttrs g)
             return (requirePortAttr n c)
