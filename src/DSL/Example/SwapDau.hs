@@ -308,19 +308,24 @@ toSearch size daus inv = sortInventories $
 
 -- | Find replacement DAUs in the given inventory.
 findReplacement :: Int -> Inventory -> Request -> IO (Maybe Response)
-findReplacement mx inv req = case loop invs of
-    Nothing -> return Nothing
-    Just ctx -> do 
-      r <- satResults 1 ctx
-      writeFile "outbox/swap-solution.txt" (show r)
-      return Nothing
+findReplacement mx inv req = do
+    -- debugging
+    writeJSON "outbox/swap-dictionary-debug.json" dict
+    writeJSON "outbox/swap-model-debug.json" (model (invs !! 1))
+    -- do search
+    case loop invs of
+      Nothing -> return Nothing
+      Just ctx -> do 
+        r <- satResults 1 ctx
+        writeFile "outbox/swap-solution.txt" (show r)
+        return Nothing
   where
     dict = toDictionary inv
     daus = toReplace req
     invs = toSearch mx daus inv
     main = requireDaus daus
-    test i = runWithDict dict envEmpty $ loadModel
-        (Model [] ([Elems [Load (sym (dauID d)) [] | d <- i]] <> main)) []
+    model i = Model [] ([Elems [Load (sym (dauID d)) [] | d <- i]] <> main)
+    test i = runWithDict dict envEmpty (loadModel (model i) [])
     loop []     = Nothing
     loop (i:is) = case test i of
         (Left _, _) -> loop is
