@@ -10,14 +10,12 @@ import Data.Aeson
 import Data.Aeson.BetterErrors
 import Data.Aeson.Types (listValue)
 import Data.Function (on)
-import Data.List (nubBy,sortBy)
+import Data.List (nubBy,sortBy,subsequences)
+import qualified Data.Set as Set
 import Data.Text (pack)
 import Data.String (fromString)
 import Options.Applicative hiding ((<|>))
 import System.Exit
-
-import Data.Set (Set)
-import qualified Data.Set as Set
 
 import DSL.Environment
 import DSL.Name
@@ -86,6 +84,11 @@ type Inventory = [Dau (PortGroups Constraint)]
 
 -- ** Requests and Responses
 
+-- | Set the current DAU inventory.
+data SetInventory = MkSetInventory {
+     invDaus :: [Dau (Ports Constraint)]
+} deriving (Data,Typeable,Generic,Eq,Show)
+
 -- | An adaptation request contains the relevant DAUs that may need to be
 --   replaced.
 data Request = MkRequest {
@@ -114,16 +117,8 @@ data ResponseDau = MkResponseDau {
 
 
 --
--- * Inventories
+-- * Port grouping
 --
-
--- | Monetary cost of a (sub-)inventory.
-inventoryCost :: Inventory -> Integer
-inventoryCost = sum . map monCost
-
--- | Convert a list of ungrouped DAUs into a DAU inventory.
-createInventory :: [Dau (Ports Constraint)] -> Inventory
-createInventory ds = sortBy (compare `on` monCost) (map groupPortsInDau ds)
 
 -- | Group ports with identical attributes together within a DAU.
 groupPortsInDau :: Eq a => Dau (Ports a) -> Dau (PortGroups a)
@@ -139,11 +134,25 @@ groupPorts ps = do
     unique = nubBy same ps
     same p1 p2 = portFunc p1 == portFunc p2 && portAttrs p1 == portAttrs p2
 
--- | Filter inventory to include only DAUs that provide relevant
---   functionalities.
-filterInventory :: Set Name -> Inventory -> Inventory
-filterInventory fns ds = filter (any relevant . map groupFunc . ports) ds
+
+--
+-- * Inventories
+--
+
+-- | Monetary cost of a (sub-)inventory.
+inventoryCost :: Inventory -> Integer
+inventoryCost = sum . map monCost
+
+-- | Convert a list of ungrouped DAUs into a DAU inventory.
+createInventory :: [Dau (Ports Constraint)] -> Inventory
+createInventory ds = sortBy (compare `on` monCost) (map groupPortsInDau ds)
+
+-- | Filter inventory to include only DAUs that provide functionalities
+--   relevant to the given port groups.
+filterInventory :: PortGroups a -> Inventory -> Inventory
+filterInventory gs ds = filter (any relevant . map groupFunc . ports) ds
   where
+    fns = Set.fromList (map groupFunc gs)
     relevant fn = Set.member fn fns
 
 -- | Sort a list of inventories by monetary cost. Note that this forces
@@ -219,7 +228,7 @@ triviallyConfigure (MkRequest ds) = MkResponse (map configDau ds)
     configAttr (Range v _) = v
 
 -- | Find replacement DAUs in the given inventory.
-findReplacement :: Inventory -> Request -> Maybe Response
+findReplacement :: [Inventory] -> Request -> Maybe Response
 findReplacement _ req = Just (triviallyConfigure req)
 
 
@@ -267,6 +276,13 @@ asConstraint = Exactly <$> asPVal
     <|> OneOf <$> eachInArray asPVal
     <|> Range <$> key "Min" asPVal <*> key "Max" asPVal
 
+instance ToJSON SetInventory where
+  toJSON s = object
+    [ "daus" .= listValue toJSON (invDaus s) ]
+
+asSetInventory :: ParseIt SetInventory
+asSetInventory = MkSetInventory <$> key "daus" (eachInArray (asDau asConstraint))
+
 instance ToJSON Request where
   toJSON r = object
     [ "daus" .= listValue toJSON (reqDaus r) ]
@@ -309,7 +325,7 @@ asResponseDau = do
 
 
 --
--- * Driver options
+-- * Driver
 --
 
 defaultMaxDaus, defaultIntervals :: Int
@@ -340,7 +356,7 @@ parseSwapOpts = MkSwapOpts
     <*> intOption 
          ( long "max-daus"
         <> value defaultMaxDaus
-        <> help "Max number of DAUs to include in  response; -1 for no limit" )
+        <> help "Max number of DAUs to include in  response; 0 for no limit" )
     
     <*> intOption 
          ( long "range-intervals"
@@ -367,11 +383,21 @@ parseSwapOpts = MkSwapOpts
 
 runSwap :: SwapOpts -> IO ()
 runSwap opts = do
+    
     when (swapRunSearch opts) $ do
-      dict <- readJSON (swapInventoryFile opts) asDictionary -- TODO use DAU format
-      req  <- readJSON (swapRequestFile opts) asRequest
+      
+      req <- readJSON (swapRequestFile opts) asRequest
+      
+      MkSetInventory daus <- readJSON (swapInventoryFile opts) asSetInventory
+      let inv = filterInventory undefined (createInventory daus)  -- TODO
+      
+      let maxDaus = swapMaxDaus opts
+      let searchInvs = sortInventories $
+            (if maxDaus > 0 then subsUpToLength maxDaus else subsequences) inv
+      
       putStrLn "Searching for replacement DAUs ..."
-      case findReplacement undefined req of
+      
+      case findReplacement undefined req of -- TODO
         Just res -> do 
           let resFile = swapResponseFile opts
           writeJSON resFile res
