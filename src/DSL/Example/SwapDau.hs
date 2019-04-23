@@ -184,11 +184,11 @@ subsUpToLength k xs = [] : subs k xs
 toDictionary :: Inventory -> Dictionary
 toDictionary = envFromList . map entry
   where
-    entry d = (mkSymbol (dauID d), ModEntry (provideGroupedDau d))
+    entry d = (mkSymbol (dauID d), ModEntry (provideDau d))
 
 -- | Encode a provided DAU as a DSL model.
-provideGroupedDau :: Dau (PortGroups Constraint) -> Model
-provideGroupedDau (MkDau n gs c) = Model []
+provideDau :: Dau (PortGroups Constraint) -> Model
+provideDau (MkDau n gs c) = Model []
     [ Elems $
         modify "/MonetaryCost" TInt (val + fromInteger c)
       : zipWith (providePortGroup n) gs [1..]
@@ -211,16 +211,58 @@ providePortAttr :: Name -> Name -> Constraint -> Stmt
 providePortAttr pre att c = Do (Path Relative [att]) (effect c)
   where
     dim = pre <> "+" <> att
-    effect (Exactly v)   = Create (One (Lit (One v)))
+    effect (Exactly v)   = Create (lit v)
     effect (OneOf vs)    = let ds = map (\i -> dim <> (pack ('+' : show i))) [1..]
                            in Create (One (Lit (chcN ds vs)))
-    effect (Range lo hi) = Create (One (Lit (Chc (BRef dim) (One lo) (One hi))))
+    effect (Range lo hi) = Create (One (Lit (chc dim lo hi)))
       -- TODO only allows configuring for one of the extremes...
 
 
 -- ** Requirements
 
--- | Encode a required port attribute as a DSL statement.
+-- | Check all required DAUs against the provisions.
+requireDaus :: [Dau (PortGroups Constraint)] -> Block
+requireDaus = concatMap requireDau
+
+-- | Check each required port group in a DAU against the provided port groups.
+requireDau :: Dau (PortGroups Constraint) -> Block
+requireDau d = [ Elems (map requirePortGroup (ports d)) ]
+
+-- | Check whether the required port group is satisfied by the provided port
+--   groups and adjust the ports-to-match and available ports accordingly.
+requirePortGroup :: PortGroup Constraint -> Stmt
+requirePortGroup g =
+    In "Group"
+    [ Elems [
+      -- keep track of the ports we still have to match for this group
+      create "/PortsToMatch" (lit (I (groupSize g)))
+      -- while there are ports left to match
+    , For "i" (res "/PortsToMatch" .> 0)
+      [ Elems [
+        -- if there are ports in this group available
+        If (res "PortCount" .> 0)
+        [ Elems [
+          -- check to make sure everything matches ...
+          check "Functionality" tSymbol (val .== sym (groupFunc g))
+        , In "Attributes" [ Elems (do
+            (n,c) <- envToList (groupAttrs g)
+            return (requirePortAttr n c)
+          )]
+          -- if so, update the ports available and required
+        , If (res "/PortsToMatch" .> res "PortCount")
+          [ Elems [
+            modify "PortCount" TInt 0
+          , modify "/PortsToMatch" TInt (val - res "PortCount")
+          ]]
+          [ Elems [
+            modify "PortCount" TInt (val - res "/PortsToMatch")
+          , modify "/PortsToMatch" TInt 0
+          ]]
+        ]] []
+      ]]
+    ]]
+
+-- | Check whether the required attribute is satisfied by the current port group.
 requirePortAttr :: Name -> Constraint -> Stmt
 requirePortAttr att c = check (Path Relative [att]) (One (ptype c)) (body c)
   where

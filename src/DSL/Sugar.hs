@@ -16,6 +16,10 @@ import DSL.Parser
 
 -- ** Variational values
 
+-- | Construct a binary choice in the given dimension.
+chc :: Var -> a -> a -> V a
+chc d l r = Chc (BRef d) (One l) (One r)
+
 -- | Construct an n-ary choice by cascading binary choices drawn from the
 --   given list of dimensions.
 chcN :: [Var] -> [a] -> V a
