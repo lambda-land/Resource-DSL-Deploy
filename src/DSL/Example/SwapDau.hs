@@ -227,16 +227,23 @@ triviallyConfigure (MkRequest ds) = MkResponse (map configDau ds)
     configAttr (OneOf vs)  = head vs
     configAttr (Range v _) = v
 
+-- | Extract the list of DAUs to replace from a request and group their ports.
+toReplace :: Request -> [Dau (PortGroups Constraint)]
+toReplace = map (groupPortsInDau . reqDau) . filter replace . reqDaus
+
+-- | Generate sub-inventories to search, filtered based on the given list of
+--   DAUs to replace and an integer indicating the maximum size of each
+--   sub-inventory. A max size less than 1 indicates unbounded sub-inventory
+--   size (which will be slow for large inventories).
+toSearch :: Int -> [Dau (PortGroups Constraint)] -> Inventory -> [Inventory]
+toSearch size daus inv = sortInventories $
+    (if size > 0 then subsUpToLength size else subsequences) filtered
+  where
+    filtered = filterInventory (concatMap ports daus) inv
+
 -- | Find replacement DAUs in the given inventory.
 findReplacement :: Int -> Inventory -> Request -> Maybe Response
 findReplacement mx inv req = Just (triviallyConfigure req)
-  where
-    toReplace = map (groupPortsInDau . reqDau)
-        $ filter replace
-        $ reqDaus req
-    toSearch = sortInventories $
-        let filtered = filterInventory (concatMap ports toReplace) inv
-        in (if mx > 0 then subsUpToLength mx else subsequences) filtered
 
 
 --
