@@ -213,10 +213,7 @@ provideDau (MkDau n gs c) = Model []
     [ Elems [
         modify "/MonetaryCost" TInt (val + fromInteger c)
       , In (Path Relative [n])
-        [ Elems $
-          create "NumGroups" (lit (I (length gs)))
-        : zipWith (providePortGroup n) gs [1..]
-        ]
+        [ Elems (zipWith (providePortGroup n) gs [1..]) ]
     ]]
 
 -- | Encode a provided port group as a DSL statement.
