@@ -371,9 +371,9 @@ toSearch size daus inv = sortInventories $
 -- ** Building the response
 
 -- | Describes how to configure each configurable attribute of each DAU in
---   the inventory. Keys are pairs of DAU IDs and attribute names; values
---   are indexes into the corresponding constraints.
-type ConfigMap = Map (Name,Name) Int
+--   the inventory. Keys are triples of a DAU ID, group index, and attribute
+--   name; values are indexes into the corresponding constraints.
+type ConfigMap = Map (Name,Int,Name) Int
 
 -- | Describes which inventory DAUs replace which request DAUs. Keys are
 --   IDs of inventory DAUs; values are IDs of request DAUs.
@@ -391,18 +391,23 @@ processSatResults = foldr processDim (Map.empty, Map.empty)
 --   response maps.
 processDim :: String -> ResponseMaps -> ResponseMaps
 processDim dim (cfg,rep)
-    | k == "Cfg" = case split r of
-        (a,_:i) -> (Map.insert (invDau, pack a) (read i) cfg, rep)
-        (a,[])  -> (Map.insert (invDau, pack a) 1 cfg, rep)
-    | k == "Use" = case Map.lookup invDau rep of
-        Just ns -> (cfg, Map.insert invDau (dauID r : ns) rep)
-        Nothing -> (cfg, Map.insert invDau [dauID r] rep)
+    | k == "Cfg" =
+        let (dl,_:dr) = split l
+            invDau = pack dl
+            invGrp = read dr
+        in case split r of
+             (a,_:i) -> (Map.insert (invDau, invGrp, pack a) (read i) cfg, rep)
+             (a,[])  -> (Map.insert (invDau, invGrp, pack a) 1 cfg, rep)
+    | k == "Use" =
+        let invDau = pack (fst (split l))
+            reqDau = pack (fst (split r))
+        in case Map.lookup invDau rep of
+             Just ns -> (cfg, Map.insert invDau (reqDau : ns) rep)
+             Nothing -> (cfg, Map.insert invDau [reqDau] rep)
     | otherwise  = error ("Unrecognized dimension: " ++ dim)
   where
     [k,l,r] = words dim
-    split = break (/= '+')
-    dauID = pack . fst . split
-    invDau = dauID l
+    split = break (== '+')
 
 -- | Create a response from the DAU inventory and the response maps generated
 --   from the SAT results.
@@ -412,21 +417,21 @@ buildResponse inv (cfg, rep) =
       MkDau d gs c <- inv
       return $ MkResponseDau
         (fromMaybe [] (Map.lookup d rep))
-        (MkDau d (concatMap (expandAndConfig d) gs) c)
+        (MkDau d (concat (zipWith (expandAndConfig d) [1..] gs)) c)
   where
-    expandAndConfig d (MkPortGroup ns f as _) =
-      let as' = configPortAttrs d cfg as
+    expandAndConfig d i (MkPortGroup ns f as _) =
+      let as' = configPortAttrs d i cfg as
       in [MkPort n f as' | n <- ns]
 
 -- | Configure port attributes based on the config map.
-configPortAttrs :: Name -> ConfigMap -> PortAttrs Constraint -> PortAttrs PVal
-configPortAttrs d cfg (Env m) = Env (Map.mapWithKey config m)
+configPortAttrs :: Name -> Int -> ConfigMap -> PortAttrs Constraint -> PortAttrs PVal
+configPortAttrs d i cfg (Env m) = Env (Map.mapWithKey config m)
   where
     config _ (Exactly v)   = v
-    config a (OneOf vs)    = case Map.lookup (d,a) cfg of
+    config a (OneOf vs)    = case Map.lookup (d,i,a) cfg of
                                Just i  -> vs !! (i-1)
                                Nothing -> last vs
-    config a (Range lo hi) = case Map.lookup (d,a) cfg of
+    config a (Range lo hi) = case Map.lookup (d,i,a) cfg of
                                Just 1  -> lo
                                _       -> hi
 
@@ -445,6 +450,7 @@ findReplacement mx inv req = do
         r <- satResults 1 ctx
         writeFile "outbox/swap-solution.txt" (show r)
         -- writeFile "outbox/swap-solution-model.txt" (show model)
+        putStrLn (show (processSatResults r))
         return (Just (buildResponse inv (processSatResults r)))
   where
     dict = toDictionary inv
