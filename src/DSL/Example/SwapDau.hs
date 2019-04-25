@@ -11,12 +11,17 @@ import Data.Aeson.BetterErrors
 import Data.Aeson.Types (listValue)
 import Data.Function (on)
 import Data.List (nubBy,sortBy,subsequences)
-import qualified Data.Set as Set
+import Data.Maybe (fromMaybe)
 import Data.Text (pack)
-import Data.SBV (Boolean(..))
+import Data.SBV (AllSatResult,Boolean(..),getModelDictionaries)
+import Data.SBV.Internals (trueCW)
 import Data.String (fromString)
 import Options.Applicative hiding ((<|>))
 import System.Exit
+
+import Data.Map (Map)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import DSL.Environment
 import DSL.Model
@@ -329,6 +334,7 @@ appModel inv daus = Model []
     ++ requireDaus inv daus
     ]
 
+
 --
 -- * Find replacement
 --
@@ -344,6 +350,9 @@ triviallyConfigure (MkRequest ds) = MkResponse (map configDau ds)
     configAttr (OneOf vs)  = head vs
     configAttr (Range v _) = v
 
+
+-- ** Defining the search space
+
 -- | Extract the list of DAUs to replace from a request and group their ports.
 toReplace :: Request -> [Dau (PortGroups Constraint)]
 toReplace = map (groupPortsInDau . reqDau) . filter replace . reqDaus
@@ -358,20 +367,85 @@ toSearch size daus inv = sortInventories $
   where
     filtered = filterInventory (concatMap ports daus) inv
 
+
+-- ** Building the response
+
+-- | Describes how to configure each configurable attribute of each DAU in
+--   the inventory. Keys are pairs of DAU IDs and attribute names; values
+--   are indexes into the corresponding constraints.
+type ConfigMap = Map (Name,Name) Int
+
+-- | Describes which inventory DAUs replace which request DAUs. Keys are
+--   IDs of inventory DAUs; values are IDs of request DAUs.
+type ReplaceMap = Map Name [Name]
+
+-- | A pair of data structures that support building the response.
+type ResponseMaps = (ConfigMap, ReplaceMap)
+
+-- | Convert the output of the SAT solver into the response maps.
+processSatResults :: AllSatResult -> ResponseMaps
+processSatResults = foldr processDim (Map.empty, Map.empty)
+    . Map.keys . Map.filter (== trueCW) . head . getModelDictionaries
+
+-- | Process a dimension bound to true in the SAT model, updating the
+--   response maps.
+processDim :: String -> ResponseMaps -> ResponseMaps
+processDim dim (cfg,rep)
+    | k == "Cfg" = case split r of
+        (a,_:i) -> (Map.insert (invDau, pack a) (read i) cfg, rep)
+        (a,[])  -> (Map.insert (invDau, pack a) 1 cfg, rep)
+    | k == "Use" = case Map.lookup invDau rep of
+        Just ns -> (cfg, Map.insert invDau (dauID r : ns) rep)
+        Nothing -> (cfg, Map.insert invDau [dauID r] rep)
+    | otherwise  = error ("Unrecognized dimension: " ++ dim)
+  where
+    [k,l,r] = words dim
+    split = break (/= '+')
+    dauID = pack . fst . split
+    invDau = dauID l
+
+-- | Create a response from the DAU inventory and the response maps generated
+--   from the SAT results.
+buildResponse :: Inventory -> ResponseMaps -> Response
+buildResponse inv (cfg, rep) =
+    MkResponse $ do
+      MkDau d gs c <- inv
+      return $ MkResponseDau
+        (fromMaybe [] (Map.lookup d rep))
+        (MkDau d (concatMap (expandAndConfig d) gs) c)
+  where
+    expandAndConfig d (MkPortGroup ns f as _) =
+      let as' = configPortAttrs d cfg as
+      in [MkPort n f as' | n <- ns]
+
+-- | Configure port attributes based on the config map.
+configPortAttrs :: Name -> ConfigMap -> PortAttrs Constraint -> PortAttrs PVal
+configPortAttrs d cfg (Env m) = Env (Map.mapWithKey config m)
+  where
+    config _ (Exactly v)   = v
+    config a (OneOf vs)    = case Map.lookup (d,a) cfg of
+                               Just i  -> vs !! (i-1)
+                               Nothing -> last vs
+    config a (Range lo hi) = case Map.lookup (d,a) cfg of
+                               Just 1  -> lo
+                               _       -> hi
+
+
+-- ** Main driver
+
 -- | Find replacement DAUs in the given inventory.
 findReplacement :: Int -> Inventory -> Request -> IO (Maybe Response)
 findReplacement mx inv req = do
-    -- debugging
-    writeJSON "outbox/swap-dictionary-debug.json" dict
-    writeJSON "outbox/swap-model-debug.json" (appModel (invs !! 1) daus)
-    putStrLn (show (test (invs !! 1)))
-    -- do search
+    -- writeJSON "outbox/swap-dictionary-debug.json" dict
+    -- writeJSON "outbox/swap-model-debug.json" (appModel (invs !! 1) daus)
+    -- putStrLn (show (test (invs !! 1)))
     case loop invs of
       Nothing -> return Nothing
       Just ctx -> do 
         r <- satResults 1 ctx
         writeFile "outbox/swap-solution.txt" (show r)
-        return Nothing
+        -- writeFile "outbox/swap-solution-model.txt" (show model)
+        return (Just (buildResponse inv (processSatResults r)))
   where
     dict = toDictionary inv
     daus = toReplace req
