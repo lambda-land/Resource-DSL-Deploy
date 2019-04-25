@@ -261,15 +261,16 @@ requirePortGroup
   -> PortGroup Constraint  -- ^ required group
   -> [Stmt]
 requirePortGroup inv reqDauName reqGrpIx reqGrp =
-      -- keep track of the ports we still have to match for this group
-      create "/PortsToMatch" (lit (I (groupSize reqGrp))) : do
-        provDau <- inv
-        let provDauName = dauID provDau
-        provGrpIx <- [1 .. length (ports provDau)]
-        let dim = dimUseGroup provDauName provGrpIx reqDauName reqGrpIx
-        return $
-          In (Path Relative [provDauName, "Group", pack (show provGrpIx)])
-          [ Elems [checkGroup dim reqGrp] ]
+    -- keep track of the ports we still have to match for this group
+    (create "/PortsToMatch" (lit (I (groupSize reqGrp))) : do
+       provDau <- inv
+       let provDauName = dauID provDau
+       provGrpIx <- [1 .. length (ports provDau)]
+       let dim = dimUseGroup provDauName provGrpIx reqDauName reqGrpIx
+       return $
+         In (Path Relative [provDauName, "Group", pack (show provGrpIx)])
+         [ Elems [checkGroup dim reqGrp] ])
+    ++ [check "/PortsToMatch" tInt (val .== 0)]
         
 -- | Check a required port group against the port group in the current context.
 checkGroup :: Var -> PortGroup Constraint -> Stmt
