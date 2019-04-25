@@ -190,13 +190,13 @@ dimN pre = [mconcat [pre, "+", pack (show i)] | i <- [1..]]
 
 -- | Dimension indicating how to configure a port attribute.
 dimAttr :: Name -> Int -> Name -> Var
-dimAttr dau grp att = mconcat [dau, "+", pack (show grp), "+", att]
+dimAttr dau grp att = mconcat ["Cfg ", dau, "+", pack (show grp), " ", att]
 
 -- | Dimension indicating whether a provided DAU + group is used to (partially)
 --   satisfy a required DAU + port group.
 dimUseGroup :: Name -> Int -> Name -> Int -> Var
 dimUseGroup provDau provGrp reqDau reqGrp =
-    mconcat [provDau, "+", pack (show provGrp), "+", reqDau, "+", pack (show reqGrp)]
+    mconcat ["Use ", provDau, "+", pack (show provGrp), " ", reqDau, "+", pack (show reqGrp)]
 
 
 -- ** Provisions
