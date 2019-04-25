@@ -243,8 +243,8 @@ providePortAttr dim att c = Do (Path Relative [att]) (effect c)
 -- ** Requirements
 
 -- | Check all required DAUs against the inventory of provisions.
-requireDaus :: Inventory -> [Dau (PortGroups Constraint)] -> Block
-requireDaus inv reqs = [ Elems (concatMap (requireDau inv) reqs) ]
+requireDaus :: Inventory -> [Dau (PortGroups Constraint)] -> [Stmt]
+requireDaus inv reqs = concatMap (requireDau inv) reqs
 
 -- | Check a required DAU against the inventory of provisions.
 requireDau :: Inventory -> Dau (PortGroups Constraint) -> [Stmt]
@@ -316,6 +316,18 @@ requirePortAttr att c = check (Path Relative [att]) (One (ptype c)) (body c)
     body (Range lo hi) = val .== lit lo ||| val .== lit hi
 
 
+-- ** Application model
+
+-- | Generate the application model for a given inventory and set of DAUs to
+--   replace.
+appModel :: Inventory -> [Dau (PortGroups Constraint)] -> Model
+appModel inv daus = Model []
+    [ Elems $
+       create "/MonetaryCost" 0
+    :  [Load (sym (dauID d)) [] | d <- inv]
+    ++ requireDaus inv daus
+    ]
+
 --
 -- * Find replacement
 --
@@ -350,7 +362,7 @@ findReplacement :: Int -> Inventory -> Request -> IO (Maybe Response)
 findReplacement mx inv req = do
     -- debugging
     writeJSON "outbox/swap-dictionary-debug.json" dict
-    writeJSON "outbox/swap-model-debug.json" (model (invs !! 1))
+    writeJSON "outbox/swap-model-debug.json" (appModel (invs !! 1) daus)
     putStrLn (show (test (invs !! 1)))
     -- do search
     case loop invs of
@@ -363,13 +375,7 @@ findReplacement mx inv req = do
     dict = toDictionary inv
     daus = toReplace req
     invs = toSearch mx daus inv
-    main i = requireDaus i daus
-    model i = Model [] $
-        [ Elems $
-          create "/MonetaryCost" 0
-        : [Load (sym (dauID d)) [] | d <- i]
-        ] <> main i
-    test i = runWithDict dict envEmpty (loadModel (model i) [])
+    test i = runWithDict dict envEmpty (loadModel (appModel i daus) [])
     loop []     = Nothing
     loop (i:is) = case test i of
         (Left _, _) -> loop is
@@ -531,7 +537,6 @@ parseSwapOpts = MkSwapOpts
 -- | Main driver.
 runSwap :: SwapOpts -> IO ()
 runSwap opts = do
-    
     when (swapRunSearch opts) $ do
       req <- readJSON (swapRequestFile opts) asRequest
       MkSetInventory daus <- readJSON (swapInventoryFile opts) asSetInventory
