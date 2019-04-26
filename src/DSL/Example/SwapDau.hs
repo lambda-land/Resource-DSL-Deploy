@@ -10,7 +10,7 @@ import Data.Aeson
 import Data.Aeson.BetterErrors
 import Data.Aeson.Types (listValue)
 import Data.Function (on)
-import Data.List (nubBy,sortBy,subsequences)
+import Data.List (nub,nubBy,sortBy,subsequences)
 import Data.Maybe (fromMaybe)
 import Data.Text (pack)
 import Data.SBV (AllSatResult,Boolean(..),getModelDictionaries)
@@ -267,7 +267,7 @@ requirePortGroup
   -> [Stmt]
 requirePortGroup inv reqDauName reqGrpIx reqGrp =
     -- keep track of the ports we still have to match for this group
-    (create "/PortsToMatch" (lit (I (groupSize reqGrp))) : do
+    (modify "/PortsToMatch" TInt (lit (I (groupSize reqGrp))) : do
        provDau <- inv
        let provDauName = dauID provDau
        provGrpIx <- [1 .. length (ports provDau)]
@@ -302,13 +302,7 @@ checkGroup dim grp =
         ]
       ]]
       []
-     ]
-     -- else branch
-     [ Split (BRef dim)
-       -- force dim to be false to track that we didn't use this group
-       [ Elems [ checkUnit "/Fail" ] ]
-       []
-     ]
+     ] []
 
 -- | Check whether the required attribute is satisfied by the current port group.
 requirePortAttr :: Name -> Constraint -> Stmt
@@ -330,6 +324,7 @@ appModel :: Inventory -> [Dau (PortGroups Constraint)] -> Model
 appModel inv daus = Model []
     [ Elems $
        create "/MonetaryCost" 0
+    :  create "/PortsToMatch" 0
     :  [Load (sym (dauID d)) [] | d <- inv]
     ++ requireDaus inv daus
     ]
@@ -402,7 +397,7 @@ processDim dim (cfg,rep)
         let invDau = pack (fst (split l))
             reqDau = pack (fst (split r))
         in case Map.lookup invDau rep of
-             Just ns -> (cfg, Map.insert invDau (reqDau : ns) rep)
+             Just ns -> (cfg, Map.insert invDau (nub (reqDau : ns)) rep)
              Nothing -> (cfg, Map.insert invDau [reqDau] rep)
     | otherwise  = error ("Unrecognized dimension: " ++ dim)
   where
@@ -441,9 +436,8 @@ configPortAttrs d i cfg (Env m) = Env (Map.mapWithKey config m)
 -- | Find replacement DAUs in the given inventory.
 findReplacement :: Int -> Inventory -> Request -> IO (Maybe Response)
 findReplacement mx inv req = do
-    writeJSON "outbox/swap-dictionary-debug.json" dict
+    -- writeJSON "outbox/swap-dictionary-debug.json" dict
     -- writeJSON "outbox/swap-model-debug.json" (appModel (invs !! 1) daus)
-    -- putStrLn (show (test (invs !! 1)))
     -- putStrLn $ "To replace: " ++ show daus
     -- putStrLn $ "Inventory: " ++ show inv
     case loop invs of
