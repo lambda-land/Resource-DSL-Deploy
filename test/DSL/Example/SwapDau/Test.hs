@@ -22,6 +22,22 @@ minimalResponse i = MkResponse
         10
     ]
 
+twoPortOpts :: FilePath -> SwapOpts
+twoPortOpts req = defaultOpts
+    { swapInventoryFile = "json/test/swap-inventory-2ports.json"
+    , swapRequestFile = req
+    }
+
+twoPortResponse :: Int -> Response
+twoPortResponse i = MkResponse
+    [ MkResponseDau ["S1"]
+      $ MkDau "I1"
+        [ MkPort "I1P1" "F1" (envFromList [("Bar", I i)])
+        , MkPort "I1P2" "F2" (envFromList [("Bar", I 4)])
+        ]
+        10
+    ]
+
 testSwap :: TestTree
 testSwap =
   testGroup "Swap Tests"
@@ -40,6 +56,23 @@ testSwap =
           res @?= Just (minimalResponse 4)
       , testCase "5" $ do
           res <- runSwapTest (minimalOpts "json/test/swap-request-minimal5.json")
+          res @?= Nothing
+      ]
+    , testGroup "two-port end-to-end tests"
+      [ testCase "1" $ do
+          res <- runSwapTest (twoPortOpts "json/test/swap-request-minimal1.json")
+          res @?= Nothing
+      , testCase "2" $ do
+          res <- runSwapTest (twoPortOpts "json/test/swap-request-minimal2.json")
+          res @?= Just (twoPortResponse 2)
+      , testCase "3" $ do
+          res <- runSwapTest (twoPortOpts "json/test/swap-request-minimal3.json")
+          res @?= Just (twoPortResponse 3)
+      , testCase "4" $ do
+          res <- runSwapTest (twoPortOpts "json/test/swap-request-minimal4.json")
+          res @?= Just (twoPortResponse 4)
+      , testCase "5" $ do
+          res <- runSwapTest (twoPortOpts "json/test/swap-request-minimal5.json")
           res @?= Nothing
       ]
     ]

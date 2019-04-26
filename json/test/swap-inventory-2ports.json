@@ -1,0 +1,20 @@
+{
+  "daus": [
+    {
+      "GloballyUniqueId": "I1",
+      "BBNDauMonetaryCost": 10,
+      "Port": [
+        {
+          "GloballyUniqueId": "I1P1",
+          "BBNPortFunctionality": "F1",
+          "Bar": [2,3,4]
+        },
+        {
+          "GloballyUniqueId": "I1P2",
+          "BBNPortFunctionality": "F2",
+          "Bar": [2,3,4]
+        }
+      ]
+    }
+  ]
+}
