@@ -65,7 +65,7 @@ data PortGroup a = MkPortGroup {
    , groupFunc  :: Name         -- ^ functionality of the ports in this group
    , groupAttrs :: PortAttrs a  -- ^ attributes shared among ports in the group
    , groupSize  :: Int          -- ^ number of ports in the group
-}
+} deriving (Data,Typeable,Generic,Eq,Show)
 
 -- | A constraint on a port in an unconfigured DAU.
 data Constraint
@@ -137,9 +137,9 @@ groupPortsInDau (MkDau n ps c) = MkDau n (groupPorts ps) c
 -- | Group ports with identical attributes together.
 groupPorts :: Eq a => Ports a -> PortGroups a
 groupPorts ps = do
-    MkPort _ fn as <- unique
-    let qs = filter (\p -> as == portAttrs p) ps
-    return (MkPortGroup (map portID qs) fn as (length qs))
+    u <- unique
+    let qs = filter (same u) ps
+    return (MkPortGroup (map portID qs) (portFunc u) (portAttrs u) (length qs))
   where
     unique = nubBy same ps
     same p1 p2 = portFunc p1 == portFunc p2 && portAttrs p1 == portAttrs p2
@@ -444,6 +444,8 @@ findReplacement mx inv req = do
     -- writeJSON "outbox/swap-dictionary-debug.json" dict
     -- writeJSON "outbox/swap-model-debug.json" (appModel (invs !! 1) daus)
     -- putStrLn (show (test (invs !! 1)))
+    putStrLn $ "To replace: " ++ show daus
+    putStrLn $ "Inventory: " ++ show inv
     case loop invs of
       Nothing -> return Nothing
       Just ctx -> do 
