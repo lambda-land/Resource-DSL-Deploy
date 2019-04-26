@@ -13,12 +13,17 @@
         {
           "GloballyUniqueId": "S1P2",
           "BBNPortFunctionality": "F1",
-          "Bar": [5,7]
+          "Bar": [2,5,7]
         },
         {
           "GloballyUniqueId": "S1P3",
           "BBNPortFunctionality": "F2",
           "Bar": 3
+        },
+        {
+          "GloballyUniqueId": "S1P4",
+          "BBNPortFunctionality": "F1",
+          "Baz": 5
         }
       ]
     }

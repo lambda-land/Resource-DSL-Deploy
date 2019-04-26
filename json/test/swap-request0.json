@@ -8,7 +8,7 @@
         {
           "GloballyUniqueId": "S1P1",
           "BBNPortFunctionality": "F1",
-          "Bar": 3
+          "Bar": [1,4]
         }
       ]
     }
