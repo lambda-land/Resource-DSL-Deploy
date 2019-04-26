@@ -450,7 +450,7 @@ findReplacement mx inv req = do
         r <- satResults 1 ctx
         writeFile "outbox/swap-solution.txt" (show r)
         -- writeFile "outbox/swap-solution-model.txt" (show model)
-        putStrLn (show (processSatResults r))
+        -- putStrLn (show (processSatResults r))
         return (Just (buildResponse inv (processSatResults r)))
   where
     dict = toDictionary inv
@@ -580,6 +580,9 @@ data SwapOpts = MkSwapOpts {
    , swapResponseFile  :: FilePath
 } deriving (Data,Typeable,Generic,Eq,Read,Show)
 
+defaultOpts :: SwapOpts
+defaultOpts = MkSwapOpts True 2 defaultInventoryFile defaultRequestFile defaultResponseFile
+
 parseSwapOpts :: Parser SwapOpts
 parseSwapOpts = MkSwapOpts
 
@@ -615,7 +618,7 @@ parseSwapOpts = MkSwapOpts
     intOption mods = option auto (mods <> showDefault <> metavar "INT")
     pathOption mods = strOption (mods <> showDefault <> metavar "FILE")
 
--- | Main driver.
+-- | Top-level driver.
 runSwap :: SwapOpts -> IO ()
 runSwap opts = do
     when (swapRunSearch opts) $ do
@@ -631,3 +634,10 @@ runSwap opts = do
         Nothing -> do
           putStrLn "No replacement DAUs found."
           exitWith (ExitFailure 3)
+
+-- | A simplified driver suitable for testing.
+runSwapTest :: SwapOpts -> IO (Maybe Response)
+runSwapTest opts = do
+    req <- readJSON (swapRequestFile opts) asRequest
+    MkSetInventory daus <- readJSON (swapInventoryFile opts) asSetInventory
+    findReplacement (swapMaxDaus opts) (createInventory daus) req

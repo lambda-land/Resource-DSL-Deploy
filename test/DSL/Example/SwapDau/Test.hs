@@ -1,0 +1,45 @@
+module DSL.Example.SwapDau.Test where
+
+import Test.Tasty
+import Test.Tasty.HUnit
+
+import DSL.Environment
+import DSL.Example.SwapDau
+import DSL.Types
+
+
+minimalOpts :: FilePath -> SwapOpts
+minimalOpts req = defaultOpts
+    { swapInventoryFile = "json/test/swap-inventory-minimal.json"
+    , swapRequestFile = req
+    }
+
+minimalResponse :: Int -> Response
+minimalResponse i = MkResponse
+    [ MkResponseDau ["S1"]
+      $ MkDau "I1"
+        [ MkPort "I1P1" "F1" (envFromList [("Bar", I i)]) ]
+        10
+    ]
+
+testSwap :: TestTree
+testSwap =
+  testGroup "Swap Tests"
+    [ testGroup "minimal end-to-end tests"
+      [ testCase "1" $ do
+          res <- runSwapTest (minimalOpts "json/test/swap-request-minimal1.json")
+          res @?= Nothing
+      , testCase "2" $ do
+          res <- runSwapTest (minimalOpts "json/test/swap-request-minimal2.json")
+          res @?= Just (minimalResponse 2)
+      , testCase "3" $ do
+          res <- runSwapTest (minimalOpts "json/test/swap-request-minimal3.json")
+          res @?= Just (minimalResponse 3)
+      , testCase "4" $ do
+          res <- runSwapTest (minimalOpts "json/test/swap-request-minimal4.json")
+          res @?= Just (minimalResponse 4)
+      , testCase "5" $ do
+          res <- runSwapTest (minimalOpts "json/test/swap-request-minimal5.json")
+          res @?= Nothing
+      ]
+    ]

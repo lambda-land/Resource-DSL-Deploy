@@ -7,6 +7,7 @@ import DSL.Primitive.Test
 import DSL.Value.Test
 --import DSL.Expression.Test
 import DSL.Parser.Test
+import DSL.Example.SwapDau.Test
 
 main :: IO ()
 main = defaultMain tests
@@ -18,4 +19,5 @@ tests = testGroup "Tests" [
     , testValue
     --, testExpr
     , testParser
+    , testSwap
   ]

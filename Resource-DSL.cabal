@@ -118,7 +118,8 @@ test-suite test
     , tasty-hunit
     , tasty-th
   other-modules:
-      DSL.Parser.Test
+      DSL.Example.SwapDau.Test
+    , DSL.Parser.Test
     , DSL.Primitive.Test
     , DSL.SAT.Test
     , DSL.V.Test
