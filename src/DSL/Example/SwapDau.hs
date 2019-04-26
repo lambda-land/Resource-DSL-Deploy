@@ -230,7 +230,7 @@ providePortGroup dau g i =
     , create "PortCount" (lit (I (groupSize g)))
     , In "Attributes"
       [ Elems $ do
-        ((n,c),i) <- zip (envToList (groupAttrs g)) [1..]
+        (n,c) <- envToList (groupAttrs g)
         return (providePortAttr (dimAttr dau i n) n c)
       ]
     ]]
@@ -441,17 +441,16 @@ configPortAttrs d i cfg (Env m) = Env (Map.mapWithKey config m)
 -- | Find replacement DAUs in the given inventory.
 findReplacement :: Int -> Inventory -> Request -> IO (Maybe Response)
 findReplacement mx inv req = do
-    -- writeJSON "outbox/swap-dictionary-debug.json" dict
+    writeJSON "outbox/swap-dictionary-debug.json" dict
     -- writeJSON "outbox/swap-model-debug.json" (appModel (invs !! 1) daus)
     -- putStrLn (show (test (invs !! 1)))
-    putStrLn $ "To replace: " ++ show daus
-    putStrLn $ "Inventory: " ++ show inv
+    -- putStrLn $ "To replace: " ++ show daus
+    -- putStrLn $ "Inventory: " ++ show inv
     case loop invs of
       Nothing -> return Nothing
       Just ctx -> do 
         r <- satResults 1 ctx
         writeFile "outbox/swap-solution.txt" (show r)
-        -- writeFile "outbox/swap-solution-model.txt" (show model)
         -- putStrLn (show (processSatResults r))
         return (Just (buildResponse inv (processSatResults r)))
   where
