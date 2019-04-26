@@ -429,7 +429,7 @@ configPortAttrs d i cfg (Env m) = Env (Map.mapWithKey config m)
   where
     config _ (Exactly v)   = v
     config a (OneOf vs)    = case Map.lookup (d,i,a) cfg of
-                               Just i  -> vs !! (i-1)
+                               Just k  -> vs !! (k-1)
                                Nothing -> last vs
     config a (Range lo hi) = case Map.lookup (d,i,a) cfg of
                                Just 1  -> lo
