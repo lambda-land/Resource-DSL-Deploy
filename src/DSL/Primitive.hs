@@ -43,7 +43,7 @@ primOp2 (NN_B o) (I l) (I r) = Right (B (opNN_B o l r))
 primOp2 (NN_B o) (I l) (F r) = Right (B (opNN_B o (fromIntegral l) r))
 primOp2 (NN_B o) (F l) (I r) = Right (B (opNN_B o l (fromIntegral r)))
 primOp2 (NN_B o) (F l) (F r) = Right (B (opNN_B o l r))
-primOp2 (SS_B SEqu) (S s) (S s') = Right (B (s==s'))
+primOp2 (SS_B SEqu) (S s) (S s') = Right (B (s == s'))
   -- error
 primOp2 o l r = Left (PrimE $ ErrorOp2 o l r)
 

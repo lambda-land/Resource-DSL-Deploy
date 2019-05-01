@@ -192,7 +192,9 @@ resLookup rID = do
       return $ select c v -- select on the result for the current variational context
 
 combineMasks :: BExpr -> Error -> Mask -> Mask
-combineMasks b e m = mergeMask m (Chc b (One (Just e)) (One Nothing))
+combineMasks (BLit True)  e m = mergeMask m (One (Just e))
+combineMasks (BLit False) _ m = mergeMask m (One Nothing)
+combineMasks b            e m = mergeMask m (Chc b (One (Just e)) (One Nothing))
 
 vError :: MonadEval m => Error -> m a
 vError e = do
