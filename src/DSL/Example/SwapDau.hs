@@ -306,14 +306,21 @@ checkGroup dim grp =
 
 -- | Check whether the required attribute is satisfied by the current port group.
 requirePortAttr :: Name -> Constraint -> Stmt
-requirePortAttr att c = check (Path Relative [att]) (One (ptype c)) (body c)
+requirePortAttr att c = check (Path Relative [att]) (One ptype) (body c)
   where
-    ptype (Exactly v)  = primType v
-    ptype (OneOf vs)   = primType (head vs)
-    ptype (Range lo _) = primType lo
-    body (Exactly v)   = val .== lit v
-    body (OneOf vs)    = foldr1 (|||) [val .== lit v | v <- vs]
-    body (Range lo hi) = val .== lit lo ||| val .== lit hi
+    ptype = case c of
+      Exactly v  -> primType v
+      OneOf vs   -> primType (head vs)
+      Range lo _ -> primType lo
+    eq a b = case ptype of
+      TUnit   -> true
+      TBool   -> One (P2 (BB_B Eqv) a b)
+      TInt    -> One (P2 (NN_B Equ) a b)
+      TFloat  -> One (P2 (NN_B Equ) a b)
+      TSymbol -> One (P2 (SS_B SEqu) a b)
+    body (Exactly v)   = eq val (lit v)
+    body (OneOf vs)    = foldr1 (|||) [eq val (lit v) | v <- vs]
+    body (Range lo hi) = eq val (lit lo) ||| eq val (lit hi)
 
 
 -- ** Application model
@@ -454,6 +461,7 @@ findReplacement mx inv req = do
     test i = runWithDict dict envEmpty (loadModel (appModel i daus) [])
     loop []     = Nothing
     loop (i:is) = case test i of
+        -- (Left _, s) -> traceShow s (loop is)
         (Left _, _) -> loop is
         (Right _, SCtx _ ctx _) -> Just (bnot ctx)
 
