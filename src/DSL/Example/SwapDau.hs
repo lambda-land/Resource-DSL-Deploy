@@ -121,8 +121,8 @@ data Response = MkResponse {
 -- | A DAU in an adaptation response, which replaces one or more DAUs in the
 --   corresponding request, whose ports are configured to single values.
 data ResponseDau = MkResponseDau {
-     replaces :: [Name]
-   , resDau   :: Dau (Ports PVal)
+     oldDaus :: [Name]
+   , resDau  :: Dau (Ports PVal)
 } deriving (Data,Typeable,Generic,Eq,Show)
 
 
@@ -550,7 +550,7 @@ instance ToJSON ResponseDau where
       Object o -> Object (o <> attr)
       _ -> error "RequestDau#toJSON: internal error"
     where
-      attr = "SupersededDauIds" .= listValue String (replaces r)
+      attr = "SupersededGloballyUniqueIds" .= listValue String (oldDaus r)
 
 asResponseDau :: ParseIt ResponseDau
 asResponseDau = do
