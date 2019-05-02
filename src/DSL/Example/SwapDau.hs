@@ -11,7 +11,7 @@ import Data.Aeson.BetterErrors
 import Data.Aeson.Types (listValue)
 import Data.Function (on)
 import Data.List (nub,nubBy,sortBy,subsequences)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (catMaybes,fromMaybe)
 import Data.Text (pack)
 import Data.SBV (AllSatResult,Boolean(..),getModelDictionaries)
 import Data.SBV.Internals (trueCW)
@@ -118,11 +118,17 @@ data Response = MkResponse {
      resDaus :: [ResponseDau]
 } deriving (Data,Typeable,Generic,Eq,Show)
 
+-- | A port in an adaptation response, which replaces another named port.
+data ResponsePort = MkResponsePort {
+     oldPort :: Name
+   , resPort :: Port PVal
+} deriving (Data,Typeable,Generic,Eq,Show)
+
 -- | A DAU in an adaptation response, which replaces one or more DAUs in the
 --   corresponding request, whose ports are configured to single values.
 data ResponseDau = MkResponseDau {
      oldDaus :: [Name]
-   , resDau  :: Dau (Ports PVal)
+   , resDau  :: Dau [ResponsePort]
 } deriving (Data,Typeable,Generic,Eq,Show)
 
 
@@ -347,7 +353,7 @@ triviallyConfigure (MkRequest ds) = MkResponse (map configDau ds)
   where
     configDau (MkRequestDau _ (MkDau i ps mc)) =
         MkResponseDau [i] (MkDau i (map configPort ps) mc)
-    configPort (MkPort i fn as) = MkPort i fn (fmap configAttr as)
+    configPort (MkPort i fn as) = MkResponsePort i (MkPort i fn (fmap configAttr as))
     configAttr (Exactly v) = v
     configAttr (OneOf vs)  = head vs
     configAttr (Range v _) = v
@@ -379,33 +385,56 @@ type ConfigMap = Map (Name,Int,Name) Int
 
 -- | Describes which inventory DAUs replace which request DAUs. Keys are
 --   IDs of inventory DAUs; values are IDs of request DAUs.
-type ReplaceMap = Map Name [Name]
+type DauReplaceMap = Map Name [Name]
+
+-- | Describes which inventory port groups replace which request port groups.
+--   Keys are pairs of a DAU ID and group indexes of inventory DAUs, values
+--   are a list of such pairs for the request DAUs they're replacing.
+type GroupReplaceMap = Map (Name,Int) [(Name,Int)]
+
+-- | Mapping from DAU IDs and group indexes to the set of member port IDs.
+type PortMap = Map (Name,Int) [Name]
 
 -- | A pair of data structures that support building the response.
-type ResponseMaps = (ConfigMap, ReplaceMap)
+type ResponseMaps = (ConfigMap, DauReplaceMap, GroupReplaceMap)
+
+-- | Build a map of ports that need replacing from the grouped request DAUs.
+buildPortMap :: [Dau (PortGroups a)] -> PortMap
+buildPortMap ds = Map.fromList $ do
+    d <- ds
+    (g,i) <- zip (ports d) [1..]
+    return ((dauID d, i), groupIDs g)
 
 -- | Convert the output of the SAT solver into the response maps.
 processSatResults :: AllSatResult -> ResponseMaps
-processSatResults = foldr processDim (Map.empty, Map.empty)
+processSatResults = foldr processDim (Map.empty, Map.empty, Map.empty)
     . Map.keys . Map.filter (== trueCW) . head . getModelDictionaries
 
 -- | Process a dimension bound to true in the SAT model, updating the
 --   response maps.
 processDim :: String -> ResponseMaps -> ResponseMaps
-processDim dim (cfg,rep)
+processDim dim (cfg,daus,grps)
     | k == "Cfg" =
-        let (dl,_:dr) = split l
-            invDau = pack dl
-            invGrp = read dr
+        let (dau,_:grp) = split l
+            invDau = pack dau
+            invGrp = read grp
         in case split r of
-             (a,_:i) -> (Map.insert (invDau, invGrp, pack a) (read i) cfg, rep)
-             (a,[])  -> (Map.insert (invDau, invGrp, pack a) 1 cfg, rep)
+             (a,_:i) -> (Map.insert (invDau, invGrp, pack a) (read i) cfg, daus, grps)
+             (a,[])  -> (Map.insert (invDau, invGrp, pack a) 1 cfg, daus, grps)
     | k == "Use" =
-        let invDau = pack (fst (split l))
-            reqDau = pack (fst (split r))
-        in case Map.lookup invDau rep of
-             Just ns -> (cfg, Map.insert invDau (nub (reqDau : ns)) rep)
-             Nothing -> (cfg, Map.insert invDau [reqDau] rep)
+        let (ldau,_:lgrp) = split l
+            (rdau,_:rgrp) = split r
+            invDau = pack ldau
+            invGrp = read lgrp
+            reqDau = pack rdau
+            reqGrp = read rgrp
+            daus' = case Map.lookup invDau daus of
+                      Just ns -> Map.insert invDau (nub (reqDau : ns)) daus
+                      Nothing -> Map.insert invDau [reqDau] daus
+            grps' = case Map.lookup (invDau,invGrp) grps of
+                      Just gs -> Map.insert (invDau,invGrp) ((reqDau,reqGrp) : gs) grps
+                      Nothing -> Map.insert (invDau,invGrp) [(reqDau,reqGrp)] grps
+        in (cfg,daus',grps')
     | otherwise  = error ("Unrecognized dimension: " ++ dim)
   where
     [k,l,r] = words dim
@@ -413,17 +442,34 @@ processDim dim (cfg,rep)
 
 -- | Create a response from the DAU inventory and the response maps generated
 --   from the SAT results.
-buildResponse :: Inventory -> ResponseMaps -> Response
-buildResponse inv (cfg, rep) =
+--   TODO Need to consume port names from the PortMap to properly track port
+--   replacements when one request group is satisfied by multiple inventory
+--   groups.
+buildResponse :: PortMap -> Inventory -> ResponseMaps -> Response
+buildResponse ports inv (cfg,daus,grps) =
     MkResponse $ do
       MkDau d gs c <- inv
       return $ MkResponseDau
-        (fromMaybe [] (Map.lookup d rep))
-        (MkDau d (concat (zipWith (expandAndConfig d) [1..] gs)) c)
+        (fromMaybe [] (Map.lookup d daus))
+        (MkDau d (concat $ do
+          (g,i) <- zip gs [1..]
+          let ns = getReplacedPortNames ports grps d i
+          return (expandAndConfig ns cfg d i g)) c)
+
+-- | Get replaced port names.
+getReplacedPortNames :: PortMap -> GroupReplaceMap -> Name -> Int -> [Name]
+getReplacedPortNames ports grps invDau invGrp =
+    case Map.lookup (invDau,invGrp) grps of
+      Just reqs -> concat (catMaybes (map (\r -> Map.lookup r ports) reqs))
+      Nothing -> []
+
+-- | Expand and configure a port group.
+expandAndConfig :: [Name] -> ConfigMap -> Name -> Int -> PortGroup Constraint -> [ResponsePort]
+expandAndConfig old cfg d i (MkPortGroup new f as _) = do
+    (n,o) <- zip new (old ++ repeat "")
+    return (MkResponsePort o (MkPort n f as'))
   where
-    expandAndConfig d i (MkPortGroup ns f as _) =
-      let as' = configPortAttrs d i cfg as
-      in [MkPort n f as' | n <- ns]
+    as' = configPortAttrs d i cfg as
 
 -- | Configure port attributes based on the config map.
 configPortAttrs :: Name -> Int -> ConfigMap -> PortAttrs Constraint -> PortAttrs PVal
@@ -453,11 +499,12 @@ findReplacement mx inv req = do
         r <- satResults 1 ctx
         writeFile "outbox/swap-solution.txt" (show r)
         -- putStrLn (show (processSatResults r))
-        return (Just (buildResponse inv (processSatResults r)))
+        return (Just (buildResponse ports inv (processSatResults r)))
   where
     dict = toDictionary inv
     daus = toReplace req
     invs = toSearch mx daus inv
+    ports = buildPortMap daus
     test i = runWithDict dict envEmpty (loadModel (appModel i daus) [])
     loop []     = Nothing
     loop (i:is) = case test i of
@@ -470,10 +517,10 @@ findReplacement mx inv req = do
 -- * JSON serialization of BBN interface
 --
 
-instance ToJSON a => ToJSON (Dau (Ports a)) where
+instance ToJSON p => ToJSON (Dau p) where
   toJSON d = object
     [ "GloballyUniqueId"   .= String (dauID d)
-    , "Port"               .= listValue toJSON (ports d)
+    , "Port"               .= toJSON (ports d)
     , "BBNDauMonetaryCost" .= Number (fromInteger (monCost d)) ]
 
 asDau :: ParseIt a -> ParseIt (Dau (Ports a))
@@ -542,21 +589,19 @@ instance ToJSON Response where
   toJSON r = object
     [ "daus" .= listValue toJSON (resDaus r) ]
 
-asResponse :: ParseIt Response
-asResponse = MkResponse <$> key "daus" (eachInArray asResponseDau)
-
 instance ToJSON ResponseDau where
   toJSON r = case toJSON (resDau r) of
-      Object o -> Object (o <> attr)
-      _ -> error "RequestDau#toJSON: internal error"
+      Object o -> Object (attr <> o)
+      _ -> error "ResponseDau#toJSON: internal error"
     where
       attr = "SupersededGloballyUniqueIds" .= listValue String (oldDaus r)
 
-asResponseDau :: ParseIt ResponseDau
-asResponseDau = do
-    rs <- key "replaces" (eachInArray asText)
-    d <- asDau asPVal
-    return (MkResponseDau rs d)
+instance ToJSON ResponsePort where
+  toJSON p = case toJSON (resPort p) of
+      Object o -> Object (attr <> o)
+      _ -> error "ResponsePort#toJSON: internal error"
+    where
+      attr = "SupersededGloballyUniqueId" .= oldPort p
 
 
 --
