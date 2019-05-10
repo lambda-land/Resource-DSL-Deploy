@@ -243,12 +243,15 @@ providePortGroup dau g i =
 
 -- | Encode a provided port attribute as a DSL statement.
 providePortAttr :: Var -> Name -> Constraint -> Stmt
-providePortAttr dim att c = Do (Path Relative [att]) (effect c)
+providePortAttr dim att c = case c of
+    Exactly v -> Do path (Create (lit v))
+    OneOf vs  -> Do path (Create (One (Lit (chcN (dimN dim) vs))))
+    Range (I lo) (I hi) ->
+      If (Chc (IRef dim .>= ILit lo &&& IRef dim .<= ILit hi) true false)
+         [Elems [createUnit path]] []
+    Range lo hi -> error $ "Bad range arguments: " ++ show lo ++ " " ++ show hi
   where
-    effect (Exactly v)   = Create (lit v)
-    effect (OneOf vs)    = Create (One (Lit (chcN (dimN dim) vs)))
-    effect (Range lo hi) = Create (One (Lit (chc dim lo hi)))
-      -- TODO only allows configuring for one of the extremes...
+    path = Path Relative [att]
 
 
 -- ** Requirements
