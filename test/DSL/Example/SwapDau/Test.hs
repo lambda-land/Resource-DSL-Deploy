@@ -18,7 +18,9 @@ minimalResponse :: Int -> Response
 minimalResponse i = MkResponse
     [ MkResponseDau ["S1"]
       $ MkDau "I1"
-        [ MkPort "I1P1" "F1" (envFromList [("Bar", I i)]) ]
+        [ MkResponsePort "S1P1"
+          $ MkPort "I1P1" "F1" (envFromList [("Bar", I i)])
+        ]
         10
     ]
 
@@ -32,8 +34,10 @@ twoPortResponse :: Int -> Response
 twoPortResponse i = MkResponse
     [ MkResponseDau ["S1"]
       $ MkDau "I1"
-        [ MkPort "I1P1" "F1" (envFromList [("Bar", I i)])
-        , MkPort "I1P2" "F2" (envFromList [("Bar", I 4)])
+        [ MkResponsePort "S1P1"
+          $ MkPort "I1P1" "F1" (envFromList [("Bar", I i)])
+        , MkResponsePort ""
+          $ MkPort "I1P2" "F2" (envFromList [("Bar", I 4)])
         ]
         10
     ]
