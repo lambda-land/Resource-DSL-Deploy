@@ -7,7 +7,7 @@ import Data.Aeson
 import Data.Aeson.BetterErrors
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Map.Strict (toAscList)
-import Data.Scientific (floatingOrInteger,fromFloatDigits)
+import Data.Scientific (floatingOrInteger,fromFloatDigits,toBoundedInteger)
 import Data.Text (Text,intercalate,pack,unpack)
 import Data.Vector (fromList)
 import System.Directory (createDirectoryIfMissing)
@@ -48,6 +48,7 @@ type ParseIt a = Parse SchemaViolation a
 data SchemaViolation
      = BadCase Text [Text] Text
      | BadPVal Data.Aeson.Value
+     | BadInt  Data.Aeson.Value
      | ExprParseError Text Text
      | BExprParseError Text Text
   deriving (Data,Eq,Generic,Read,Show,Typeable)
@@ -87,6 +88,8 @@ prettySchemaViolation (BadCase typ good bad) =
     <> "\nExpected one of: " <> intercalate ", " good
 prettySchemaViolation (BadPVal bad) =
     "Invalid primitive value: " <> pack (show bad)
+prettySchemaViolation (BadInt bad) =
+    "Invalid integer value: " <> pack (show bad)
 prettySchemaViolation (ExprParseError msg bad) =
     "Error parsing expression: " <> bad
     <> "\n" <> msg
@@ -169,6 +172,13 @@ instance ToJSON PVal where
   toJSON (I i) = Number (fromInteger (toInteger i))
   toJSON (F d) = Number (fromFloatDigits d)
   toJSON (S s) = String (toName s)
+
+asInt :: ParseIt Int
+asInt = do
+    v <- asValue
+    case v of
+      Number n | Just i <- toBoundedInteger n -> pure i
+      _ -> throwCustomError (BadInt v)
 
 asPVal :: ParseIt PVal
 asPVal = do

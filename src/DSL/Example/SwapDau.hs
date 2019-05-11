@@ -70,8 +70,8 @@ data PortGroup a = MkPortGroup {
 -- | A constraint on a port in an unconfigured DAU.
 data Constraint
    = Exactly PVal
-   | OneOf   [PVal]
-   | Range   PVal PVal
+   | OneOf [PVal]
+   | Range Int Int
   deriving (Data,Typeable,Generic,Eq,Show)
 
 
@@ -247,8 +247,7 @@ providePortAttr dim att c = Do (Path Relative [att]) (effect c)
   where
     effect (Exactly v)   = Create (lit v)
     effect (OneOf vs)    = Create (One (Lit (chcN (dimN dim) vs)))
-    effect (Range lo hi) = Create (One (Lit (chc dim lo hi)))
-      -- TODO only allows configuring for one of the extremes...
+    effect (Range lo hi) = Create (One (Lit (chcN (dimN dim) (map I [lo..hi]))))
 
 
 -- ** Requirements
@@ -315,9 +314,9 @@ requirePortAttr :: Name -> Constraint -> Stmt
 requirePortAttr att c = check (Path Relative [att]) (One ptype) (body c)
   where
     ptype = case c of
-      Exactly v  -> primType v
-      OneOf vs   -> primType (head vs)
-      Range lo _ -> primType lo
+      Exactly v -> primType v
+      OneOf vs  -> primType (head vs)
+      Range _ _ -> TInt
     eq a b = case ptype of
       TUnit   -> true
       TBool   -> One (P2 (BB_B Eqv) a b)
@@ -326,7 +325,7 @@ requirePortAttr att c = check (Path Relative [att]) (One ptype) (body c)
       TSymbol -> One (P2 (SS_B SEqu) a b)
     body (Exactly v)   = eq val (lit v)
     body (OneOf vs)    = foldr1 (|||) [eq val (lit v) | v <- vs]
-    body (Range lo hi) = eq val (lit lo) ||| eq val (lit hi)
+    body (Range lo hi) = val .>= int lo &&& val .<= int hi
 
 
 -- ** Application model
@@ -356,7 +355,7 @@ triviallyConfigure (MkRequest ds) = MkResponse (map configDau ds)
     configPort (MkPort i fn as) = MkResponsePort i (MkPort i fn (fmap configAttr as))
     configAttr (Exactly v) = v
     configAttr (OneOf vs)  = head vs
-    configAttr (Range v _) = v
+    configAttr (Range v _) = I v
 
 
 -- ** Defining the search space
@@ -480,8 +479,8 @@ configPortAttrs d i cfg (Env m) = Env (Map.mapWithKey config m)
                                Just k  -> vs !! (k-1)
                                Nothing -> last vs
     config a (Range lo hi) = case Map.lookup (d,i,a) cfg of
-                               Just 1  -> lo
-                               _       -> hi
+                               Just k -> I ([lo..hi] !! (k-1))
+                               _      -> I hi
 
 
 -- ** Main driver
@@ -556,7 +555,7 @@ instance ToJSON Constraint where
 asConstraint :: ParseIt Constraint
 asConstraint = Exactly <$> asPVal
     <|> OneOf <$> eachInArray asPVal
-    <|> Range <$> key "Min" asPVal <*> key "Max" asPVal
+    <|> Range <$> key "Min" asInt <*> key "Max" asInt
 
 instance ToJSON SetInventory where
   toJSON s = object

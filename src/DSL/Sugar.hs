@@ -45,6 +45,10 @@ tSymbol = One TSymbol
 lit :: PVal -> V Expr
 lit = One . Lit . One
 
+-- | Non-variational integer.
+int :: Int -> V Expr
+int = lit . I
+
 -- | Non-variational variable reference.
 ref :: Var -> V Expr
 ref = One . Ref
