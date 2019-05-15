@@ -100,6 +100,12 @@ testSwap =
     , testGroup "range end-to-end tests"
       [ testCase "1" $ do
           res <- runSwapTest (rangeOpts "json/test/swap-request-range1.json")
-          res @?= Just (rangeResponse 200 700)
+          res @?= Just (rangeResponse 64 512)
+      , testCase "2" $ do
+          res <- runSwapTest (rangeOpts "json/test/swap-request-range2.json")
+          res @?= Just (rangeResponse 128 1024)
+      , testCase "3" $ do
+          res <- runSwapTest (rangeOpts "json/test/swap-request-range3.json")
+          res @?= Nothing
       ]
     ]

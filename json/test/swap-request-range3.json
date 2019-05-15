@@ -1,3 +1,4 @@
+
 {
   "daus": [
     {
@@ -9,16 +10,16 @@
           "GloballyUniqueId": "S1P1",
           "BBNPortFunctionality": "F1",
           "Bar": {
-            "Min": 200,
-            "Max": 600
+            "Min": 1000,
+            "Max": 2000
           }
         },
         {
           "GloballyUniqueId": "S1P2",
           "BBNPortFunctionality": "F1",
           "Bar": {
-            "Min": 0,
-            "Max": 100
+            "Min": 1000,
+            "Max": 2000
           }
         }
       ]
