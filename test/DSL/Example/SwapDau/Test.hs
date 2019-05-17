@@ -60,6 +60,32 @@ rangeResponse i j = MkResponse
         10
     ]
 
+equationOpts :: FilePath -> SwapOpts
+equationOpts req = defaultOpts
+    { swapInventoryFile = "json/test/swap-inventory-equation.json"
+    , swapRequestFile = req
+    }
+
+equationResponse :: Int -> Int -> Int -> Int -> Response
+equationResponse s1 d1 s2 d2 = MkResponse
+    [ MkResponseDau ["S1"]
+      $ MkDau "I1"
+        [ MkResponsePort "S1P2"
+          $ MkPort "I1P1" "F1" $ envFromList 
+            [ ("SampleRate", I s1)
+            , ("DataLength", I d1)
+            , ("DataRate", I (s1 * d1))
+            ]
+        , MkResponsePort "S1P1"
+          $ MkPort "I1P2" "F1" $ envFromList
+            [ ("SampleRate", I s2)
+            , ("DataLength", I d2)
+            , ("DataRate", I (s2 * d2))
+            ]
+        ]
+        10
+    ]
+
 testSwap :: TestTree
 testSwap =
   testGroup "Swap Tests"
@@ -107,5 +133,10 @@ testSwap =
       , testCase "3" $ do
           res <- runSwapTest (rangeOpts "json/test/swap-request-range3.json")
           res @?= Nothing
+      ]
+    , testGroup "equation end-to-end tests"
+      [ testCase "1" $ do
+          res <- runSwapTest (equationOpts "json/test/swap-request-equation1.json")
+          res @?= Just (equationResponse 64 8 1024 4)
       ]
     ]

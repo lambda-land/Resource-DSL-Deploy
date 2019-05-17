@@ -1,0 +1,28 @@
+{
+  "daus": [
+    {
+      "GloballyUniqueId": "I1",
+      "BBNDauMonetaryCost": 10,
+      "Port": [
+        {
+          "GloballyUniqueId": "I1P1",
+          "BBNPortFunctionality": "F1",
+          "SampleRate": [64, 128, 256],
+          "DataLength": [4, 8, 16],
+          "DataRate": {
+            "Equation": "@SampleRate * @DataLength"
+          }
+        },
+        {
+          "GloballyUniqueId": "I1P2",
+          "BBNPortFunctionality": "F1",
+          "SampleRate": [512, 768, 1024],
+          "DataLength": [2, 4],
+          "DataRate": {
+            "Equation": "@SampleRate * @DataLength"
+          }
+        }
+      ]
+    }
+  ]
+}
