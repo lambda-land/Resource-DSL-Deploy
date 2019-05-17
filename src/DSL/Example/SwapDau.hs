@@ -240,10 +240,14 @@ providePortGroup dau g i =
     , create "PortCount" (lit (I (groupSize g)))
     , In "Attributes"
       [ Elems $ do
-        (n,c) <- envToList (groupAttrs g)
+        (n,c) <- filter (not . isEqn) attrs ++ filter isEqn attrs
         return (providePortAttr (dimAttr dau i n) n c)
       ]
     ]]
+  where
+    attrs = envToList (groupAttrs g)
+    isEqn (_, Equation _) = True
+    isEqn _               = False
 
 -- | Encode a provided port attribute as a DSL statement.
 providePortAttr :: Var -> Name -> Constraint -> Stmt
@@ -252,6 +256,7 @@ providePortAttr dim att c = Do (Path Relative [att]) (effect c)
     effect (Exactly v)   = Create (lit v)
     effect (OneOf vs)    = Create (One (Lit (chcN (dimN dim) vs)))
     effect (Range lo hi) = Create (One (Lit (chcN (dimN dim) (map I [lo..hi]))))
+    effect (Equation e)  = Create (One e)
 
 
 -- ** Requirements
@@ -318,9 +323,10 @@ requirePortAttr :: Name -> Constraint -> Stmt
 requirePortAttr att c = check (Path Relative [att]) (One ptype) (body c)
   where
     ptype = case c of
-      Exactly v -> primType v
-      OneOf vs  -> primType (head vs)
-      Range _ _ -> TInt
+      Exactly v  -> primType v
+      OneOf vs   -> primType (head vs)
+      Range _ _  -> TInt
+      Equation _ -> TInt
     eq a b = case ptype of
       TUnit   -> true
       TBool   -> One (P2 (BB_B Eqv) a b)
@@ -330,6 +336,8 @@ requirePortAttr att c = check (Path Relative [att]) (One ptype) (body c)
     body (Exactly v)   = eq val (lit v)
     body (OneOf vs)    = foldr1 (|||) [eq val (lit v) | v <- vs]
     body (Range lo hi) = val .>= int lo &&& val .<= int hi
+    body (Equation e)  = val .== One e  -- TODO this case should probably just throw an error
+
 
 
 -- ** Application model
@@ -357,9 +365,10 @@ triviallyConfigure (MkRequest ds) = MkResponse (map configDau ds)
     configDau (MkRequestDau _ (MkDau i ps mc)) =
         MkResponseDau [i] (MkDau i (map configPort ps) mc)
     configPort (MkPort i fn as) = MkResponsePort i (MkPort i fn (fmap configAttr as))
-    configAttr (Exactly v) = v
-    configAttr (OneOf vs)  = head vs
-    configAttr (Range v _) = I v
+    configAttr (Exactly v)  = v
+    configAttr (OneOf vs)   = head vs
+    configAttr (Range v _)  = I v
+    configAttr (Equation _) = I 0
 
 
 -- ** Defining the search space
