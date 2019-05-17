@@ -12,12 +12,14 @@ import Data.Aeson.Types (listValue)
 import Data.Function (on)
 import Data.List (nub,nubBy,sortBy,subsequences)
 import Data.Maybe (catMaybes,fromMaybe)
-import Data.Text (pack)
 import Data.SBV (AllSatResult,Boolean(..),getModelDictionaries)
 import Data.SBV.Internals (trueCW)
 import Data.String (fromString)
 import Options.Applicative hiding ((<|>))
 import System.Exit
+
+import Data.Text (pack)
+import qualified Data.Text as Text
 
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -26,6 +28,7 @@ import qualified Data.Set as Set
 import DSL.Environment
 import DSL.Model
 import DSL.Name
+import DSL.Parser (parseExprText)
 import DSL.Primitive
 import DSL.Resource
 import DSL.SAT
@@ -72,6 +75,7 @@ data Constraint
    = Exactly PVal
    | OneOf [PVal]
    | Range Int Int
+   | Equation Expr
   deriving (Data,Typeable,Generic,Eq,Show)
 
 
@@ -551,11 +555,22 @@ instance ToJSON Constraint where
   toJSON (Exactly v)   = toJSON v
   toJSON (OneOf vs)    = listValue toJSON vs
   toJSON (Range lo hi) = object [ "Min" .= toJSON lo, "Max" .= toJSON hi ]
+  toJSON (Equation e)  = object [ "Equation" .= toJSON e ]
 
 asConstraint :: ParseIt Constraint
 asConstraint = Exactly <$> asPVal
     <|> OneOf <$> eachInArray asPVal
     <|> Range <$> key "Min" asInt <*> key "Max" asInt
+    <|> Equation <$> key "Equation" asExpr'
+  where
+    -- TODO Alex's revised parser doesn't handle spaces right...
+    -- this is a customized version of asExpr that works around this
+    asExpr' = do
+      t <- asText
+      let t' = Text.filter (/= ' ') t
+      case parseExprText t' of
+        Right e  -> pure e
+        Left msg -> throwCustomError (ExprParseError (pack msg) t)
 
 instance ToJSON SetInventory where
   toJSON s = object
