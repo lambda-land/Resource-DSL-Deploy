@@ -10,8 +10,7 @@ import Data.Aeson
 import Data.Aeson.BetterErrors
 import Data.Aeson.Types (listValue)
 import Data.Function (on)
-import Data.List (nub,nubBy,sortBy,subsequences)
-import Data.Maybe (catMaybes,fromMaybe)
+import Data.List (foldl',nub,nubBy,sortBy,subsequences)
 import Data.SBV (AllSatResult,Boolean(..),getModelDictionaries)
 import Data.SBV.Internals (trueCW)
 import Data.String (fromString)
@@ -35,6 +34,7 @@ import DSL.SAT
 import DSL.Serialize
 import DSL.Sugar
 import DSL.Types
+import DSL.V
 
 
 --
@@ -390,25 +390,17 @@ toSearch size daus inv = sortInventories $
 
 -- ** Building the response
 
--- | Describes how to configure each configurable attribute of each DAU in
---   the inventory. Keys are triples of a DAU ID, group index, and attribute
---   name; values are indexes into the corresponding constraints.
-type ConfigMap = Map (Name,Int,Name) Int
-
--- | Describes which inventory DAUs replace which request DAUs. Keys are
---   IDs of inventory DAUs; values are IDs of request DAUs.
-type DauReplaceMap = Map Name [Name]
-
--- | Describes which inventory port groups replace which request port groups.
---   Keys are pairs of a DAU ID and group indexes of inventory DAUs, values
---   are a list of such pairs for the request DAUs they're replacing.
-type GroupReplaceMap = Map (Name,Int) [(Name,Int)]
-
 -- | Mapping from DAU IDs and group indexes to the set of member port IDs.
 type PortMap = Map (Name,Int) [Name]
 
--- | A pair of data structures that support building the response.
-type ResponseMaps = (ConfigMap, DauReplaceMap, GroupReplaceMap)
+-- | A nested maps that describes which inventory DAUs and port groups
+--   replace which request DAUs and port groups. The keys of the outer map
+--   are inventory DAU IDs, keys of the inner map are inventory group IDs.
+--   values are a list. Values of the outer map include a list of request
+--   DAUs the corresponding inventory DAU replaces, while values of the
+--   inner maps include a list of request DAU groups the corresponding
+--   group is replacing.
+type ReplaceMap = Map Name ([Name], Map Int [(Name,Int)])
 
 -- | Build a map of ports that need replacing from the grouped request DAUs.
 buildPortMap :: [Dau (PortGroups a)] -> PortMap
@@ -417,83 +409,126 @@ buildPortMap ds = Map.fromList $ do
     (g,i) <- zip (ports d) [1..]
     return ((dauID d, i), groupIDs g)
 
--- | Convert the output of the SAT solver into the response maps.
-processSatResults :: AllSatResult -> ResponseMaps
-processSatResults = foldr processDim (Map.empty, Map.empty, Map.empty)
+-- | Build a map describing which inventory DAUs and groups replaced which
+--   request DAUs and groups from the output of the SAT solver.
+buildReplaceMap :: AllSatResult -> ReplaceMap
+buildReplaceMap = foldr processDim Map.empty
     . Map.keys . Map.filter (== trueCW) . head . getModelDictionaries
-
--- | Process a dimension bound to true in the SAT model, updating the
---   response maps.
-processDim :: String -> ResponseMaps -> ResponseMaps
-processDim dim (cfg,daus,grps)
-    | k == "Cfg" =
-        let (dau,_:grp) = split l
-            invDau = pack dau
-            invGrp = read grp
-        in case split r of
-             (a,_:i) -> (Map.insert (invDau, invGrp, pack a) (read i) cfg, daus, grps)
-             (a,[])  -> (Map.insert (invDau, invGrp, pack a) 1 cfg, daus, grps)
-    | k == "Use" =
-        let (ldau,_:lgrp) = split l
-            (rdau,_:rgrp) = split r
-            invDau = pack ldau
-            invGrp = read lgrp
-            reqDau = pack rdau
-            reqGrp = read rgrp
-            daus' = case Map.lookup invDau daus of
-                      Just ns -> Map.insert invDau (nub (reqDau : ns)) daus
-                      Nothing -> Map.insert invDau [reqDau] daus
-            grps' = case Map.lookup (invDau,invGrp) grps of
-                      Just gs -> Map.insert (invDau,invGrp) ((reqDau,reqGrp) : gs) grps
-                      Nothing -> Map.insert (invDau,invGrp) [(reqDau,reqGrp)] grps
-        in (cfg,daus',grps')
-    | otherwise  = error ("Unrecognized dimension: " ++ dim)
   where
-    [k,l,r] = words dim
-    split = break (== '+')
+    processDim dim daus
+        | k == "Use" =
+            let (ldau,_:lgrp) = split l
+                (rdau,_:rgrp) = split r
+                invDau = pack ldau
+                invGrp = read lgrp
+                reqDau = pack rdau
+                reqGrp = read rgrp
+            in flip (Map.insert invDau) daus $
+               case Map.lookup invDau daus of
+                 Nothing -> ([reqDau], Map.singleton invGrp [(reqDau,reqGrp)])
+                 Just (ns,grps) ->
+                   case Map.lookup invGrp grps of
+                     Nothing ->
+                       (nub (reqDau : ns), Map.insert invGrp [(reqDau,reqGrp)] grps)
+                     Just gs ->
+                       (nub (reqDau : ns), Map.insert invGrp ((reqDau,reqGrp):gs) grps)
+        | k == "Cfg" = daus
+        | otherwise  = error ("buildReplaceMap: Unrecognized dimension: " ++ dim)
+      where
+        [k,l,r] = words dim
+        split = break (== '+')
 
--- | Create a response from the DAU inventory and the response maps generated
---   from the SAT results.
---   TODO Need to consume port names from the PortMap to properly track port
---   replacements when one request group is satisfied by multiple inventory
---   groups.
-buildResponse :: PortMap -> Inventory -> ResponseMaps -> Response
-buildResponse ports inv (cfg,daus,grps) =
-    MkResponse $ do
-      MkDau d gs c <- inv
-      return $ MkResponseDau
-        (fromMaybe [] (Map.lookup d daus))
-        (MkDau d (concat $ do
-          (g,i) <- zip gs [1..]
-          let ns = getReplacedPortNames ports grps d i
-          return (expandAndConfig ns cfg d i g)) c)
+-- | Build a configuration from the output of the SAT solver.
+buildConfig :: AllSatResult -> BExpr
+buildConfig = foldr processDim true
+    . Map.keys . Map.filter (== trueCW) . head . getModelDictionaries
+  where
+    processDim dim cfg
+        | k == "Use" = cfg
+        | k == "Cfg" = BRef (fromString dim) &&& cfg
+        | otherwise  = error ("buildConfig: Unrecognized dimension: " ++ dim)
+      where
+        [k,_,_] = words dim
 
--- | Get replaced port names.
-getReplacedPortNames :: PortMap -> GroupReplaceMap -> Name -> Int -> [Name]
-getReplacedPortNames ports grps invDau invGrp =
-    case Map.lookup (invDau,invGrp) grps of
-      Just reqs -> concat (catMaybes (map (\r -> Map.lookup r ports) reqs))
-      Nothing -> []
+-- | Create a response.
+buildResponse
+  :: PortMap
+  -> Inventory
+  -> ResEnv
+  -> ReplaceMap
+  -> BExpr
+  -> Response
+buildResponse ports inv renv rep cfg =
+    MkResponse (snd (foldl' go (ports,[]) inv))
+  where
+    go (ps,ds) dau = let (ps',d) = buildResponseDau renv rep cfg dau ps
+                     in (ps',d:ds)
+
+-- | Create a response DAU from an inventory DAU, consuming ports from the port
+--   map as required.
+buildResponseDau
+  :: ResEnv
+  -> ReplaceMap
+  -> BExpr
+  -> Dau (PortGroups Constraint)
+  -> PortMap
+  -> (PortMap, ResponseDau)
+buildResponseDau renv rep cfg (MkDau d gs c) ports =
+    (ports', MkResponseDau (maybe [] fst (Map.lookup d rep)) (MkDau d gs' c))
+  where
+    (ports', gs') = foldl' go (ports,[]) (zip gs [1..])
+    go (ps,gs) (g,i) =
+      let (ps',ns) = replacedPortNames rep d i (groupSize g) ps
+      in (ps', gs ++ expandAndConfig renv cfg ns d i g)
+
+-- | Consume and return replaced port names.
+replacedPortNames
+  :: ReplaceMap
+  -> Name
+  -> Int
+  -> Int
+  -> PortMap
+  -> (PortMap, [Name])
+replacedPortNames rep invDau invGrp size ports
+    | Just (_, grps) <- Map.lookup invDau rep
+    , Just reqs <- Map.lookup invGrp grps
+    = let go (ps,ns,k) r = case Map.lookup r ps of
+            Just ms | length ms <= k -> (Map.insert r [] ps, ns ++ ms, k - length ms)
+                    | otherwise      -> (Map.insert r (drop k ms) ps, ns ++ take k ms, 0)
+            Nothing -> (ps,ns,k)
+          (ports', names, _) = foldl' go (ports, [], size) reqs
+      in (ports', names)
+    | otherwise = (ports,[])
 
 -- | Expand and configure a port group.
-expandAndConfig :: [Name] -> ConfigMap -> Name -> Int -> PortGroup Constraint -> [ResponsePort]
-expandAndConfig old cfg d i (MkPortGroup new f as _) = do
+expandAndConfig
+  :: ResEnv
+  -> BExpr
+  -> [Name]
+  -> Name
+  -> Int
+  -> PortGroup Constraint
+  -> [ResponsePort]
+expandAndConfig renv cfg old d i (MkPortGroup new f as _) = do
     (n,o) <- zip new (old ++ repeat "")
     return (MkResponsePort o (MkPort n f as'))
   where
-    as' = configPortAttrs d i cfg as
+    as' = configPortAttrs renv cfg d i as
 
--- | Configure port attributes based on the config map.
-configPortAttrs :: Name -> Int -> ConfigMap -> PortAttrs Constraint -> PortAttrs PVal
-configPortAttrs d i cfg (Env m) = Env (Map.mapWithKey config m)
+-- | Configure port attributes based on the resource environment.
+configPortAttrs
+  :: ResEnv
+  -> BExpr
+  -> Name
+  -> Int
+  -> PortAttrs Constraint
+  -> PortAttrs PVal
+configPortAttrs renv cfg d i (Env m) = Env (Map.mapWithKey config m)
   where
-    config _ (Exactly v)   = v
-    config a (OneOf vs)    = case Map.lookup (d,i,a) cfg of
-                               Just k  -> vs !! (k-1)
-                               Nothing -> last vs
-    config a (Range lo hi) = case Map.lookup (d,i,a) cfg of
-                               Just k -> I ([lo..hi] !! (k-1))
-                               _      -> I hi
+    path a = ResID [d, "Group", fromString (show i), "Attributes", a]
+    config a _ = case envLookup (path a) renv of
+                   Right v | One (Just pv) <- conf cfg v -> pv
+                   e -> error $ "Unconfigured attribute: " ++ show (path a) ++ " got: " ++ show e
 
 
 -- ** Main driver
@@ -507,11 +542,11 @@ findReplacement mx inv req = do
     -- putStrLn $ "Inventory: " ++ show inv
     case loop invs of
       Nothing -> return Nothing
-      Just ctx -> do 
+      Just (renv, ctx) -> do 
         r <- satResults 1 ctx
         writeFile "outbox/swap-solution.txt" (show r)
         -- putStrLn (show (processSatResults r))
-        return (Just (buildResponse ports inv (processSatResults r)))
+        return (Just (buildResponse ports inv renv (buildReplaceMap r) (buildConfig r)))
   where
     dict = toDictionary inv
     daus = toReplace req
@@ -522,7 +557,7 @@ findReplacement mx inv req = do
     loop (i:is) = case test i of
         -- (Left _, s) -> traceShow s (loop is)
         (Left _, _) -> loop is
-        (Right _, SCtx _ ctx _) -> Just (bnot ctx)
+        (Right _, SCtx renv ctx _) -> Just (renv, bnot ctx)
 
 
 --
