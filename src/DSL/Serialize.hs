@@ -11,11 +11,11 @@ import Data.Scientific (floatingOrInteger,fromFloatDigits,toBoundedInteger)
 import Data.Text (Text,intercalate,pack,unpack)
 import Data.Vector (fromList)
 import System.Directory (createDirectoryIfMissing)
-import System.FilePath (takeDirectory)
 import System.Exit
-import qualified Data.Set as S
+import System.FilePath (takeDirectory)
 
 import qualified Data.ByteString.Lazy.Char8 as B
+import qualified Data.Set as S
 
 import DSL.Types
 import DSL.Environment
