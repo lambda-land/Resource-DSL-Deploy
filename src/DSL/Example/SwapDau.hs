@@ -93,6 +93,7 @@ data Dau p = MkDau {
 
 -- | A DAU inventory is a list of available DAUs, sorted by monetary cost,
 --   where the ports in each DAU have been organized into groups.
+--   -- TODO: Make this a set so ordering of JSON file doesn't matter
 type Inventory = [Dau (PortGroups Constraint)]
 
 
@@ -542,11 +543,11 @@ findReplacement mx inv req = do
     -- putStrLn $ "Inventory: " ++ show inv
     case loop invs of
       Nothing -> return Nothing
-      Just (renv, ctx) -> do 
+      Just (i, renv, ctx) -> do 
         r <- satResults 1 ctx
         writeFile "outbox/swap-solution.txt" (show r)
         -- putStrLn (show (processSatResults r))
-        return (Just (buildResponse ports inv renv (buildReplaceMap r) (buildConfig r)))
+        return (Just (buildResponse ports i renv (buildReplaceMap r) (buildConfig r)))
   where
     dict = toDictionary inv
     daus = toReplace req
@@ -557,7 +558,7 @@ findReplacement mx inv req = do
     loop (i:is) = case test i of
         -- (Left _, s) -> traceShow s (loop is)
         (Left _, _) -> loop is
-        (Right _, SCtx renv ctx _) -> Just (renv, bnot ctx)
+        (Right _, SCtx renv ctx _) -> Just (i, renv, bnot ctx)
 
 
 --
