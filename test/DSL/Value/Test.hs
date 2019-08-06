@@ -20,7 +20,7 @@ testApplyPrim1 = testGroup "applyPrim1"
       (Right (One (Just (B False))),SCtx {renv = envEmpty, errCtx = BLit False, mask = One Nothing}),
     testCase "Not (One 1) = Error" $
       runOp1 (B_B Not) (One (Just (I 1))) @?=
-      (Left (One . Just . PrimE $ ErrorOp1 (B_B Not) (I 1)), SCtx {renv = envEmpty, errCtx = BLit False ||| BLit True, mask = Chc (BLit True) (One . Just . PrimE $ ErrorOp1 (B_B Not) (I 1)) (One Nothing)}),
+      (Left (One . Just . PrimE $ ErrorOp1 (B_B Not) (I 1)), SCtx {renv = envEmpty, errCtx = BLit False ||| BLit True, mask = One . Just . PrimE $ ErrorOp1 (B_B Not) (I 1) }),
     testCase "Neg A<1,-1> = A<-1,1>" $
       runOp1 (N_N Neg) (Chc (BRef "A") (One (Just (I 1))) (One (Just (I (-1))))) @?=
       (Right (Chc (BRef "A") (One (Just (I (-1)))) (One (Just (I 1)))),SCtx {renv = envEmpty, errCtx = BLit False, mask = One Nothing}),
