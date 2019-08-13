@@ -1,0 +1,25 @@
+{
+  "daus":  [
+    {
+      "Ports": [
+        {
+          "Measurement": {
+            "SampleRate": {
+              "Min": 0,
+              "Max": "20000
+            },
+            "DataLength": {
+              "Min": 0,
+              "Max": "20000
+            },
+            "DataRate": {
+              "Min": 0,
+              "Max": "20000
+            }
+          },
+          "PortType": "SignalConditioner"
+        }
+      ]
+    }
+  ]
+}
