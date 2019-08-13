@@ -75,8 +75,24 @@ data Constraint
    = Exactly PVal
    | OneOf [PVal]
    | Range Int Int
+  deriving (Data,Typeable,Generic,Eq,Show)
+
+
+-- ** Attribute rules
+
+-- | A rule refines the check associated with a particular attribute. There
+--   are two kinds of rules: Equations define derived attributes whose values
+--   are determined by an arithmetic expression over other attribute values.
+--   Compatibility rules describe a list of values that are considered
+--   compatible with a given value of a given attribute.
+data Rule
+   = Compatible [PVal]
    | Equation Expr
   deriving (Data,Typeable,Generic,Eq,Show)
+
+-- | A set of rules that apply to a given attribute-value pair.
+newtype Rules = MkRules (Env (Name,PVal) Rule)
+  deriving (Eq,Show,Data)
 
 
 -- ** DAUs
@@ -218,46 +234,49 @@ dimUseGroup provDau provGrp reqDau reqGrp =
 -- ** Provisions
 
 -- | Translate a DAU inventory into a dictionary.
-toDictionary :: Inventory -> Dictionary
-toDictionary = envFromList . map entry
+toDictionary :: Rules -> Inventory -> Dictionary
+toDictionary rs = envFromList . map entry
   where
-    entry d = (mkSymbol (dauID d), ModEntry (provideDau d))
+    entry d = (mkSymbol (dauID d), ModEntry (provideDau rs d))
 
 -- | Encode a provided DAU as a DSL model.
-provideDau :: Dau (PortGroups Constraint) -> Model
-provideDau (MkDau n gs c) = Model []
+provideDau :: Rules -> Dau (PortGroups Constraint) -> Model
+provideDau rs (MkDau n gs c) = Model []
     [ Elems [
         modify "/MonetaryCost" TInt (val + fromInteger c)
       , In (Path Relative [n])
-        [ Elems (zipWith (providePortGroup n) gs [1..]) ]
+        [ Elems (zipWith (providePortGroup rs n) gs [1..]) ]
     ]]
 
 -- | Encode a provided port group as a DSL statement.
-providePortGroup :: Name -> PortGroup Constraint -> Int -> Stmt
-providePortGroup dau g i =
+providePortGroup :: Rules -> Name -> PortGroup Constraint -> Int -> Stmt
+providePortGroup (MkRules rs) dau g i =
     In (fromString ("Group/" ++ show i))
     [ Elems [
       create "Functionality" (sym (groupFunc g))
     , create "PortCount" (lit (I (groupSize g)))
     , In "Attributes"
-      [ Elems $ do
-        (n,c) <- filter (not . isEqn) attrs ++ filter isEqn attrs
-        return (providePortAttr (dimAttr dau i n) n c)
+      [ Elems $ [providePortAttr (dimAttr dau i n) n c | (n,c) <- attrs]
+          ++ map (uncurry providePortEquation) eqns
       ]
     ]]
   where
-    attrs = envToList (groupAttrs g)
-    isEqn (_, Equation _) = True
-    isEqn _               = False
+    (attrs,eqns) = foldr split ([],[]) (envToList (groupAttrs g))
+    split (n, Exactly v) (as,es)
+      | Right (Equation e) <- envLookup (n,v) rs = (as, (n,e):es)
+    split (n, c) (as,es) = ((n,c):as, es)
 
 -- | Encode a provided port attribute as a DSL statement.
 providePortAttr :: Var -> Name -> Constraint -> Stmt
-providePortAttr dim att c = Do (Path Relative [att]) (effect c)
+providePortAttr dim att c = Do (Path Relative [att]) (value c)
   where
-    effect (Exactly v)   = Create (lit v)
-    effect (OneOf vs)    = Create (One (Lit (chcN (dimN dim) vs)))
-    effect (Range lo hi) = Create (One (Lit (chcN (dimN dim) (map I [lo..hi]))))
-    effect (Equation e)  = Create (One e)
+    value (Exactly v)   = Create (lit v)
+    value (OneOf vs)    = Create (One (Lit (chcN (dimN dim) vs)))
+    value (Range lo hi) = Create (One (Lit (chcN (dimN dim) (map I [lo..hi]))))
+
+-- | Encode a provided port attribute that is defined via an equation.
+providePortEquation :: Name -> Expr -> Stmt
+providePortEquation att e = Do (Path Relative [att]) (Create (One e))
 
 
 -- ** Requirements
@@ -327,7 +346,6 @@ requirePortAttr att c = check (Path Relative [att]) (One ptype) (body c)
       Exactly v  -> primType v
       OneOf vs   -> primType (head vs)
       Range _ _  -> TInt
-      Equation _ -> TInt
     eq a b = case ptype of
       TUnit   -> true
       TBool   -> One (P2 (BB_B Eqv) a b)
@@ -337,7 +355,6 @@ requirePortAttr att c = check (Path Relative [att]) (One ptype) (body c)
     body (Exactly v)   = eq val (lit v)
     body (OneOf vs)    = foldr1 (|||) [eq val (lit v) | v <- vs]
     body (Range lo hi) = val .>= int lo &&& val .<= int hi
-    body (Equation e)  = val .== One e  -- TODO this case should probably just throw an error
 
 
 
@@ -369,7 +386,6 @@ triviallyConfigure (MkRequest ds) = MkResponse (map configDau ds)
     configAttr (Exactly v)  = v
     configAttr (OneOf vs)   = head vs
     configAttr (Range v _)  = I v
-    configAttr (Equation _) = I 0
 
 
 -- ** Defining the search space
@@ -535,8 +551,8 @@ configPortAttrs renv cfg d i (Env m) = Env (Map.mapWithKey config m)
 -- ** Main driver
 
 -- | Find replacement DAUs in the given inventory.
-findReplacement :: Int -> Inventory -> Request -> IO (Maybe Response)
-findReplacement mx inv req = do
+findReplacement :: Int -> Rules -> Inventory -> Request -> IO (Maybe Response)
+findReplacement mx rules inv req = do
     -- writeJSON "outbox/swap-dictionary-debug.json" dict
     -- writeJSON "outbox/swap-model-debug.json" (appModel (invs !! 1) daus)
     -- putStrLn $ "To replace: " ++ show daus
@@ -549,7 +565,7 @@ findReplacement mx inv req = do
         -- putStrLn (show (processSatResults r))
         return (Just (buildResponse ports i renv (buildReplaceMap r) (buildConfig r)))
   where
-    dict = toDictionary inv
+    dict = toDictionary rules inv
     daus = toReplace req
     invs = toSearch mx daus inv
     ports = buildPortMap daus
@@ -564,6 +580,35 @@ findReplacement mx inv req = do
 --
 -- * JSON serialization of BBN interface
 --
+
+instance ToJSON Rules where
+  toJSON (MkRules m) = listValue rule (envToList m)
+    where
+      rule ((a,v),r) = object
+        [ "Attribute" .= String a
+        , "AttributeValue" .= toJSON v
+        , case r of
+            Compatible vs -> "Compatible" .= listValue toJSON vs
+            Equation e    -> "Equation"   .= toJSON e
+        ]
+
+asRules :: ParseIt Rules
+asRules = eachInArray rule >>= return . MkRules . envFromList
+  where
+    rule = do
+      a <- key "Attribute" asText
+      v <- key "AttributeValue" asPVal
+      r <- Compatible <$> key "Compatible" (eachInArray asPVal)
+             <|> Equation <$> key "Equation" asExpr'
+      return ((a,v),r)
+    -- TODO Alex's revised parser doesn't handle spaces right...
+    -- this is a customized version of asExpr that works around this
+    asExpr' = do
+      t <- asText
+      let t' = Text.filter (/= ' ') t
+      case parseExprText t' of
+        Right e  -> pure e
+        Left msg -> throwCustomError (ExprParseError (pack msg) t)
 
 instance ToJSON p => ToJSON (Dau p) where
   toJSON d = object
@@ -600,22 +645,11 @@ instance ToJSON Constraint where
   toJSON (Exactly v)   = toJSON v
   toJSON (OneOf vs)    = listValue toJSON vs
   toJSON (Range lo hi) = object [ "Min" .= toJSON lo, "Max" .= toJSON hi ]
-  toJSON (Equation e)  = object [ "Equation" .= toJSON e ]
 
 asConstraint :: ParseIt Constraint
 asConstraint = Exactly <$> asPVal
     <|> OneOf <$> eachInArray asPVal
     <|> Range <$> key "Min" asInt <*> key "Max" asInt
-    <|> Equation <$> key "Equation" asExpr'
-  where
-    -- TODO Alex's revised parser doesn't handle spaces right...
-    -- this is a customized version of asExpr that works around this
-    asExpr' = do
-      t <- asText
-      let t' = Text.filter (/= ' ') t
-      case parseExprText t' of
-        Right e  -> pure e
-        Left msg -> throwCustomError (ExprParseError (pack msg) t)
 
 instance ToJSON SetInventory where
   toJSON s = object
@@ -670,10 +704,8 @@ instance ToJSON ResponsePort where
 defaultMaxDaus :: Int
 defaultMaxDaus   = 2
 
--- defaultIntervals :: Int
--- defaultIntervals = 2
-
-defaultInventoryFile, defaultRequestFile, defaultResponseFile :: FilePath
+defaultRulesFile, defaultInventoryFile, defaultRequestFile, defaultResponseFile :: FilePath
+defaultRulesFile     = "inbox/swap-rules.json"
 defaultInventoryFile = "inbox/swap-inventory.json"
 defaultRequestFile   = "inbox/swap-request.json"
 defaultResponseFile  = "outbox/swap-response.json"
@@ -681,14 +713,14 @@ defaultResponseFile  = "outbox/swap-response.json"
 data SwapOpts = MkSwapOpts {
      swapRunSearch     :: Bool
    , swapMaxDaus       :: Int
-   -- , swapMaxIntervals  :: Int
+   , swapRulesFile     :: FilePath
    , swapInventoryFile :: FilePath
    , swapRequestFile   :: FilePath
    , swapResponseFile  :: FilePath
 } deriving (Data,Typeable,Generic,Eq,Read,Show)
 
 defaultOpts :: SwapOpts
-defaultOpts = MkSwapOpts True 2 defaultInventoryFile defaultRequestFile defaultResponseFile
+defaultOpts = MkSwapOpts True 2 defaultRulesFile defaultInventoryFile defaultRequestFile defaultResponseFile
 
 parseSwapOpts :: Parser SwapOpts
 parseSwapOpts = MkSwapOpts
@@ -700,12 +732,12 @@ parseSwapOpts = MkSwapOpts
     <*> intOption 
          ( long "max-daus"
         <> value defaultMaxDaus
-        <> help "Max number of DAUs to include in  response; 0 for no limit" )
-    
-    -- <*> intOption 
-    --      ( long "range-intervals"
-    --     <> value defaultIntervals
-    --     <> help "Number of intervals to use for range constraints" )
+        <> help "Max number of DAUs to include in response; 0 for no limit" )
+
+    <*> pathOption
+         ( long "rules-file"
+        <> value defaultRulesFile
+        <> help "Path to the JSON rules file" )
 
     <*> pathOption
          ( long "inventory-file"
@@ -731,8 +763,9 @@ runSwap opts = do
     when (swapRunSearch opts) $ do
       req <- readJSON (swapRequestFile opts) asRequest
       MkSetInventory daus <- readJSON (swapInventoryFile opts) asSetInventory
+      rules <- readJSON (swapRulesFile opts) asRules
       putStrLn "Searching for replacement DAUs ..."
-      result <- findReplacement (swapMaxDaus opts) (createInventory daus) req
+      result <- findReplacement (swapMaxDaus opts) rules (createInventory daus) req
       case result of
         Just res -> do 
           let resFile = swapResponseFile opts
@@ -747,4 +780,5 @@ runSwapTest :: SwapOpts -> IO (Maybe Response)
 runSwapTest opts = do
     req <- readJSON (swapRequestFile opts) asRequest
     MkSetInventory daus <- readJSON (swapInventoryFile opts) asSetInventory
-    findReplacement (swapMaxDaus opts) (createInventory daus) req
+    rules <- readJSON (swapRulesFile opts) asRules
+    findReplacement (swapMaxDaus opts) rules (createInventory daus) req

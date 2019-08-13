@@ -83,7 +83,7 @@ instance IsString ResID where
 
 -- | Primitive base types.
 data PType = TUnit | TBool | TInt | TFloat | TSymbol
-  deriving (Eq,Data,Read,Show)
+  deriving (Eq,Data,Ord,Read,Show)
 
 -- | Primitive values.
 data PVal
@@ -92,7 +92,7 @@ data PVal
      | I Int
      | F Double
      | S Symbol
-  deriving (Eq,Data,Show,Read)
+  deriving (Eq,Data,Ord,Show,Read)
 
 instance IsString PVal where
   fromString = S . fromString
