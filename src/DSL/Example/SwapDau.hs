@@ -53,7 +53,8 @@ type PortGroups a = [PortGroup a]
 --   the values of the port attributes will be of type 'PVal', while for an
 --   unconfigured DAU, the values of port attributes will be 'Constraint',
 --   which captures the range of possible values the port can take on.
-type PortAttrs a = Env Name a
+newtype PortAttrs a = MkPortAttrs (Env Name a)
+  deriving (Data,Typeable,Generic,Eq,Show,Functor)
 
 -- | A port is a named connection to a DAU and its associated attributes.
 data Port a = MkPort {
@@ -151,6 +152,20 @@ data ResponseDau = MkResponseDau {
      oldDaus :: [Name]
    , resDau  :: Dau [ResponsePort]
 } deriving (Data,Typeable,Generic,Eq,Show)
+
+
+
+--
+-- * Helper functions
+--
+
+-- | Convert a set of port attributes to a list of name-value pairs.
+portAttrsToList :: PortAttrs a -> [(Name,a)]
+portAttrsToList (MkPortAttrs m) = envToList m
+
+-- | Convert a list of name-value pairs to a set of port attributes.
+portAttrsFromList :: [(Name,a)] -> PortAttrs a
+portAttrsFromList = MkPortAttrs . envFromList
 
 
 --
@@ -261,7 +276,7 @@ providePortGroup (MkRules rs) dau g i =
       ]
     ]]
   where
-    (attrs,eqns) = foldr split ([],[]) (envToList (groupAttrs g))
+    (attrs,eqns) = foldr split ([],[]) (portAttrsToList (groupAttrs g))
     split (n, Exactly v) (as,es)
       | Right (Equation e) <- envLookup (n,v) rs = (as, (n,e):es)
     split (n, OneOf [v]) (as,es)
@@ -326,7 +341,7 @@ checkGroup rules dim grp =
       [ Elems [
         -- check all of the attributes
         In "Attributes" [ Elems $ do
-          (n,c) <- envToList (groupAttrs grp)
+          (n,c) <- portAttrsToList (groupAttrs grp)
           return (requirePortAttr rules n c)
         ]
         -- if success, update the ports available and required
@@ -551,7 +566,8 @@ configPortAttrs
   -> Int
   -> PortAttrs Constraint
   -> PortAttrs PVal
-configPortAttrs renv cfg d i (Env m) = Env (Map.mapWithKey config m)
+configPortAttrs renv cfg d i (MkPortAttrs (Env m)) =
+    MkPortAttrs (Env (Map.mapWithKey config m))
   where
     path a = ResID [d, "Group", fromString (show i), "Attributes", a]
     config a _ = case envLookup (path a) renv of
@@ -639,7 +655,7 @@ instance ToJSON a => ToJSON (Port a) where
     where
       pid = "GloballyUniqueId" .= portID p
       pfn = "BBNPortFunctionality" .= portFunc p
-      pattrs = map entry (envToList (portAttrs p))
+      pattrs = map entry (portAttrsToList (portAttrs p))
       entry (k,v) = k .= toJSON v
 
 asPort :: ParseIt a -> ParseIt (Port a)
@@ -647,7 +663,7 @@ asPort asVal = do
     i <- key "GloballyUniqueId" asText
     fn <- key "BBNPortFunctionality" asText
     kvs <- eachInObject asVal 
-    return (MkPort i fn (envFromList (filter isAttr kvs)))
+    return (MkPort i fn (portAttrsFromList (filter isAttr kvs)))
   where
     exclude = ["GloballyUniqueId", "BBNPortFunctionality"]
     isAttr (k,_) = not (elem k exclude)
