@@ -399,10 +399,14 @@ toReplace = map (groupPortsInDau . reqDau) . filter replace . reqDaus
 --   sub-inventory. A max size less than 1 indicates unbounded sub-inventory
 --   size (which will be slow for large inventories).
 toSearch :: Int -> [Dau (PortGroups Constraint)] -> Inventory -> [Inventory]
-toSearch size daus inv = sortInventories $
-    (if size > 0 then subsUpToLength size else subsequences) filtered
+toSearch size daus inv = map (free ++) $ sortInventories
+    ((if size > 0 then subsUpToLength size else subsequences) nonFree)
   where
     filtered = filterInventory (concatMap ports daus) inv
+    (free,nonFree) = foldr splitFree ([],[]) filtered
+    splitFree d (f,n)
+      | monCost d <= 0 = (d:f, n)
+      | otherwise      = (f, d:n)
 
 
 -- ** Building the response
