@@ -10,7 +10,8 @@ import DSL.Types
 
 minimalOpts :: FilePath -> SwapOpts
 minimalOpts req = defaultOpts
-    { swapInventoryFile = "json/test/swap-inventory-minimal.json"
+    { swapRulesFile = "json/test/swap-rules.json"
+    , swapInventoryFile = "json/test/swap-inventory-minimal.json"
     , swapRequestFile = req
     }
 
@@ -26,7 +27,8 @@ minimalResponse i = MkResponse
 
 twoPortOpts :: FilePath -> SwapOpts
 twoPortOpts req = defaultOpts
-    { swapInventoryFile = "json/test/swap-inventory-2ports.json"
+    { swapRulesFile = "json/test/swap-rules.json"
+    , swapInventoryFile = "json/test/swap-inventory-2ports.json"
     , swapRequestFile = req
     }
 
@@ -44,7 +46,8 @@ twoPortResponse i = MkResponse
 
 rangeOpts :: FilePath -> SwapOpts
 rangeOpts req = defaultOpts
-    { swapInventoryFile = "json/test/swap-inventory-range.json"
+    { swapRulesFile = "json/test/swap-rules.json"
+    , swapInventoryFile = "json/test/swap-inventory-range.json"
     , swapRequestFile = req
     }
 
@@ -62,7 +65,8 @@ rangeResponse i j = MkResponse
 
 equationOpts :: FilePath -> SwapOpts
 equationOpts req = defaultOpts
-    { swapInventoryFile = "json/test/swap-inventory-equation.json"
+    { swapRulesFile = "json/test/swap-rules.json"
+    , swapInventoryFile = "json/test/swap-inventory-equation.json"
     , swapRequestFile = req
     }
 
