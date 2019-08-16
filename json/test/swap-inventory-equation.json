@@ -9,18 +9,14 @@
           "BBNPortFunctionality": "F1",
           "SampleRate": [64, 128, 256],
           "DataLength": [4, 8, 16],
-          "DataRate": {
-            "Equation": "@SampleRate * @DataLength"
-          }
+          "DataRate": null
         },
         {
           "GloballyUniqueId": "I1P2",
           "BBNPortFunctionality": "F1",
           "SampleRate": [512, 768, 1024],
           "DataLength": [2, 4],
-          "DataRate": {
-            "Equation": "@SampleRate * @DataLength"
-          }
+          "DataRate": null
         }
       ]
     }
