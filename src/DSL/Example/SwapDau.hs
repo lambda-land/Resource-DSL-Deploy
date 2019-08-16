@@ -235,17 +235,17 @@ dimUseGroup provDau provGrp reqDau reqGrp =
 
 -- | Translate a DAU inventory into a dictionary.
 toDictionary :: Rules -> Inventory -> Dictionary
-toDictionary rs = envFromList . map entry
+toDictionary rules = envFromList . map entry
   where
-    entry d = (mkSymbol (dauID d), ModEntry (provideDau rs d))
+    entry d = (mkSymbol (dauID d), ModEntry (provideDau rules d))
 
 -- | Encode a provided DAU as a DSL model.
 provideDau :: Rules -> Dau (PortGroups Constraint) -> Model
-provideDau rs (MkDau n gs c) = Model []
+provideDau rules (MkDau n gs c) = Model []
     [ Elems [
         modify "/MonetaryCost" TInt (val + fromInteger c)
       , In (Path Relative [n])
-        [ Elems (zipWith (providePortGroup rs n) gs [1..]) ]
+        [ Elems (zipWith (providePortGroup rules n) gs [1..]) ]
     ]]
 
 -- | Encode a provided port group as a DSL statement.
@@ -263,6 +263,8 @@ providePortGroup (MkRules rs) dau g i =
   where
     (attrs,eqns) = foldr split ([],[]) (envToList (groupAttrs g))
     split (n, Exactly v) (as,es)
+      | Right (Equation e) <- envLookup (n,v) rs = (as, (n,e):es)
+    split (n, OneOf [v]) (as,es)
       | Right (Equation e) <- envLookup (n,v) rs = (as, (n,e):es)
     split (n, c) (as,es) = ((n,c):as, es)
 
@@ -282,24 +284,25 @@ providePortEquation att e = Do (Path Relative [att]) (Create (One e))
 -- ** Requirements
 
 -- | Check all required DAUs against the inventory of provisions.
-requireDaus :: Inventory -> [Dau (PortGroups Constraint)] -> [Stmt]
-requireDaus inv reqs = concatMap (requireDau inv) reqs
+requireDaus :: Rules -> Inventory -> [Dau (PortGroups Constraint)] -> [Stmt]
+requireDaus rules inv reqs = concatMap (requireDau rules inv) reqs
 
 -- | Check a required DAU against the inventory of provisions.
-requireDau :: Inventory -> Dau (PortGroups Constraint) -> [Stmt]
-requireDau inv req = do
+requireDau :: Rules -> Inventory -> Dau (PortGroups Constraint) -> [Stmt]
+requireDau rules inv req = do
     (g,i) <- zip (ports req) [1..]
-    requirePortGroup inv (dauID req) i g
+    requirePortGroup rules inv (dauID req) i g
         
 -- | Check whether the required port group is satisfied by the inventory
 --   of provisions; adjust the ports-to-match and available ports accordingly.
 requirePortGroup
-  :: Inventory             -- ^ provided DAU inventory
+  :: Rules                 -- ^ attribute compatibility rules
+  -> Inventory             -- ^ provided DAU inventory
   -> Name                  -- ^ required DAU name
   -> Int                   -- ^ index of required group
   -> PortGroup Constraint  -- ^ required group
   -> [Stmt]
-requirePortGroup inv reqDauName reqGrpIx reqGrp =
+requirePortGroup rules inv reqDauName reqGrpIx reqGrp =
     -- keep track of the ports we still have to match for this group
     (modify "/PortsToMatch" TInt (lit (I (groupSize reqGrp))) : do
        provDau <- inv
@@ -308,12 +311,12 @@ requirePortGroup inv reqDauName reqGrpIx reqGrp =
        let dim = dimUseGroup provDauName provGrpIx reqDauName reqGrpIx
        return $
          In (Path Relative [provDauName, "Group", pack (show provGrpIx)])
-         [ Elems [checkGroup dim reqGrp] ])
+         [ Elems [checkGroup rules dim reqGrp] ])
     ++ [check "/PortsToMatch" tInt (val .== 0)]
         
 -- | Check a required port group against the port group in the current context.
-checkGroup :: Var -> PortGroup Constraint -> Stmt
-checkGroup dim grp =
+checkGroup :: Rules -> Var -> PortGroup Constraint -> Stmt
+checkGroup rules dim grp =
     -- if there are ports left to match, ports left in this group,
     -- and this group provides the right functionality
     If (res "/PortsToMatch" .> 0
@@ -324,7 +327,7 @@ checkGroup dim grp =
         -- check all of the attributes
         In "Attributes" [ Elems $ do
           (n,c) <- envToList (groupAttrs grp)
-          return (requirePortAttr n c)
+          return (requirePortAttr rules n c)
         ]
         -- if success, update the ports available and required
       , if' (res "/PortsToMatch" .> res "PortCount") [
@@ -339,8 +342,9 @@ checkGroup dim grp =
      ] []
 
 -- | Check whether the required attribute is satisfied by the current port group.
-requirePortAttr :: Name -> Constraint -> Stmt
-requirePortAttr att c = check (Path Relative [att]) (One ptype) (body c)
+requirePortAttr :: Rules -> Name -> Constraint -> Stmt
+requirePortAttr (MkRules rs) att c =
+    check (Path Relative [att]) (One ptype) (body c)
   where
     ptype = case c of
       Exactly v  -> primType v
@@ -352,23 +356,26 @@ requirePortAttr att c = check (Path Relative [att]) (One ptype) (body c)
       TInt    -> One (P2 (NN_B Equ) a b)
       TFloat  -> One (P2 (NN_B Equ) a b)
       TSymbol -> One (P2 (SS_B SEqu) a b)
-    body (Exactly v)   = eq val (lit v)
-    body (OneOf vs)    = foldr1 (|||) [eq val (lit v) | v <- vs]
+    body (Exactly v)   = oneOf (compatible v)
+    body (OneOf vs)    = oneOf (concatMap compatible vs)
     body (Range lo hi) = val .>= int lo &&& val .<= int hi
-
+    compatible v = case envLookup (att,v) rs of
+      Right (Compatible vs) -> vs
+      _ -> [v]
+    oneOf vs = foldr1 (|||) [eq val (lit v) | v <- nub vs]
 
 
 -- ** Application model
 
 -- | Generate the application model for a given inventory and set of DAUs to
 --   replace.
-appModel :: Inventory -> [Dau (PortGroups Constraint)] -> Model
-appModel inv daus = Model []
+appModel :: Rules -> Inventory -> [Dau (PortGroups Constraint)] -> Model
+appModel rules inv daus = Model []
     [ Elems $
        create "/MonetaryCost" 0
     :  create "/PortsToMatch" 0
     :  [Load (sym (dauID d)) [] | d <- inv]
-    ++ requireDaus inv daus
+    ++ requireDaus rules inv daus
     ]
 
 
@@ -573,7 +580,7 @@ findReplacement mx rules inv req = do
     daus = toReplace req
     invs = toSearch mx daus inv
     ports = buildPortMap daus
-    test i = runWithDict dict envEmpty (loadModel (appModel i daus) [])
+    test i = runWithDict dict envEmpty (loadModel (appModel rules i daus) [])
     loop []     = Nothing
     loop (i:is) = case test i of
         -- (Left _, s) -> traceShow s (loop is)
