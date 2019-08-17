@@ -8,9 +8,9 @@ import GHC.Generics (Generic)
 import Control.Monad (when)
 import Data.Aeson
 import Data.Aeson.BetterErrors
-import Data.Aeson.Types (listValue)
+import Data.Aeson.Types (Pair, listValue)
 import Data.Function (on)
-import Data.List (foldl',nub,nubBy,sortBy,subsequences)
+import Data.List (findIndex,foldl',nub,nubBy,sortBy,subsequences)
 import Data.SBV (AllSatResult,Boolean(..),getModelDictionaries)
 import Data.SBV.Internals (trueCW)
 import Data.String (fromString)
@@ -50,7 +50,7 @@ type Ports a = [Port a]
 type PortGroups a = [PortGroup a]
 
 -- | Named attributes associated with a port. For a fully configured DAU,
---   the values of the port attributes will be of type 'PVal', while for an
+--   the values of the port attributes will be of type 'AttrVal', while for an
 --   unconfigured DAU, the values of port attributes will be 'Constraint',
 --   which captures the range of possible values the port can take on.
 newtype PortAttrs a = MkPortAttrs (Env Name a)
@@ -71,11 +71,18 @@ data PortGroup a = MkPortGroup {
    , groupSize  :: Int          -- ^ number of ports in the group
 } deriving (Data,Typeable,Generic,Eq,Show)
 
--- | A constraint on a port in an unconfigured DAU.
+-- | A constraint on a port attribute in an unconfigured DAU.
 data Constraint
    = Exactly PVal
    | OneOf [PVal]
    | Range Int Int
+   | Sync [PortAttrs Constraint]
+  deriving (Data,Typeable,Generic,Eq,Show)
+
+-- | A value of a port attribute in a configured DAU.
+data AttrVal
+   = Leaf PVal
+   | Node (PortAttrs AttrVal)
   deriving (Data,Typeable,Generic,Eq,Show)
 
 
@@ -143,7 +150,7 @@ data Response = MkResponse {
 -- | A port in an adaptation response, which replaces another named port.
 data ResponsePort = MkResponsePort {
      oldPort :: Name
-   , resPort :: Port PVal
+   , resPort :: Port AttrVal
 } deriving (Data,Typeable,Generic,Eq,Show)
 
 -- | A DAU in an adaptation response, which replaces one or more DAUs in the
@@ -265,32 +272,36 @@ provideDau rules (MkDau n gs c) = Model []
 
 -- | Encode a provided port group as a DSL statement.
 providePortGroup :: Rules -> Name -> PortGroup Constraint -> Int -> Stmt
-providePortGroup (MkRules rs) dau g i =
+providePortGroup rules dau g i =
     In (fromString ("Group/" ++ show i))
     [ Elems [
       create "Functionality" (sym (groupFunc g))
     , create "PortCount" (lit (I (groupSize g)))
-    , In "Attributes"
-      [ Elems $ [providePortAttr (dimAttr dau i n) n c | (n,c) <- attrs]
-          ++ map (uncurry providePortEquation) eqns
-      ]
+    , In "Attributes" (providePortAttrs rules dau i (groupAttrs g))
     ]]
+
+-- | Encode a set of provided port attributes as a DSL statement block.
+providePortAttrs :: Rules -> Name -> Int -> PortAttrs Constraint -> Block
+providePortAttrs rules@(MkRules rs) dau i as =
+    [ Elems $ [providePortAttr (dimAttr dau i n) n c | (n,c) <- attrs]
+        ++ map (uncurry providePortEquation) eqns
+    ]
   where
-    (attrs,eqns) = foldr split ([],[]) (portAttrsToList (groupAttrs g))
+    (attrs,eqns) = foldr split ([],[]) (portAttrsToList as)
     split (n, Exactly v) (as,es)
       | Right (Equation e) <- envLookup (n,v) rs = (as, (n,e):es)
     split (n, OneOf [v]) (as,es)
       | Right (Equation e) <- envLookup (n,v) rs = (as, (n,e):es)
     split (n, c) (as,es) = ((n,c):as, es)
 
--- | Encode a provided port attribute as a DSL statement.
-providePortAttr :: Var -> Name -> Constraint -> Stmt
-providePortAttr dim att c = Do (Path Relative [att]) (value c)
-  where
-    value (Exactly v)   = Create (lit v)
-    value (OneOf vs)    = Create (One (Lit (chcN (dimN dim) vs)))
-    value (Range lo hi) = Create (One (Lit (chcN (dimN dim) (map I [lo..hi]))))
-
+    providePortAttr dim att c =
+      let path = Path Relative [att] in
+      case c of
+        Exactly v   -> Do path $ Create (lit v)
+        OneOf vs    -> Do path $ Create (One (Lit (chcN (dimN dim) vs)))
+        Range lo hi -> Do path $ Create (One (Lit (chcN (dimN dim) (map I [lo..hi]))))
+        Sync ss     -> In path $ splitN (dimN dim) (map (providePortAttrs rules dau i) ss)
+    
 -- | Encode a provided port attribute that is defined via an equation.
 providePortEquation :: Name -> Expr -> Stmt
 providePortEquation att e = Do (Path Relative [att]) (Create (One e))
@@ -340,10 +351,7 @@ checkGroup rules dim grp =
     [ Split (BRef dim)  -- tracks if this group was used for this requirement
       [ Elems [
         -- check all of the attributes
-        In "Attributes" [ Elems $ do
-          (n,c) <- portAttrsToList (groupAttrs grp)
-          return (requirePortAttr rules n c)
-        ]
+        In "Attributes" [ Elems (requirePortAttrs rules (groupAttrs grp)) ]
         -- if success, update the ports available and required
       , if' (res "/PortsToMatch" .> res "PortCount") [
           modify "PortCount" TInt 0
@@ -356,29 +364,37 @@ checkGroup rules dim grp =
       []
      ] []
 
--- | Check whether the required attribute is satisfied by the current port group.
-requirePortAttr :: Rules -> Name -> Constraint -> Stmt
-requirePortAttr (MkRules rs) att c =
-    check (Path Relative [att]) (One ptype) (body c)
+-- | Check whether a required set of port attributes is satisfied in the
+--   current context.
+requirePortAttrs :: Rules -> PortAttrs Constraint -> [Stmt]
+requirePortAttrs rules@(MkRules rs) as = do
+    (n,c) <- portAttrsToList as
+    let path = Path Relative [n]
+    return $ case c of
+      Exactly v ->
+        let t = primType v
+        in check path (One t) (oneOf t (compatible n v))
+      OneOf vs ->
+        let t = primType (head vs)
+        in check path (One t) (oneOf t (concatMap (compatible n) vs))
+      Range lo hi ->
+        check path (One TInt) (val .>= int lo &&& val .<= int hi)
+      Sync [as] ->
+        In path [ Elems (requirePortAttrs rules as) ]
+      Sync _ ->
+        error "requirePortAttrs: we don't support choices of synchronized attributes in requirements."
   where
-    ptype = case c of
-      Exactly v  -> primType v
-      OneOf vs   -> primType (head vs)
-      Range _ _  -> TInt
-    eq a b = case ptype of
+    eq t a b = case t of
       TUnit   -> true
       TBool   -> One (P2 (BB_B Eqv) a b)
       TInt    -> One (P2 (NN_B Equ) a b)
       TFloat  -> One (P2 (NN_B Equ) a b)
       TSymbol -> One (P2 (SS_B SEqu) a b)
-    body (Exactly v)   = oneOf (compatible v)
-    body (OneOf vs)    = oneOf (concatMap compatible vs)
-    body (Range lo hi) = val .>= int lo &&& val .<= int hi
-    compatible v = case envLookup (att,v) rs of
+    compatible n v = case envLookup (n,v) rs of
       Right (Compatible vs) -> vs
       _ -> [v]
-    oneOf vs = foldr1 (|||) [eq val (lit v) | v <- nub vs]
-
+    oneOf t vs = foldr1 (|||) [eq t val (lit v) | v <- nub vs]
+    
 
 -- ** Application model
 
@@ -405,9 +421,10 @@ triviallyConfigure (MkRequest ds) = MkResponse (map configDau ds)
     configDau (MkRequestDau _ (MkDau i ps mc)) =
         MkResponseDau [i] (MkDau i (map configPort ps) mc)
     configPort (MkPort i fn as) = MkResponsePort i (MkPort i fn (fmap configAttr as))
-    configAttr (Exactly v)  = v
-    configAttr (OneOf vs)   = head vs
-    configAttr (Range v _)  = I v
+    configAttr (Exactly v)  = Leaf v
+    configAttr (OneOf vs)   = Leaf (head vs)
+    configAttr (Range v _)  = Leaf (I v)
+    configAttr (Sync ss)    = Node (fmap configAttr (head ss))
 
 
 -- ** Defining the search space
@@ -565,14 +582,21 @@ configPortAttrs
   -> Name
   -> Int
   -> PortAttrs Constraint
-  -> PortAttrs PVal
+  -> PortAttrs AttrVal
 configPortAttrs renv cfg d i (MkPortAttrs (Env m)) =
-    MkPortAttrs (Env (Map.mapWithKey config m))
+    MkPortAttrs (Env (Map.mapWithKey (config pre) m))
   where
-    path a = ResID [d, "Group", fromString (show i), "Attributes", a]
-    config a _ = case envLookup (path a) renv of
-                   Right v | One (Just pv) <- conf cfg v -> pv
-                   e -> error $ "Unconfigured attribute: " ++ show (path a) ++ " got: " ++ show e
+    pre = ResID [d, "Group", fromString (show i), "Attributes"]
+    path (ResID ns) a = ResID (ns ++ [a])
+    syncIx a n = findIndex (\d -> sat (BRef d &&& cfg)) (take n (dimN (dimAttr d i a)))
+    config p a (Sync as) = case syncIx a (length as) of
+      Just ix ->
+        let MkPortAttrs (Env m) = as !! (ix-1)
+        in Node (MkPortAttrs (Env (Map.mapWithKey (config (path p a)) m)))
+      Nothing -> error $ "Unconfigured attribute: " ++ show (path p a)
+    config p a _ = case envLookup (path p a) renv of
+      Right v | One (Just pv) <- conf cfg v -> Leaf pv
+      e -> error $ "Unconfigured attribute: " ++ show (path p a) ++ " got: " ++ show e
 
 
 -- ** Main driver
@@ -650,33 +674,53 @@ asDau asVal = do
     mc <- key "BBNDauMonetaryCost" asIntegral
     return (MkDau i ps mc)
 
+portAttrsPairs :: ToJSON a => PortAttrs a -> [Pair]
+portAttrsPairs = map entry . portAttrsToList
+    where
+      entry (k,v) = k .= toJSON v
+
+asPortAttrs :: ParseIt a -> ParseIt (PortAttrs a)
+asPortAttrs asVal = do
+    kvs <- eachInObject asVal
+    return (portAttrsFromList (filter isAttr kvs))
+  where
+    exclude = ["GloballyUniqueId", "BBNPortFunctionality"]
+    isAttr (k,_) = not (elem k exclude)
+
 instance ToJSON a => ToJSON (Port a) where
   toJSON p = object (pid : pfn : pattrs)
     where
       pid = "GloballyUniqueId" .= portID p
       pfn = "BBNPortFunctionality" .= portFunc p
-      pattrs = map entry (portAttrsToList (portAttrs p))
-      entry (k,v) = k .= toJSON v
+      pattrs = portAttrsPairs (portAttrs p)
 
 asPort :: ParseIt a -> ParseIt (Port a)
 asPort asVal = do
     i <- key "GloballyUniqueId" asText
     fn <- key "BBNPortFunctionality" asText
-    kvs <- eachInObject asVal 
-    return (MkPort i fn (portAttrsFromList (filter isAttr kvs)))
-  where
-    exclude = ["GloballyUniqueId", "BBNPortFunctionality"]
-    isAttr (k,_) = not (elem k exclude)
+    as <- asPortAttrs asVal
+    return (MkPort i fn as)
 
 instance ToJSON Constraint where
   toJSON (Exactly v)   = toJSON v
   toJSON (OneOf vs)    = listValue toJSON vs
   toJSON (Range lo hi) = object [ "Min" .= toJSON lo, "Max" .= toJSON hi ]
+  toJSON (Sync ss)     = listValue (object . portAttrsPairs) ss
 
 asConstraint :: ParseIt Constraint
 asConstraint = Exactly <$> asPVal
     <|> OneOf <$> eachInArray asPVal
     <|> Range <$> key "Min" asInt <*> key "Max" asInt
+    <|> Sync  <$> eachInArray (asPortAttrs asConstraint)
+    <|> Sync . (:[]) <$> asPortAttrs asConstraint
+
+instance ToJSON AttrVal where
+  toJSON (Leaf v)  = toJSON v
+  toJSON (Node as) = object (portAttrsPairs as)
+
+asAttrVal :: ParseIt AttrVal
+asAttrVal = Leaf <$> asPVal
+    <|> Node <$> asPortAttrs asAttrVal
 
 instance ToJSON SetInventory where
   toJSON s = object

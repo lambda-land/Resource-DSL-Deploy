@@ -28,6 +28,16 @@ chcN (d:ds) (a:as) = Chc (BRef d) (One a) (chcN ds as)
 chcN _ _ = error "chcN: illegal arguments"
 
 
+-- ** Variational blocks
+
+-- | Construct an n-ary variational block by cascading choices drawn from the
+--   given list of dimensions.
+splitN :: [Var] -> [Block] -> Block
+splitN _      [b]    = b
+splitN (d:ds) (b:bs) = [Split (BRef d) b (splitN ds bs)]
+splitN _ _ = error "splitN: illegal arguments"
+
+
 -- ** Types
 
 -- | Non-variational primitive types.
