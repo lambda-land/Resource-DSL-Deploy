@@ -501,14 +501,15 @@ buildReplaceMap = foldr processDim Map.empty
 -- | Build a configuration from the output of the SAT solver.
 buildConfig :: AllSatResult -> BExpr
 buildConfig = foldr processDim true
-    . Map.keys . Map.filter (== trueCW) . head . getModelDictionaries
+    . Map.assocs . head . getModelDictionaries
   where
-    processDim dim cfg
+    processDim (dim,v) cfg
         | k == "Use" = cfg
-        | k == "Cfg" = BRef (fromString dim) &&& cfg
+        | k == "Cfg" = (if v == trueCW then ref else bnot ref) &&& cfg
         | otherwise  = error ("buildConfig: Unrecognized dimension: " ++ dim)
       where
-        [k,_,_] = words dim
+        ref = BRef (fromString dim)
+        (k:_) = words dim
 
 -- | Create a response.
 buildResponse
@@ -591,12 +592,17 @@ configPortAttrs renv cfg d i (MkPortAttrs (Env m)) =
     syncIx a n = findIndex (\d -> sat (BRef d &&& cfg)) (take n (dimN (dimAttr d i a)))
     config p a (Sync as) = case syncIx a (length as) of
       Just ix ->
-        let MkPortAttrs (Env m) = as !! (ix-1)
+        let MkPortAttrs (Env m) = as !! ix
         in Node (MkPortAttrs (Env (Map.mapWithKey (config (path p a)) m)))
-      Nothing -> error $ "Unconfigured attribute: " ++ show (path p a)
+      Nothing -> error $ "Misconfigured attribute: " ++ show (path p a)
     config p a _ = case envLookup (path p a) renv of
-      Right v | One (Just pv) <- conf cfg v -> Leaf pv
-      e -> error $ "Unconfigured attribute: " ++ show (path p a) ++ " got: " ++ show e
+      Right v -> case conf cfg v of
+        One (Just pv) -> Leaf pv
+        e -> error $ "Misconfigured attribute: " ++ show (path p a)
+                     ++ "\n  started with: " ++ show v
+                     ++ "\n  configured with: " ++ show cfg
+                     ++ "\n  ended up with: " ++ show e
+      Left err -> error (show err)
 
 
 -- ** Main driver

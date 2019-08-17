@@ -1,21 +1,29 @@
 {
   "daus":  [
     {
+      "GloballyUniqueId": "I1",
+      "BBNDauMonetaryCost": 20,
       "Port": [
         {
+          "GloballyUniqueId": "I1P1",
+          "BBNPortFunctionality": "F1",
           "Measurement": [
+            {
+              "SampleRate": 1000,
+              "DataLength": 8,
+              "DataRate": null
+            },
             {
               "SampleRate": 250,
               "DataLength": 16,
               "DataRate": null
             },
             {
-              "SampleRate": 1000,
-              "DataLength": 12,
+              "SampleRate": 100,
+              "DataLength": 32,
               "DataRate": null
             }
-          ],
-          "PortType": "SignalConditioner"
+          ]
         }
       ]
     }

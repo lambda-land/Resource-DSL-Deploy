@@ -94,6 +94,32 @@ equationResponse p1 s1 d1 p2 s2 d2 = MkResponse
         10
     ]
 
+groupOpts :: FilePath -> SwapOpts
+groupOpts req = defaultOpts
+    { swapRulesFile = "json/test/swap-rules.json"
+    , swapInventoryFile = "json/test/swap-inventory-group.json"
+    , swapRequestFile = req
+    }
+
+groupResponse :: Int -> Int -> Response
+groupResponse s d = MkResponse
+    [ MkResponseDau ["S1"]
+      $ MkDau "I1"
+        [ MkResponsePort "S1P1"
+          $ MkPort "I1P1" "F1"
+          $ MkPortAttrs $ envFromList
+            [ ("Measurement", Node
+              $ MkPortAttrs $ fmap Leaf $ envFromList
+                [ ("SampleRate", I s)
+                , ("DataLength", I d)
+                , ("DataRate", I (s * d))
+                ]
+              )
+            ]
+        ]
+        20
+    ]
+
 testSwap :: TestTree
 testSwap =
   testGroup "Swap Tests"
@@ -149,5 +175,13 @@ testSwap =
       , testCase "2" $ do
           res <- runSwapTest (equationOpts "json/test/swap-request-equation2.json")
           res @?= Just (equationResponse "S1P1" 256 16 "S1P2" 768 2)
+      ]
+    , testGroup "group end-to-end tests"
+      [ testCase "1" $ do
+          res <- runSwapTest (groupOpts "json/test/swap-request-group1.json")
+          res @?= Just (groupResponse 250 16)
+      , testCase "2" $ do
+          res <- runSwapTest (groupOpts "json/test/swap-request-group2.json")
+          res @?= Nothing
       ]
     ]
