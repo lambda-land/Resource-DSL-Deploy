@@ -5,8 +5,12 @@ import Test.Tasty.HUnit
 
 import DSL.Environment
 import DSL.Example.SwapDau
+import DSL.Name
 import DSL.Types
 
+
+mkPort :: Name -> Name -> [(Name, PVal)] -> Port AttrVal
+mkPort i f as = MkPort i f (MkPortAttrs (fmap Leaf (envFromList as)))
 
 minimalOpts :: FilePath -> SwapOpts
 minimalOpts req = defaultOpts
@@ -20,7 +24,7 @@ minimalResponse i = MkResponse
     [ MkResponseDau ["S1"]
       $ MkDau "I1"
         [ MkResponsePort "S1P1"
-          $ MkPort "I1P1" "F1" (envFromList [("Bar", I i)])
+          $ mkPort "I1P1" "F1" [("Bar", I i)]
         ]
         10
     ]
@@ -37,9 +41,9 @@ twoPortResponse i = MkResponse
     [ MkResponseDau ["S1"]
       $ MkDau "I1"
         [ MkResponsePort "S1P1"
-          $ MkPort "I1P1" "F1" (envFromList [("Bar", I i)])
+          $ mkPort "I1P1" "F1" [("Bar", I i)]
         , MkResponsePort ""
-          $ MkPort "I1P2" "F2" (envFromList [("Bar", I 4)])
+          $ mkPort "I1P2" "F2" [("Bar", I 4)]
         ]
         10
     ]
@@ -56,9 +60,9 @@ rangeResponse i j = MkResponse
     [ MkResponseDau ["S1"]
       $ MkDau "I1"
         [ MkResponsePort "S1P2"
-          $ MkPort "I1P1" "F1" (envFromList [("Bar", I i)])
+          $ mkPort "I1P1" "F1" [("Bar", I i)]
         , MkResponsePort "S1P1"
-          $ MkPort "I1P2" "F1" (envFromList [("Bar", I j)])
+          $ mkPort "I1P2" "F1" [("Bar", I j)]
         ]
         10
     ]
@@ -75,13 +79,13 @@ equationResponse s1 d1 s2 d2 = MkResponse
     [ MkResponseDau ["S1"]
       $ MkDau "I1"
         [ MkResponsePort "S1P2"
-          $ MkPort "I1P1" "F1" $ envFromList 
+          $ mkPort "I1P1" "F1"
             [ ("SampleRate", I s1)
             , ("DataLength", I d1)
             , ("DataRate", I (s1 * d1))
             ]
         , MkResponsePort "S1P1"
-          $ MkPort "I1P2" "F1" $ envFromList
+          $ mkPort "I1P2" "F1"
             [ ("SampleRate", I s2)
             , ("DataLength", I d2)
             , ("DataRate", I (s2 * d2))
