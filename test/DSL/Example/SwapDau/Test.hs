@@ -74,17 +74,17 @@ equationOpts req = defaultOpts
     , swapRequestFile = req
     }
 
-equationResponse :: Int -> Int -> Int -> Int -> Response
-equationResponse s1 d1 s2 d2 = MkResponse
+equationResponse :: Name -> Int -> Int -> Name -> Int -> Int -> Response
+equationResponse p1 s1 d1 p2 s2 d2 = MkResponse
     [ MkResponseDau ["S1"]
       $ MkDau "I1"
-        [ MkResponsePort "S1P2"
+        [ MkResponsePort p1
           $ mkPort "I1P1" "F1"
             [ ("SampleRate", I s1)
             , ("DataLength", I d1)
             , ("DataRate", I (s1 * d1))
             ]
-        , MkResponsePort "S1P1"
+        , MkResponsePort p2
           $ mkPort "I1P2" "F1"
             [ ("SampleRate", I s2)
             , ("DataLength", I d2)
@@ -145,6 +145,9 @@ testSwap =
     , testGroup "equation end-to-end tests"
       [ testCase "1" $ do
           res <- runSwapTest (equationOpts "json/test/swap-request-equation1.json")
-          res @?= Just (equationResponse 64 8 1024 4)
+          res @?= Just (equationResponse "S1P2" 64 8 "S1P1" 1024 4)
+      , testCase "2" $ do
+          res <- runSwapTest (equationOpts "json/test/swap-request-equation2.json")
+          res @?= Just (equationResponse "S1P1" 256 16 "S1P2" 768 2)
       ]
     ]
