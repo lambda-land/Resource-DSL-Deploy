@@ -1,0 +1,59 @@
+{
+  "daus": [
+    {
+      "BBNDauMonetaryCost": 80000,
+      "GloballyUniqueId": "I#30:0",
+      "Port": [
+        {
+          "BBNPortFunctionality": "SignalConditioning",
+          "Excitation": [
+            true,
+            false
+          ],
+          "GloballyUniqueId": "I#65:23",
+          "Measurement": [
+            {
+              "DataLength": 16,
+              "DataRate": null,
+              "SampleRate": 128
+            },
+            {
+              "DataLength": 16,
+              "DataRate": null,
+              "SampleRate": 256
+            }
+          ],
+          "PortDirection": "Input",
+          "PortType": "Analog"
+        },
+        {
+          "BBNPortFunctionality": "Thermocouple",
+          "Excitation": [
+            false
+          ],
+          "GloballyUniqueId": "I#65:31",
+          "Measurement": [
+            {
+              "DataLength": 16,
+              "DataRate": null,
+              "SampleRate": 128
+            },
+            {
+              "DataLength": 16,
+              "DataRate": null,
+              "SampleRate": 256
+            }
+          ],
+          "PortDirection": "Input",
+          "PortType": "Thermocouple",
+          "Thermocouple": [
+            "E",
+            "T",
+            "K",
+            "J"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "daus": [
+    {
+      "BBNDauFlaggedForReplacement": true,
+      "BBNDauMonetaryCost": 50000,
+      "GloballyUniqueId": "I#30:1",
+      "Port": [
+        {
+          "BBNPortFunctionality": "SignalConditioning",
+          "Excitation": true,
+          "GloballyUniqueId": "I#65:47",
+          "Measurement": [
+            {
+              "DataLength": {
+                "Min": 16,
+                "Max": 16
+              },
+              "DataRate": {
+                "Min": 0,
+                "Max": 32768
+              },
+              "SampleRate": {
+                "Min": 60,
+                "Max": 130
+              }
+            }
+          ],
+          "PortDirection": "Input",
+          "PortType": "Analog"
+        }
+      ]
+    }
+  ]
+}
