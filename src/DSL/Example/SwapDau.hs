@@ -6,11 +6,12 @@ import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
 import Control.Monad (when)
-import Data.Aeson
+import Data.Aeson hiding (Value)
 import Data.Aeson.BetterErrors
 import Data.Aeson.Types (Pair, listValue)
 import Data.Function (on)
 import Data.List (findIndex,foldl',nub,nubBy,sortBy,subsequences)
+import Data.Maybe (fromMaybe)
 import Data.SBV (AllSatResult,Boolean(..),getModelDictionaries)
 import Data.SBV.Internals (trueCW)
 import Data.String (fromString)
@@ -21,6 +22,7 @@ import Data.Text (pack)
 import qualified Data.Text as Text
 
 import Data.Map (Map)
+import Data.Set (Set)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -34,7 +36,6 @@ import DSL.SAT
 import DSL.Serialize
 import DSL.Sugar
 import DSL.Types
-import DSL.V
 
 
 --
@@ -499,16 +500,15 @@ buildReplaceMap = foldr processDim Map.empty
         split = break (== '+')
 
 -- | Build a configuration from the output of the SAT solver.
-buildConfig :: AllSatResult -> BExpr
-buildConfig = foldr processDim true
+buildConfig :: AllSatResult -> Set Name
+buildConfig = foldr processDim Set.empty
     . Map.assocs . head . getModelDictionaries
   where
     processDim (dim,v) cfg
         | k == "Use" = cfg
-        | k == "Cfg" = (if v == trueCW then ref else bnot ref) &&& cfg
+        | k == "Cfg" = if v == trueCW then Set.insert (fromString dim) cfg else cfg
         | otherwise  = error ("buildConfig: Unrecognized dimension: " ++ dim)
       where
-        ref = BRef (fromString dim)
         (k:_) = words dim
 
 -- | Create a response.
@@ -517,7 +517,7 @@ buildResponse
   -> Inventory
   -> ResEnv
   -> ReplaceMap
-  -> BExpr
+  -> Set Name
   -> Response
 buildResponse ports inv renv rep cfg =
     MkResponse (snd (foldl' go (ports,[]) inv))
@@ -530,7 +530,7 @@ buildResponse ports inv renv rep cfg =
 buildResponseDau
   :: ResEnv
   -> ReplaceMap
-  -> BExpr
+  -> Set Name
   -> Dau (PortGroups Constraint)
   -> PortMap
   -> (PortMap, ResponseDau)
@@ -564,7 +564,7 @@ replacedPortNames rep invDau invGrp size ports
 -- | Expand and configure a port group.
 expandAndConfig
   :: ResEnv
-  -> BExpr
+  -> Set Name
   -> [Name]
   -> Name
   -> Int
@@ -579,7 +579,7 @@ expandAndConfig renv cfg old d i (MkPortGroup new f as _) = do
 -- | Configure port attributes based on the resource environment.
 configPortAttrs
   :: ResEnv
-  -> BExpr
+  -> Set Name
   -> Name
   -> Int
   -> PortAttrs Constraint
@@ -589,20 +589,31 @@ configPortAttrs renv cfg d i (MkPortAttrs (Env m)) =
   where
     pre = ResID [d, "Group", fromString (show i), "Attributes"]
     path (ResID ns) a = ResID (ns ++ [a])
-    syncIx a n = findIndex (\d -> sat (BRef d &&& cfg)) (take n (dimN (dimAttr d i a)))
-    config p a (Sync as) = case syncIx a (length as) of
-      Just ix ->
-        let MkPortAttrs (Env m) = as !! ix
-        in Node (MkPortAttrs (Env (Map.mapWithKey (config (path p a)) m)))
-      Nothing -> error $ "Misconfigured attribute: " ++ show (path p a)
+    syncIx a n = fromMaybe 0 $ findIndex (flip Set.member cfg) (take n (dimN (dimAttr d i a)))
+    config p a (Sync as) =
+      let MkPortAttrs (Env m) = as !! syncIx a (length as)
+      in Node (MkPortAttrs (Env (Map.mapWithKey (config (path p a)) m)))
     config p a _ = case envLookup (path p a) renv of
-      Right v -> case conf cfg v of
-        One (Just pv) -> Leaf pv
-        e -> error $ "Misconfigured attribute: " ++ show (path p a)
+      Right v -> case fullConfig cfg v of
+        Just pv -> Leaf pv
+        Nothing -> error $ "Misconfigured attribute: " ++ show (path p a)
                      ++ "\n  started with: " ++ show v
                      ++ "\n  configured with: " ++ show cfg
-                     ++ "\n  ended up with: " ++ show e
       Left err -> error (show err)
+
+-- | Fully configure a value by interpreting every dimension as either 'True'
+--   or 'False'. Any dimension in the argument set is interpreted as 'True',
+--   otherwise it's interpreted as 'False'.
+--   TODO: This should probably be a method of the 'Select' type class.
+fullConfig :: Set Name -> Value -> Maybe PVal
+fullConfig _   (One v)     = v
+fullConfig cfg (Chc c l r) = fullConfig cfg (if bexpr c then l else r)
+  where
+    bexpr (BLit b)     = b
+    bexpr (BRef d)     = Set.member d cfg
+    bexpr (OpB o e)    = opB_B o (bexpr e)
+    bexpr (OpBB o l r) = opBB_B o (bexpr l) (bexpr r)
+    bexpr e = error $ "Unexpected condition: " ++ show e
 
 
 -- ** Main driver
@@ -611,7 +622,7 @@ configPortAttrs renv cfg d i (MkPortAttrs (Env m)) =
 findReplacement :: Int -> Rules -> Inventory -> Request -> IO (Maybe Response)
 findReplacement mx rules inv req = do
     -- writeJSON "outbox/swap-dictionary-debug.json" dict
-    -- writeJSON "outbox/swap-model-debug.json" (appModel (invs !! 1) daus)
+    -- writeJSON "outbox/swap-model-debug.json" (appModel rules (invs !! 1) daus)
     -- putStrLn $ "To replace: " ++ show daus
     -- putStrLn $ "Inventory: " ++ show inv
     case loop invs of
@@ -619,7 +630,6 @@ findReplacement mx rules inv req = do
       Just (i, renv, ctx) -> do 
         r <- satResults 1 ctx
         writeFile "outbox/swap-solution.txt" (show r)
-        -- putStrLn (show (processSatResults r))
         return (Just (buildResponse ports i renv (buildReplaceMap r) (buildConfig r)))
   where
     dict = toDictionary rules inv
