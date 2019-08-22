@@ -22,7 +22,6 @@ import Data.Text (pack)
 import qualified Data.Text as Text
 
 import Data.Map (Map)
-import Data.Set (Set)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -500,15 +499,16 @@ buildReplaceMap = foldr processDim Map.empty
         split = break (== '+')
 
 -- | Build a configuration from the output of the SAT solver.
-buildConfig :: AllSatResult -> Set Name
-buildConfig = foldr processDim Set.empty
+buildConfig :: AllSatResult -> BExpr
+buildConfig = foldr processDim true
     . Map.assocs . head . getModelDictionaries
   where
     processDim (dim,v) cfg
         | k == "Use" = cfg
-        | k == "Cfg" = if v == trueCW then Set.insert (fromString dim) cfg else cfg
+        | k == "Cfg" = (if v == trueCW then ref else bnot ref) &&& cfg
         | otherwise  = error ("buildConfig: Unrecognized dimension: " ++ dim)
       where
+        ref = BRef (fromString dim)
         (k:_) = words dim
 
 -- | Create a response.
@@ -517,7 +517,7 @@ buildResponse
   -> Inventory
   -> ResEnv
   -> ReplaceMap
-  -> Set Name
+  -> BExpr
   -> Response
 buildResponse ports inv renv rep cfg =
     MkResponse (snd (foldl' go (ports,[]) inv))
@@ -530,7 +530,7 @@ buildResponse ports inv renv rep cfg =
 buildResponseDau
   :: ResEnv
   -> ReplaceMap
-  -> Set Name
+  -> BExpr
   -> Dau (PortGroups Constraint)
   -> PortMap
   -> (PortMap, ResponseDau)
@@ -564,7 +564,7 @@ replacedPortNames rep invDau invGrp size ports
 -- | Expand and configure a port group.
 expandAndConfig
   :: ResEnv
-  -> Set Name
+  -> BExpr
   -> [Name]
   -> Name
   -> Int
@@ -579,7 +579,7 @@ expandAndConfig renv cfg old d i (MkPortGroup new f as _) = do
 -- | Configure port attributes based on the resource environment.
 configPortAttrs
   :: ResEnv
-  -> Set Name
+  -> BExpr
   -> Name
   -> Int
   -> PortAttrs Constraint
@@ -589,9 +589,10 @@ configPortAttrs renv cfg d i (MkPortAttrs (Env m)) =
   where
     pre = ResID [d, "Group", fromString (show i), "Attributes"]
     path (ResID ns) a = ResID (ns ++ [a])
-    syncIx a n = fromMaybe 0 $ findIndex (flip Set.member cfg) (take n (dimN (dimAttr d i a)))
     config p a (Sync as) =
-      let MkPortAttrs (Env m) = as !! syncIx a (length as)
+      let ds = take (length as) (dimN (dimAttr d i a))
+          ix = fromMaybe 0 $ findIndex (\d -> sat (BRef d &&& cfg)) ds
+          MkPortAttrs (Env m) = as !! ix
       in Node (MkPortAttrs (Env (Map.mapWithKey (config (path p a)) m)))
     config p a _ = case envLookup (path p a) renv of
       Right v -> case fullConfig cfg v of
@@ -601,19 +602,12 @@ configPortAttrs renv cfg d i (MkPortAttrs (Env m)) =
                      ++ "\n  configured with: " ++ show cfg
       Left err -> error (show err)
 
--- | Fully configure a value by interpreting every dimension as either 'True'
---   or 'False'. Any dimension in the argument set is interpreted as 'True',
---   otherwise it's interpreted as 'False'.
---   TODO: This should probably be a method of the 'Select' type class.
-fullConfig :: Set Name -> Value -> Maybe PVal
-fullConfig _   (One v)     = v
-fullConfig cfg (Chc c l r) = fullConfig cfg (if bexpr c then l else r)
-  where
-    bexpr (BLit b)     = b
-    bexpr (BRef d)     = Set.member d cfg
-    bexpr (OpB o e)    = opB_B o (bexpr e)
-    bexpr (OpBB o l r) = opBB_B o (bexpr l) (bexpr r)
-    bexpr e = error $ "Unexpected condition: " ++ show e
+-- | Fully configure a value.
+fullConfig :: BExpr -> Value -> Maybe PVal
+fullConfig _   (One v) = v
+fullConfig cfg (Chc c l r)
+    | sat (c &&& cfg) = fullConfig cfg l
+    | otherwise       = fullConfig cfg r
 
 
 -- ** Main driver

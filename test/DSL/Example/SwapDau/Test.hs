@@ -43,7 +43,7 @@ twoPortResponse i = MkResponse
         [ MkResponsePort "S1P1"
           $ mkPort "I1P1" "F1" [("Bar", I i)]
         , MkResponsePort ""
-          $ mkPort "I1P2" "F2" [("Bar", I 4)]
+          $ mkPort "I1P2" "F2" [("Bar", I 2)]
         ]
         10
     ]
