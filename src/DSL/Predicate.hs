@@ -118,3 +118,27 @@ toBool = evalBExpr
 -- | Evaluate a boolean expression to a symbolic boolean.
 toSBool :: Env Var SBool -> Env Var SInt32 -> BExpr -> SBool
 toSBool = evalBExpr
+
+
+-- ** Minimization
+
+-- | Apply some basic rules to shrink the size of a boolean expression. Does
+--   not attempt to shrink integer expressions within comparison operations.
+shrinkBExpr :: BExpr -> BExpr
+shrinkBExpr (OpB Not e) = case shrinkBExpr e of
+    BLit True  -> BLit False
+    BLit False -> BLit True
+    e' -> OpB Not e'
+shrinkBExpr (OpBB And l r) = case (shrinkBExpr l, shrinkBExpr r) of
+    (BLit False, _) -> BLit False
+    (_, BLit False) -> BLit False
+    (BLit True, r') -> r'
+    (l', BLit True) -> l'
+    (l', r') -> OpBB And l' r'
+shrinkBExpr (OpBB Or l r) = case (shrinkBExpr l, shrinkBExpr r) of
+    (BLit True, _) -> BLit True
+    (_, BLit True) -> BLit True
+    (BLit False, r') -> r'
+    (l', BLit False) -> l'
+    (l', r') -> OpBB Or l' r'
+shrinkBExpr e = e
