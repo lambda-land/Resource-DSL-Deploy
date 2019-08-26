@@ -171,7 +171,7 @@ instance ToJSON PVal where
   toJSON (B b) = Bool b
   toJSON (I i) = Number (fromInteger (toInteger i))
   toJSON (F d) = Number (fromFloatDigits d)
-  toJSON (S s) = String (toName s)
+  toJSON (S s) = toJSON s
 
 asInt :: ParseIt Int
 asInt = do

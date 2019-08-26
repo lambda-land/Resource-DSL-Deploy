@@ -575,7 +575,7 @@ expandAndConfig
   -> PortGroup Constraint
   -> [ResponsePort]
 expandAndConfig renv cfg old d i (MkPortGroup new f as _) = do
-    (n,o) <- zip new (old ++ repeat "")
+    (n,o) <- zip new old
     return (MkResponsePort o (MkPort n f as'))
   where
     as' = configPortAttrs renv cfg d i as
