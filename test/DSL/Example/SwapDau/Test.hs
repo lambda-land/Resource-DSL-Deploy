@@ -97,17 +97,17 @@ twoForOneSameOpts = defaultOpts
 twoForOneSameResponse :: Response
 twoForOneSameResponse = MkResponse
     [ MkResponseDau ["S1"]
-      $ MkDau "I1"
-        [ MkResponsePort "S1P1"
-          $ mkPort "I1P1" "F1" [("Foo", B True)]
-        ]
-        10
-    , MkResponseDau ["S1"]
       $ MkDau "I2"
         [ MkResponsePort "S1P2"
           $ mkPort "I2P1" "F1" [("Foo", B True)]
         ]
         20
+    , MkResponseDau ["S1"]
+      $ MkDau "I1"
+        [ MkResponsePort "S1P1"
+          $ mkPort "I1P1" "F1" [("Foo", B True)]
+        ]
+        10
     ]
 
 rangeOpts :: FilePath -> SwapOpts

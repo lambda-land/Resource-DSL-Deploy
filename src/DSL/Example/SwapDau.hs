@@ -36,6 +36,10 @@ import DSL.Serialize
 import DSL.Sugar
 import DSL.Types
 
+-- For debugging...
+-- import Debug.Trace (traceShow)
+-- import DSL.V
+
 
 --
 -- * Types
@@ -354,8 +358,8 @@ checkGroup rules dim grp =
         In "Attributes" [ Elems (requirePortAttrs rules (groupAttrs grp)) ]
         -- if success, update the ports available and required
       , if' (res "/PortsToMatch" .> res "PortCount") [
-          modify "PortCount" TInt 0
-        , modify "/PortsToMatch" TInt (val - res "PortCount")
+          modify "/PortsToMatch" TInt (val - res "PortCount")
+        , modify "PortCount" TInt 0
         ] [
           modify "PortCount" TInt (val - res "/PortsToMatch")
         , modify "/PortsToMatch" TInt 0
@@ -633,7 +637,7 @@ findReplacement mx rules inv req = do
     test i = runWithDict dict envEmpty (loadModel (appModel rules i daus) [])
     loop []     = Nothing
     loop (i:is) = case test i of
-        -- (Left _, s) -> traceShow s (loop is)
+        -- (Left _, s) -> traceShow (shrink s) (loop is)
         (Left _, _) -> loop is
         (Right _, SCtx renv ctx _) -> Just (i, renv, bnot ctx)
 
