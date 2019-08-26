@@ -17,8 +17,7 @@ import DSL.Primitive
 -- * Predicate Expressions
 --
 
--- ** Abstract syntax
-
+-- ** Variables
 
 -- | The set of boolean variables referenced in a boolean expression.
 boolVars :: BExpr -> Set Var

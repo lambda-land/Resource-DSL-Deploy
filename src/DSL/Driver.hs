@@ -82,15 +82,15 @@ totalHelper (x:xs) ys = Just $ foldr (\a b -> (bnot (BRef a)) &&& b)
                               (foldr (\a b -> BRef a &&& b) (BRef x) xs)
                                ys
 
-getSel :: (Select a) => SelOpts -> a -> (S.Set Var, a)
+getSel :: Variational a => SelOpts -> a -> (S.Set Var, a)
 getSel opts a = (vars, a')
   where
-    vars = getVars a
+    vars = dimensions a
     b = getBExpr vars opts
     a' = case b of
            Just b' -> case opts of
-             Total _ -> conf b' a
-             _       -> sel  b' a
+             Total _ -> configure b' a
+             _       -> select b' a
            Nothing -> a
 
 run :: RunOpts -> IO ()

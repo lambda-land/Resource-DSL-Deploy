@@ -13,11 +13,12 @@ import DSL.SAT
 --   variational value. Note that it does not throw errors for
 --   nonexistent resources, so error handling should be handled
 --   separately.
-vLookup' :: (MonadEval m, Ord k) => k -> VEnv k v -> m (VOpt v)
-vLookup' k env | Just v <- envLookup' k env = do
-                   c <- getVCtx
-                   return $ select c v
-               | otherwise = return (One Nothing)
+vLookup' :: (MonadEval m, Ord k, Variational v) => k -> VEnv k v -> m (VOpt v)
+vLookup' k env
+    | Just v <- envLookup' k env = do
+        c <- getVCtx
+        return $ select c v
+    | otherwise = return (One Nothing)
 
 -- | Check if a value exists in all variants, throwing errors
 --   for variants where it does not exist.
@@ -28,11 +29,11 @@ checkExists e (Chc d l r) = vHandleUnit d (checkExists e) l r
 
 -- | Look up a value in a variational environment, throwing an error if
 --   does not exist in a particular variant.
-vLookup :: (MonadEval m, Ord k) => Error -> k -> VEnv k v -> m (VOpt v)
+vLookup :: (MonadEval m, Ord k, Variational v) => Error -> k -> VEnv k v -> m (VOpt v)
 vLookup e k env = do
-  v <- vLookup' k env
-  checkExists e v
-  return v
+    v <- vLookup' k env
+    checkExists e v
+    return v
 
 vDelete' :: (MonadEval m) => Error -> BExpr -> VOpt v -> m (VOpt v)
 vDelete' e _ (One Nothing) = vError e

@@ -1,185 +1,188 @@
 module DSL.V where
 
-import DSL.Types
-import DSL.Name
-import DSL.SAT
+import Data.SBV (Boolean(..))
+import Data.Set (Set)
 import qualified Data.Set as S
 
-
-class Select a where
-  sel :: BExpr -> a -> a
-  conf :: BExpr -> a -> a
-  getVars :: a -> S.Set Var
-
-iexprVars :: IExpr -> S.Set Var
-iexprVars (ILit _) = mempty
-iexprVars (IRef x) = S.singleton x
-iexprVars (OpI _ i) = iexprVars i
-iexprVars (OpII _ l r) = iexprVars l <> iexprVars r
-
-bexprVars :: BExpr -> S.Set Var
-bexprVars (BLit _) = mempty
-bexprVars (BRef x) = S.singleton x
-bexprVars (OpB _ b) = bexprVars b
-bexprVars (OpBB _ l r) = bexprVars l <> bexprVars r
-bexprVars (OpIB _ l r) = iexprVars l <> iexprVars r
+import DSL.Types
+import DSL.Name
+import DSL.Predicate
+import DSL.SAT
 
 
-instance Select a => Select (V a) where
-  sel d (One a) = One (sel d a)
-  sel d (Chc d' l r) | d |=>|  d' = sel d l
-                     | d |=>!| d' = sel d r
-                     | otherwise  = Chc d' (sel d l) (sel d r)
+--
+-- * Variational type class
+--
 
-  conf d (One a) = One (conf d a)
-  conf d (Chc d' l r) | d |=>| d' = conf d l
-                      | otherwise = conf d r
+-- | A type class capturing all kinds of terms that may contain variation.
+class Variational a where
+  
+  -- | Eliminate all choices in a term that are determined by a partial
+  --   configuration expressed as a boolean expression.
+  select :: BExpr -> a -> a
 
-  getVars (One _) = mempty
-  getVars (Chc d l r) = bexprVars d <> getVars l <> getVars r
+  -- | Fully configure a term according to the given partial configuration.
+  --   The first alternative is chosen if it is consistent with the partial
+  --   configuration, otherwise the second is chosen.
+  configure :: BExpr -> a -> a
 
-instance Select PVal where
-  sel _ = id
-  conf _ = id
-  getVars = mempty
+  -- | Get all boolean variables within choice conditions.
+  dimensions :: a -> Set Var
 
-instance Select PType where
-  sel _ = id
-  conf _ = id
-  getVars = mempty
 
-instance Select Param where
-  sel d (Param v t) = Param v (sel d t)
-  conf d (Param v t) = Param v (conf d t)
-  getVars (Param _ t) = getVars t
+-- ** Instances
 
-instance Select Fun where
-  sel d (Fun p e) = Fun (sel d p) (sel d e)
-  conf d (Fun p e) = Fun (conf d p) (conf d e)
-  getVars (Fun p e) = getVars p <> getVars e
+instance Variational a => Variational (V a) where
+  select c (One a) = One (select c a)
+  select c (Chc d l r)
+    | c |=>|  d = select c l
+    | c |=>!| d = select c r
+    | otherwise = Chc d (select c l) (select c r)
 
-instance Select Expr where
-  sel d (Lit pv) = Lit (sel d pv)
-  sel d (P1 o e) = P1 o (sel d e)
-  sel d (P2 o e1 e2) = P2 o (sel d e1) (sel d e2)
-  sel d (P3 o e1 e2 e3) = P3 o (sel d e1) (sel d e2) (sel d e3)
-  sel _ e = e
+  configure c (One a) = One (configure c a)
+  configure c (Chc d l r)
+    | sat (c &&& d) = configure c l
+    | otherwise     = configure c r
 
-  conf d (Lit pv) = Lit (conf d pv)
-  conf d (P1 o e) = P1 o (conf d e)
-  conf d (P2 o e1 e2) = P2 o (conf d e1) (conf d e2)
-  conf d (P3 o e1 e2 e3) = P3 o (conf d e1) (conf d e2) (conf d e3)
-  conf _ e = e
+  dimensions (One _)     = mempty
+  dimensions (Chc d l r) = boolVars d <> dimensions l <> dimensions r
 
-  getVars (Lit pv) = getVars pv
-  getVars (P1 _ e) = getVars e
-  getVars (P2 _ e1 e2) = getVars e1 <> getVars e2
-  getVars (P3 _ e1 e2 e3) = getVars e1 <> getVars e2 <> getVars e3
-  getVars _ = mempty
+instance Variational PVal where
+  select _ = id
+  configure _ = id
+  dimensions = mempty
 
-instance Select [V PVal] where
-  sel d xs = map (sel d) xs
-  conf d xs = map (conf d) xs
-  getVars xs = foldMap getVars xs
+instance Variational PType where
+  select _ = id
+  configure _ = id
+  dimensions = mempty
 
-instance Select a => Select (SegList a) where
-  sel _ [] = []
-  sel d ((Elems xs):ys) = Elems (map (sel d) xs) : sel d ys
-  sel d ((Split d' l r):ys) | d |=>| d' = sel d l ++ sel d ys
-                            | d |=>!| d' = sel d r ++ sel d ys
-                            | otherwise = Split d' (sel d l) (sel d r) : sel d ys
+instance Variational Param where
+  select c (Param v t) = Param v (select c t)
+  configure c (Param v t) = Param v (configure c t)
+  dimensions (Param _ t) = dimensions t
 
-  conf _ [] = []
-  conf d ((Elems xs):ys) = Elems (map (conf d) xs) : conf d ys
-  conf d ((Split d' l r):ys) | d |=>| d' = conf d l ++ conf d ys
-                             | otherwise = conf d r ++ conf d ys
+instance Variational Fun where
+  select c (Fun p e) = Fun (select c p) (select c e)
+  configure c (Fun p e) = Fun (configure c p) (configure c e)
+  dimensions (Fun p e) = dimensions p <> dimensions e
 
-  getVars [] = mempty
-  getVars ((Elems xs):ys) = foldMap getVars xs <> getVars ys
-  getVars ((Split d l r):ys) = bexprVars d <> getVars l <> getVars r <> getVars ys
+instance Variational Expr where
+  select c (Lit pv) = Lit (select c pv)
+  select c (P1 o e) = P1 o (select c e)
+  select c (P2 o e1 e2) = P2 o (select c e1) (select c e2)
+  select c (P3 o e1 e2 e3) = P3 o (select c e1) (select c e2) (select c e3)
+  select _ e = e
 
-instance Select Effect where
-  sel d (Create e) = Create (sel d e)
-  sel d (Check f) = Check (sel d f)
-  sel d (Modify f) = Modify (sel d f)
-  sel _ Delete = Delete
+  configure c (Lit pv) = Lit (configure c pv)
+  configure c (P1 o e) = P1 o (configure c e)
+  configure c (P2 o e1 e2) = P2 o (configure c e1) (configure c e2)
+  configure c (P3 o e1 e2 e3) = P3 o (configure c e1) (configure c e2) (configure c e3)
+  configure _ e = e
 
-  conf d (Create e) = Create (conf d e)
-  conf d (Check f) = Check (conf d f)
-  conf d (Modify f) = Modify (conf d f)
-  conf _ Delete = Delete
+  dimensions (Lit pv) = dimensions pv
+  dimensions (P1 _ e) = dimensions e
+  dimensions (P2 _ e1 e2) = dimensions e1 <> dimensions e2
+  dimensions (P3 _ e1 e2 e3) = dimensions e1 <> dimensions e2 <> dimensions e3
+  dimensions _ = mempty
 
-  getVars (Create e) = getVars e
-  getVars (Check f) = getVars f
-  getVars (Modify f) = getVars f
-  getVars Delete = mempty
+instance Variational [V PVal] where
+  select c xs = map (select c) xs
+  configure c xs = map (configure c) xs
+  dimensions xs = foldMap dimensions xs
 
-instance Select Stmt where
-  sel d (Do p e) = Do p (sel d e)
-  sel d (If c t e) = If (sel d c) (sel d t) (sel d e)
-  sel d (In p blk) = In p (sel d blk)
-  sel d (For v e blk) = For v (sel d e) (sel d blk)
-  sel d (Let v e blk) = Let v (sel d e) (sel d blk)
-  sel d (Load e es) = Load (sel d e) (map (sel d) es)
+instance Variational a => Variational (SegList a) where
+  select _ [] = []
+  select c (Elems xs : ys) = Elems (map (select c) xs) : select c ys
+  select c (Split d l r : ys)
+    | c |=>| d  = select c l ++ select c ys
+    | c |=>!| d = select c r ++ select c ys
+    | otherwise = Split d (select c l) (select c r) : select c ys
 
-  conf d (Do p e) = Do p (conf d e)
-  conf d (If c t e) = If (conf d c) (conf d t) (conf d e)
-  conf d (In p blk) = In p (conf d blk)
-  conf d (For v e blk) = For v (conf d e) (conf d blk)
-  conf d (Let v e blk) = Let v (conf d e) (conf d blk)
-  conf d (Load e es) = Load (conf d e) (map (conf d) es)
+  configure _ [] = []
+  configure c (Elems xs : ys) = Elems (map (configure c) xs) : configure c ys
+  configure c (Split d l r : ys)
+    | sat (c &&& d) = configure c l ++ configure c ys
+    | otherwise     = configure c r ++ configure c ys
 
-  getVars (Do _ e) = getVars e
-  getVars (If c t e) = getVars c <> getVars t <> getVars e
-  getVars (In _ blk) = getVars blk
-  getVars (For _ e blk) = getVars e <> getVars blk
-  getVars (Let _ e blk) = getVars e <> getVars blk
-  getVars (Load e es) = getVars e <> foldMap getVars es
+  dimensions [] = mempty
+  dimensions (Elems xs : ys) = foldMap dimensions xs <> dimensions ys
+  dimensions (Split d l r : ys) = boolVars d <> dimensions l <> dimensions r <> dimensions ys
 
-instance Select Model where
-  sel d (Model ps blk) = Model (map (sel d) ps) (sel d blk)
-  conf d (Model ps blk) = Model (map (conf d) ps) (conf d blk)
-  getVars (Model ps blk) = foldMap getVars ps <> getVars blk
+instance Variational Effect where
+  select c (Create e) = Create (select c e)
+  select c (Check f)  = Check (select c f)
+  select c (Modify f) = Modify (select c f)
+  select _ Delete     = Delete
 
-instance Select Profile where
-  sel d (Profile ps es) = Profile (map (sel d) ps) (fmap (sel d) es)
-  conf d (Profile ps es) = Profile (map (conf d) ps) (fmap (conf d) es)
-  getVars (Profile ps es) = foldMap getVars ps <> foldMap getVars es
+  configure c (Create e) = Create (configure c e)
+  configure c (Check f)  = Check (configure c f)
+  configure c (Modify f) = Modify (configure c f)
+  configure _ Delete     = Delete
 
-instance Select Entry where
-  sel d (ProEntry p) = ProEntry (sel d p)
-  sel d (ModEntry m) = ModEntry (sel d m)
+  dimensions (Create e) = dimensions e
+  dimensions (Check f)  = dimensions f
+  dimensions (Modify f) = dimensions f
+  dimensions Delete     = mempty
 
-  conf d (ProEntry p) = ProEntry (conf d p)
-  conf d (ModEntry m) = ModEntry (conf d m)
+instance Variational Stmt where
+  select c (Do p e)     = Do p (select c e)
+  select c (If b t e)   = If (select c b) (select c t) (select c e)
+  select c (In p ss)    = In p (select c ss)
+  select c (For v e ss) = For v (select c e) (select c ss)
+  select c (Let v e ss) = Let v (select c e) (select c ss)
+  select c (Load e es)  = Load (select c e) (map (select c) es)
 
-  getVars (ProEntry p) = getVars p
-  getVars (ModEntry m) = getVars m
+  configure c (Do p e)     = Do p (configure c e)
+  configure c (If b t e)   = If (configure c b) (configure c t) (configure c e)
+  configure c (In p ss)    = In p (configure c ss)
+  configure c (For v e ss) = For v (configure c e) (configure c ss)
+  configure c (Let v e ss) = Let v (configure c e) (configure c ss)
+  configure c (Load e es)  = Load (configure c e) (map (configure c) es)
 
-instance Select v => Select (Env k v) where
-  sel d env = fmap (sel d) env
-  conf d env = fmap (conf d) env
-  getVars = foldMap getVars
+  dimensions (Do _ e)     = dimensions e
+  dimensions (If b t e)   = dimensions b <> dimensions t <> dimensions e
+  dimensions (In _ ss)    = dimensions ss
+  dimensions (For _ e ss) = dimensions e <> dimensions ss
+  dimensions (Let _ e ss) = dimensions e <> dimensions ss
+  dimensions (Load e es)  = dimensions e <> foldMap dimensions es
 
-instance Select a => Select (Maybe a) where
-  sel d m = fmap (sel d) m
-  conf d m = fmap (conf d) m
-  getVars = foldMap getVars
+instance Variational Model where
+  select c (Model ps ss) = Model (map (select c) ps) (select c ss)
+  configure c (Model ps ss) = Model (map (configure c) ps) (configure c ss)
+  dimensions (Model ps ss) = foldMap dimensions ps <> dimensions ss
 
--- select takes a dimension and eliminates all choices implied by it or its opposite
-select :: BExpr -> V a -> V a
-select _ (One a) = One a
-select d (Chc d' l r) | d |=>|  d' = select d l
-                      | d |=>!| d' = select d r
-                      | otherwise  = Chc d' (select d l) (select d r)
+instance Variational Profile where
+  select c (Profile ps es) = Profile (map (select c) ps) (fmap (select c) es)
+  configure c (Profile ps es) = Profile (map (configure c) ps) (fmap (configure c) es)
+  dimensions (Profile ps es) = foldMap dimensions ps <> foldMap dimensions es
 
--- same as select except choices not selected on are assumed to be true
-configure :: BExpr -> V a -> a
-configure _ (One a) = a
-configure d (Chc d' l r) | d |=>| d' = configure d l
-                         | otherwise = configure d r
+instance Variational Entry where
+  select c (ProEntry p) = ProEntry (select c p)
+  select c (ModEntry m) = ModEntry (select c m)
 
--- | Merge second mask into the first
+  configure c (ProEntry p) = ProEntry (configure c p)
+  configure c (ModEntry m) = ModEntry (configure c m)
+
+  dimensions (ProEntry p) = dimensions p
+  dimensions (ModEntry m) = dimensions m
+
+instance Variational v => Variational (Env k v) where
+  select c env = fmap (select c) env
+  configure c env = fmap (configure c) env
+  dimensions = foldMap dimensions
+
+instance Variational a => Variational (Maybe a) where
+  select c m = fmap (select c) m
+  configure c m = fmap (configure c) m
+  dimensions = foldMap dimensions
+
+
+--
+-- * Other functions
+--
+
+-- | Merge second mask into the first.
 mergeMask :: Mask -> Mask -> Mask
 -- If there's no error in one of the masks, then just choose the other mask
 mergeMask (One Nothing) m = m

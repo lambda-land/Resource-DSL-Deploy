@@ -416,39 +416,70 @@ data ExprError
   deriving (Eq,Show)
 
 -- Use SBV's Boolean type class for boolean predicates.
+instance Boolean Expr where
+  true     = Lit (One (B True))
+  false    = Lit (One (B False))
+  bnot e   = P1 (B_B Not) (One e)
+  e &&& e' = P2 (BB_B And) (One e) (One e')
+  e ||| e' = P2 (BB_B Or)  (One e) (One e')
+  e <+> e' = P2 (BB_B XOr) (One e) (One e')
+  e ==> e' = P2 (BB_B Imp) (One e) (One e')
+  e <=> e' = P2 (BB_B Eqv) (One e) (One e')
+
 instance Boolean (V Expr) where
-  true  = One . Lit . One . B $ True
-  false = One . Lit . One . B $ False
-  bnot e  = One (P1 (B_B Not) e)
+  true     = One (Lit (One (B True)))
+  false    = One (Lit (One (B False)))
+  bnot e   = One (P1 (B_B Not) e)
   e &&& e' = One (P2 (BB_B And) e e')
-  e ||| e' = One (P2 (BB_B Or) e e')
+  e ||| e' = One (P2 (BB_B Or)  e e')
   e <+> e' = One (P2 (BB_B XOr) e e')
   e ==> e' = One (P2 (BB_B Imp) e e')
   e <=> e' = One (P2 (BB_B Eqv) e e')
 
 -- Use Num type class for arithmetic.
+instance Num Expr where
+  fromInteger i = Lit (One (I (fromInteger i)))
+  abs n    = P1 (N_N Abs) (One n)
+  negate n = P1 (N_N Neg) (One n)
+  signum n = P1 (N_N Sign) (One n)
+  n + n'   = P2 (NN_N Add) (One n) (One n')
+  n - n'   = P2 (NN_N Sub) (One n) (One n')
+  n * n'   = P2 (NN_N Mul) (One n) (One n')
+
 instance Num (V Expr) where
-  fromInteger = One . Lit . One . I . fromInteger
-  abs n   = One (P1 (N_N Abs) n)
+  fromInteger i = One (fromInteger i)
+  abs n    = One (P1 (N_N Abs) n)
   negate n = One (P1 (N_N Neg) n)
   signum n = One (P1 (N_N Sign) n)
-  n + n'    = One (P2 (NN_N Add) n n')
-  n - n'    = One (P2 (NN_N Sub) n n')
-  n * n'    = One (P2 (NN_N Mul) n n')
+  n + n'   = One (P2 (NN_N Add) n n')
+  n - n'   = One (P2 (NN_N Sub) n n')
+  n * n'   = One (P2 (NN_N Mul) n n')
 
 -- Other numeric arithmetic primitives.
+instance PrimN Expr where
+  n ./ n' = P2 (NN_N Div) (One n) (One n')
+  n .% n' = P2 (NN_N Mod) (One n) (One n')
+
 instance PrimN (V Expr) where
   n ./ n' = One (P2 (NN_N Div) n n')
   n .% n' = One (P2 (NN_N Mod) n n')
 
 -- Numeric comparison primitives.
+instance Prim Expr Expr where
+  n .<  n' = P2 (NN_B LT)  (One n) (One n')
+  n .<= n' = P2 (NN_B LTE) (One n) (One n')
+  n .== n' = P2 (NN_B Equ) (One n) (One n')
+  n ./= n' = P2 (NN_B Neq) (One n) (One n')
+  n .>= n' = P2 (NN_B GTE) (One n) (One n')
+  n .>  n' = P2 (NN_B GT)  (One n) (One n')
+
 instance Prim (V Expr) (V Expr) where
-  n .< n'  = One (P2 (NN_B LT) n n')
+  n .<  n' = One (P2 (NN_B LT)  n n')
   n .<= n' = One (P2 (NN_B LTE) n n')
   n .== n' = One (P2 (NN_B Equ) n n')
   n ./= n' = One (P2 (NN_B Neq) n n')
   n .>= n' = One (P2 (NN_B GTE) n n')
-  n .> n' = One (P2 (NN_B GT) n n')
+  n .>  n' = One (P2 (NN_B GT)  n n')
 
 
 --

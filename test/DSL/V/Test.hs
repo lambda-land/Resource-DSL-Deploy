@@ -8,12 +8,16 @@ import Data.SBV (bnot, (&&&), (|||))
 
 testV = testGroup "DSL.V" [testSelect, testMergeMask]
 
+-- | A type-constrained version of 'select'.
+selectV :: BExpr -> V Expr -> V Expr
+selectV = select
+
 testSelect = testGroup "select"
   [
     testCase "Select on One produces One" $
-      select (BRef "A") (One 1) @?= One 1,
+      selectV (BRef "A") (One 1) @?= One 1,
     testCase "Select on equal dimensions" $
-      select (BRef "A")
+      selectV (BRef "A")
         (Chc (BRef "B")
           (Chc (BRef "A")
             (One 1)
@@ -22,7 +26,7 @@ testSelect = testGroup "select"
           (One 3)
         ) @?= (Chc (BRef "B") (One 1) (One 3)),
     testCase "Select on opposite dimensions" $
-      select (bnot (BRef "A"))
+      selectV (bnot (BRef "A"))
         (Chc (BRef "B")
           (Chc (BRef "A")
             (One 1)
@@ -31,7 +35,7 @@ testSelect = testGroup "select"
           (One 3)
         ) @?= (Chc (BRef "B") (One 2) (One 3)),
     testCase "Select on implied dimensions" $
-      select (BRef "A" &&& BRef "C")
+      selectV (BRef "A" &&& BRef "C")
         (Chc (BRef "B")
           (Chc (BRef "A")
             (One 1)
@@ -40,7 +44,7 @@ testSelect = testGroup "select"
           (One 3)
         ) @?= (Chc (BRef "B") (One 1) (One 3)),
     testCase "Select on negated implied dimensions" $
-      select (bnot (BRef "A"))
+      selectV (bnot (BRef "A"))
         (Chc (BRef "B")
           (Chc (BRef "A" &&& BRef "C")
             (One 1)

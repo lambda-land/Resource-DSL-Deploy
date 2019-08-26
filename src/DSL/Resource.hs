@@ -160,10 +160,13 @@ lookupHelper g (One Nothing) = do
 lookupHelper _ v@(One (Just _)) = return v
 lookupHelper g (Chc d l r) = vHandle d (lookupHelper g) l r
 
-envLookupV :: (Ord k, MonadEval m, Show k, Typeable k) =>
-              (NotFound -> Error) ->
-              (k -> BExpr -> (V (Maybe v)) -> Error) ->
-              k -> Env k (V (Maybe v)) -> m (V (Maybe v))
+envLookupV
+  :: (MonadEval m, Typeable k, Ord k, Show k, Variational v)
+  => (NotFound -> Error)
+  -> (k -> BExpr -> V (Maybe v) -> Error)
+  -> k
+  -> Env k (V (Maybe v))
+  -> m (V (Maybe v))
 envLookupV f g k env = do
   case envLookup k env of
     -- throw appropriate error for whole context
