@@ -154,15 +154,15 @@ equationResponse p1 s1 d1 p2 s2 d2 = MkResponse
         10
     ]
 
-groupOpts :: FilePath -> SwapOpts
-groupOpts req = defaultOpts
+syncOpts :: FilePath -> SwapOpts
+syncOpts req = defaultOpts
     { swapRulesFile = "json/test/swap-rules.json"
-    , swapInventoryFile = "json/test/swap-inventory-group.json"
+    , swapInventoryFile = "json/test/swap-inventory-sync.json"
     , swapRequestFile = req
     }
 
-groupResponse :: Int -> Int -> Response
-groupResponse s d = MkResponse
+syncResponse :: Int -> Int -> Response
+syncResponse s d = MkResponse
     [ MkResponseDau ["S1"]
       $ MkDau "I1"
         [ MkResponsePort "S1P1"
@@ -250,12 +250,12 @@ testSwap =
           res <- runSwapTest (equationOpts "json/test/swap-request-equation2.json")
           res @?= Just (equationResponse "S1P1" 256 16 "S1P2" 768 2)
       ]
-    , testGroup "group end-to-end tests"
+    , testGroup "sync end-to-end tests"
       [ testCase "1" $ do
-          res <- runSwapTest (groupOpts "json/test/swap-request-group1.json")
-          res @?= Just (groupResponse 250 16)
+          res <- runSwapTest (syncOpts "json/test/swap-request-sync1.json")
+          res @?= Just (syncResponse 250 16)
       , testCase "2" $ do
-          res <- runSwapTest (groupOpts "json/test/swap-request-group2.json")
+          res <- runSwapTest (syncOpts "json/test/swap-request-sync2.json")
           res @?= Nothing
       ]
     ]
