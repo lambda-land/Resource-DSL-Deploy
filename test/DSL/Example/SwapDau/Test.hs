@@ -108,6 +108,41 @@ twoForOneSameResponse = MkResponse
         10
     ]
 
+groupOpts :: FilePath -> SwapOpts
+groupOpts req = defaultOpts
+    { swapRulesFile = "json/test/swap-rules.json"
+    , swapInventoryFile = "json/test/swap-inventory-group.json"
+    , swapRequestFile = req
+    }
+
+groupResponse1 :: Response
+groupResponse1 = MkResponse
+    [ MkResponseDau ["S1","S2"]
+      $ MkDau "I1"
+        [ MkResponsePort "S1-G1-P1"
+          $ mkPort "I1-G1-P1" "F1" [("Foo", B True)]
+        , MkResponsePort "S1-G1-P2"
+          $ mkPort "I1-G1-P2" "F1" [("Foo", B True)]
+        , MkResponsePort "S2-G1-P1"
+          $ mkPort "I1-G1-P3" "F1" [("Foo", B True)]
+        , MkResponsePort "S2-G2-P1"
+          $ mkPort "I1-G2-P1" "F2" [("Foo", B True)]
+        ]
+        10
+    ]
+
+groupResponse3 :: Response
+groupResponse3 = MkResponse
+    [ MkResponseDau ["S1"]
+      $ MkDau "I1"
+        [ MkResponsePort "S1-G1-P1"
+          $ mkPort "I1-G1-P1" "F1" [("Foo", B True)]
+        , MkResponsePort "S1-G1-P2"
+          $ mkPort "I1-G1-P2" "F1" [("Foo", B False)]
+        ]
+        10
+    ]
+
 rangeOpts :: FilePath -> SwapOpts
 rangeOpts req = defaultOpts
     { swapRulesFile = "json/test/swap-rules.json"
@@ -230,6 +265,17 @@ testSwap =
       , testCase "4" $ do
           res <- runSwapTest twoForOneSameOpts
           res @?= Just twoForOneSameResponse
+      ]
+    , testGroup "group end-to-end tests"
+      [ testCase "1" $ do
+          res <- runSwapTest (groupOpts "json/test/swap-request-group1.json")
+          res @?= Just groupResponse1
+      , testCase "2" $ do
+          res <- runSwapTest (groupOpts "json/test/swap-request-group2.json")
+          res @?= Nothing
+      , testCase "3" $ do
+          res <- runSwapTest (groupOpts "json/test/swap-request-group3.json")
+          res @?= Just groupResponse3
       ]
     , testGroup "range end-to-end tests"
       [ testCase "1" $ do

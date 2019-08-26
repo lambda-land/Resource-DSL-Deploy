@@ -1,0 +1,38 @@
+{
+  "daus": [
+    {
+      "GloballyUniqueId": "S1",
+      "BBNDauMonetaryCost": 5,
+      "BBNDauFlaggedForReplacement": true,
+      "Port": [
+        {
+          "GloballyUniqueId": "S1-G1-P1",
+          "BBNPortFunctionality": "F1",
+          "Foo": true
+        },
+        {
+          "GloballyUniqueId": "S1-G1-P2",
+          "BBNPortFunctionality": "F1",
+          "Foo": true
+        }
+      ]
+    },
+    {
+      "GloballyUniqueId": "S2",
+      "BBNDauMonetaryCost": 20,
+      "BBNDauFlaggedForReplacement": true,
+      "Port": [
+        {
+          "GloballyUniqueId": "S2-G1-P1",
+          "BBNPortFunctionality": "F1",
+          "Foo": true
+        },
+        {
+          "GloballyUniqueId": "S2-G2-P1",
+          "BBNPortFunctionality": "F2",
+          "Foo": true
+        }
+      ]
+    }
+  ]
+}
