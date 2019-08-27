@@ -1,28 +1,17 @@
 module DSL.Path where
 
-import Prelude hiding (head, tail)
-
 import Data.Text
 
 import DSL.Types
 
 
 --
--- * Resource IDs
+-- * Paths and resource IDs
 --
-
 
 -- | The root resource ID.
 root :: ResID
 root = ResID []
-
-fromTextResID :: Text -> ResID
-fromTextResID t | head t == '/' = ResID (splitOn "/" (tail t))
-                | otherwise = ResID (splitOn "/" t)
-
-fromTextPath :: Text -> Path
-fromTextPath t | head t == '/' = Path Absolute (splitOn "/" (tail t))
-               | otherwise = Path Relative (splitOn "/" t)
 
 -- | The root of an absolute path.
 pathRoot :: Path
@@ -62,3 +51,7 @@ toResID (ResID pre) orig@(Path k p) = case k of
     norm (".":p)    = norm p
     norm (_:"..":p) = norm p
     norm (n:p)      = (n:) <$> norm p
+
+-- | Convert a resource ID to an absolute path.
+toPath :: ResID -> Path
+toPath (ResID ns) = Path Absolute ns

@@ -8,6 +8,7 @@ import Data.Aeson.BetterErrors
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Map.Strict (toAscList)
 import Data.Scientific (floatingOrInteger,fromFloatDigits,toBoundedInteger)
+import Data.String (fromString)
 import Data.Text (Text,intercalate,pack,unpack)
 import Data.Vector (fromList)
 import System.Directory (createDirectoryIfMissing)
@@ -21,7 +22,6 @@ import DSL.Types
 import DSL.Environment
 import DSL.Name
 import DSL.Parser
-import DSL.Path
 import DSL.Pretty
 
 
@@ -119,7 +119,7 @@ instance ToJSON Path where
   toJSON = String . prettyPath
 
 asPath :: ParseIt Path
-asPath = fromTextPath <$> asText
+asPath = fromString . unpack <$> asText
 
 instance ToJSON ResID where
   toJSON (ResID p) = toJSON p
