@@ -3,6 +3,7 @@ inbox
 outbox
 scratch
 TAGS
+*.prof
 *.tix
 .hpc
 .#*
