@@ -2,9 +2,11 @@ module DSL.V.Test where
 
 import Test.Tasty
 import Test.Tasty.HUnit
+
+import DSL.Boolean
 import DSL.Types
 import DSL.V
-import Data.SBV (bnot, (&&&), (|||))
+
 
 testV = testGroup "DSL.V" [testSelect, testMergeMask]
 

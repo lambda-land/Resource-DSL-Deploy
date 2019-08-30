@@ -1,8 +1,8 @@
 module DSL.VEnv where
 
-import Data.SBV (bnot)
 import Control.Monad.Except
 
+import DSL.Boolean
 import DSL.Types
 import DSL.V
 import DSL.Resource

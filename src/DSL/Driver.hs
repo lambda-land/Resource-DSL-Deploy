@@ -13,16 +13,17 @@ import System.Environment (getArgs)
 import System.Exit
 import qualified Data.Text as T
 import qualified Data.Set as S
-import Data.SBV (bnot,(&&&),AllSatResult(..))
+import Data.SBV (AllSatResult(..))
 
-import DSL.Types hiding (Check)
+import DSL.Boolean
 import DSL.Model
 import DSL.Name
+import DSL.Parser (parseBExprString)
 import DSL.Profile
 import DSL.Resource
 import DSL.SAT
 import DSL.Serialize
-import DSL.Parser (parseBExprString)
+import DSL.Types hiding (Check)
 import DSL.V
 
 import DSL.Example.CrossApp

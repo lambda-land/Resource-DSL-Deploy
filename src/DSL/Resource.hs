@@ -6,9 +6,9 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.State
 import Data.Composition ((.:))
-import Data.SBV (bnot, (&&&), (|||))
 import Data.Typeable
 
+import DSL.Boolean
 import DSL.Types
 import DSL.SAT
 import DSL.Name

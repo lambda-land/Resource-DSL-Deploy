@@ -2,8 +2,8 @@ module DSL.Model where
 
 import Control.Monad (forM_)
 import Data.Foldable (foldl')
-import Data.SBV (bnot, (&&&))
 
+import DSL.Boolean
 import DSL.Types
 import DSL.Effect
 import DSL.Environment

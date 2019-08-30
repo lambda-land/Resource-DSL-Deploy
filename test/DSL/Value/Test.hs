@@ -2,11 +2,13 @@ module DSL.Value.Test where
 
 import Test.Tasty
 import Test.Tasty.HUnit
+
+import DSL.Boolean
+import DSL.Environment
+import DSL.Resource
 import DSL.Types
 import DSL.Value
-import DSL.Resource
-import DSL.Environment
-import Data.SBV ((|||))
+
 
 runOp1 :: Op1 -> V (Maybe PVal) -> (Either Mask (V (Maybe PVal)), StateCtx)
 runOp1 o v = runEmpty . unVM $ (applyPrim1 o (VM . return $ v))

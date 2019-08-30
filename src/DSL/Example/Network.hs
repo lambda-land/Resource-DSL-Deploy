@@ -4,9 +4,9 @@ import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
 import Control.Monad (when)
-import Data.SBV (Boolean(..))
 import Options.Applicative
 
+import DSL.Boolean
 import DSL.Types
 import DSL.Environment
 import DSL.Expression

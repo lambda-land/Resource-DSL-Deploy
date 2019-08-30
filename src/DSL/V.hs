@@ -1,12 +1,12 @@
 module DSL.V where
 
-import Data.SBV (Boolean(..))
 import Data.Set (Set)
 
-import DSL.Types
+import DSL.Boolean
 import DSL.Name
 import DSL.Predicate
 import DSL.SAT
+import DSL.Types
 
 
 --

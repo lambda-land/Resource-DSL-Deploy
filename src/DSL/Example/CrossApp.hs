@@ -10,17 +10,17 @@ import Control.Monad (when)
 import Options.Applicative
 import Data.Foldable
 import Data.List ((\\))
-import Data.SBV ((|||),(&&&),bnot)
 import qualified Data.Text as T
 import qualified Data.Set as S
 
-import DSL.Types
-import DSL.Name
+import DSL.Boolean
 import DSL.Environment
 import DSL.Model
+import DSL.Name
+import DSL.Options
 import DSL.Serialize
 import DSL.Sugar
-import DSL.Options
+import DSL.Types
 
 
 -- ** Initial environment

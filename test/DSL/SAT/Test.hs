@@ -2,9 +2,11 @@ module DSL.SAT.Test where
 
 import Test.Tasty
 import Test.Tasty.HUnit
-import DSL.Types
+
+import DSL.Boolean
 import DSL.SAT
-import Data.SBV (bnot, (&&&), (|||))
+import DSL.Types
+
 
 testSAT = testGroup "DSL.SAT" [testSat, testUnsat, testEquiv, testImplies, testNimplies]
 

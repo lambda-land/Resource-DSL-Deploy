@@ -2,7 +2,7 @@ module DSL.Primitive where
 
 import Prelude hiding (LT,GT)
 
-import Data.SBV (Boolean(..))
+import DSL.Boolean
 import DSL.Types
 
 --

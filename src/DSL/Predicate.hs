@@ -6,8 +6,9 @@ import Data.Function (on)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
-import Data.SBV
+import Data.SBV (SBool,SInt32,Symbolic)
 
+import DSL.Boolean
 import DSL.Types
 import DSL.Name
 import DSL.Environment

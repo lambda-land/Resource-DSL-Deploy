@@ -3,8 +3,7 @@ module DSL.Sugar where
 import qualified Data.Text as T
 import qualified Data.Set as S
 
-import Data.SBV (Boolean(..))
-
+import DSL.Boolean
 import DSL.Name
 import DSL.Types
 import DSL.Parser

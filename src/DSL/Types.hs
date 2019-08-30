@@ -12,12 +12,13 @@ import Data.Data
 import Data.String (IsString(..))
 import Data.Text (pack, splitOn)
 import Data.Map.Strict (Map)
-import Data.SBV (Boolean(..),SBool,SInteger,SInt8,SInt16,SInt32,SInt64)
+import Data.SBV (SBool,SInteger,SInt8,SInt16,SInt32,SInt64)
 import qualified Data.SBV as SBV
 import Data.Fixed (mod')
 import Data.Text
 import Data.Set (Set)
 
+import DSL.Boolean
 import DSL.Name
 
 
@@ -415,7 +416,6 @@ data ExprError
    | ResNotFound VEnvErr
   deriving (Eq,Show)
 
--- Use SBV's Boolean type class for boolean predicates.
 instance Boolean Expr where
   true     = Lit (One (B True))
   false    = Lit (One (B False))

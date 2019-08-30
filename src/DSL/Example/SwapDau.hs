@@ -12,8 +12,8 @@ import Data.Aeson.Types (Pair, listValue)
 import Data.Function (on)
 import Data.List (findIndex,foldl',nub,nubBy,sortBy,subsequences)
 import Data.Maybe (fromMaybe)
-import Data.SBV (AllSatResult,Boolean(..),getModelDictionaries)
-import Data.SBV.Internals (trueCW)
+import Data.SBV (SatResult,getModelDictionary)
+import Data.SBV.Internals (trueCV)
 import Data.String (fromString)
 import Options.Applicative hiding ((<|>))
 import System.Exit
@@ -25,6 +25,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+import DSL.Boolean
 import DSL.Environment
 import DSL.Model
 import DSL.Name
@@ -518,9 +519,9 @@ buildPortMap ds = Map.fromList $ do
 
 -- | Build a map describing which inventory DAUs and groups replaced which
 --   request DAUs and groups from the output of the SAT solver.
-buildReplaceMap :: AllSatResult -> ReplaceMap
+buildReplaceMap :: SatResult -> ReplaceMap
 buildReplaceMap = foldr processDim Map.empty
-    . Map.keys . Map.filter (== trueCW) . head . getModelDictionaries
+    . Map.keys . Map.filter (== trueCV) . getModelDictionary
   where
     processDim dim daus
         | k == "Use" =
@@ -546,13 +547,13 @@ buildReplaceMap = foldr processDim Map.empty
         split = break (== '+')
 
 -- | Build a configuration from the output of the SAT solver.
-buildConfig :: AllSatResult -> BExpr
+buildConfig :: SatResult -> BExpr
 buildConfig = foldr processDim true
-    . Map.assocs . head . getModelDictionaries
+    . Map.assocs . getModelDictionary
   where
     processDim (dim,v) cfg
         | k == "Use" = cfg
-        | k == "Cfg" = (if v == trueCW then ref else bnot ref) &&& cfg
+        | k == "Cfg" = (if v == trueCV then ref else bnot ref) &&& cfg
         | otherwise  = error ("buildConfig: Unrecognized dimension: " ++ dim)
       where
         ref = BRef (fromString dim)
@@ -679,7 +680,7 @@ findReplacement mx rules inv req = do
     case loop invs of
       Nothing -> return Nothing
       Just (i, renv, ctx) -> do 
-        r <- satResults 1 ctx
+        r <- satResult ctx
         writeFile "outbox/swap-solution.txt" (show r)
         -- putStrLn $ "Configuration: " ++ show (buildConfig r)
         -- putStrLn $ "Resource Env: " ++ show renv
