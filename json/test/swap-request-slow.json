@@ -1,0 +1,26 @@
+{
+  "daus": [
+    {
+      "GloballyUniqueId": "S1",
+      "BBNDauMonetaryCost": 5,
+      "BBNDauFlaggedForReplacement": true,
+      "Port": [
+        {
+          "GloballyUniqueId": "S1P1",
+          "BBNPortFunctionality": "F1",
+          "DataRate": 700
+        },
+        {
+          "GloballyUniqueId": "S1P2",
+          "BBNPortFunctionality": "F1",
+          "DataRate": 60
+        },
+        {
+          "GloballyUniqueId": "S1P3",
+          "BBNPortFunctionality": "F1",
+          "DataRate": 2000
+        }
+      ]
+    }
+  ]
+}
