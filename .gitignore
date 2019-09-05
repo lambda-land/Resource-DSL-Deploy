@@ -1,9 +1,10 @@
+.hpc
 .stack-work
 inbox
 outbox
 scratch
 TAGS
+trace.txt
 *.prof
 *.tix
-.hpc
 .#*
