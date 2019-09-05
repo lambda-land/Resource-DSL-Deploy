@@ -118,14 +118,7 @@ updateMask :: MonadEval m => (Mask -> Mask) -> m ()
 updateMask f = modify (\(SCtx r e m) -> SCtx r e (f m))
 
 vMove :: MonadEval m => BExpr -> m a -> m a
-vMove d m = do
-  c <- getVCtx
-  e <- getErrCtx
-  let c' = c &&& d
-  if (c' |=>| e) then
-    throwError (One Nothing)
-  else
-    local (\(Ctx p m dict _) -> Ctx p m dict c') m
+vMove d = local (\(Ctx p m dict c) -> Ctx p m dict (c &&& d))
 
 vHandleUnit' :: MonadEval m => BExpr -> m () -> m () -> m ()
 vHandleUnit' d l r = do
