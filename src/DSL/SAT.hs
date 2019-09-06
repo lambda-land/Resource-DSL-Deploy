@@ -57,7 +57,7 @@ implies a b = taut (a ==> b)
 
 -- | Does the first predicate imply that the second is false?
 nimplies :: SAT b => b -> b -> Bool
-nimplies a b = taut (a ==> (bnot b))
+nimplies a b = taut (a ==> bnot b)
 
 -- | Operator for nimplies
 (|=>!|) :: SAT b => b -> b -> Bool

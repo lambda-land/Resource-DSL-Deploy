@@ -106,14 +106,15 @@ run opts = do
     let args = map (One . Lit) args'
     let vars = dictVars <> initVars <> modelVars <> argsVars
     let b = getBExpr vars (selection opts)
-    sctx <- runWithDict dict init (loadModel model args) `catchEffErr` (opts, 2,"Error executing application model ...", b, vars)
+    sctx <- runEvalM (withDict dict) (withResEnv init) (loadModel model args)
+              `catchEffErr` (opts, 2, "Error executing application model ...", b, vars)
     writeOutput (outputFile opts) sctx
     if noReqs opts then do
       writeError (errorFile opts) sctx
       writeSuccess (successFile opts) sctx b vars
     else do
       (reqsVars,reqs) <- s $ readJSON (reqsFile opts) asProfile
-      let (e, sctx') = runWithDict' dict sctx (loadProfile reqs [])
+      let (e, sctx') = runEvalM (withDict dict) sctx (loadProfile reqs [])
       writeError (errorFile opts) sctx'
       let vars' = vars <> reqsVars
       writeSuccess (successFile opts) sctx' (getBExpr vars' (selection opts)) vars'
@@ -146,9 +147,9 @@ writeBest fp r = writeFile fp (show r)
 runCheck :: CheckOpts -> IO ()
 runCheck opts = do
     s <- readJSON (successF opts) asSuccess
-    let b = case getBExpr (cfgSpc s) (verOpts opts) of
-              Just b -> b &&& (ctx s)
-              Nothing -> ctx s
+    let b = case getBExpr (configSpace s) (verOpts opts) of
+              Just b -> b &&& (successCtx s)
+              Nothing -> successCtx s
     r <- satResults (maxRes opts) b
     writeBest (bestFile opts) r
     if take 2 (show r) == "No" then do

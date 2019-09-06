@@ -8,7 +8,7 @@ import DSL.Types
 import DSL.V
 
 
-testV = testGroup "DSL.V" [testSelect, testMergeMask]
+testV = testGroup "DSL.V" [testSelect, testMergeVError]
 
 -- | A type-constrained version of 'select'.
 selectV :: BExpr -> V Expr -> V Expr
@@ -56,10 +56,10 @@ testSelect = testGroup "select"
         ) @?= (Chc (BRef "B") (One 2) (One 3))
   ]
 
-testMergeMask = testGroup "mergeMask"
+testMergeVError = testGroup "mergeVError"
   [
     testCase "A single error merges into leaves of chc tree" $
-      mergeMask
+      mergeVError
         (Chc (BRef "B")
           (Chc (BRef "A")
             (One . Just . PrimE $ ErrorOp1 U_U (I 1))
@@ -76,7 +76,7 @@ testMergeMask = testGroup "mergeMask"
           (One . Just . PrimE $ ErrorOp1 U_U (I 2))
         ),
     testCase "Merge into equiv dimensions" $
-      mergeMask
+      mergeVError
         (Chc (BRef "B")
           (Chc (BRef "A")
             (One . Just . PrimE $ ErrorOp1 U_U (I 1))
@@ -96,7 +96,7 @@ testMergeMask = testGroup "mergeMask"
           (One . Just . PrimE $ ErrorOp1 U_U (I 3))
         ),
     testCase "Merge with d |<=| d'" $
-      mergeMask
+      mergeVError
         (Chc (BRef "B")
           (Chc (BRef "A")
             (One . Just . PrimE $ ErrorOp1 U_U (I 1))
@@ -119,7 +119,7 @@ testMergeMask = testGroup "mergeMask"
           (One Nothing)
         ),
     testCase "Merge with d |!<=| d'" $
-      mergeMask
+      mergeVError
         (Chc (BRef "B")
           (Chc (BRef "A")
             (One . Just . PrimE $ ErrorOp1 U_U (I 1))
@@ -142,7 +142,7 @@ testMergeMask = testGroup "mergeMask"
           )
         ),
     testCase "Merge with d |=>| d'" $
-      mergeMask
+      mergeVError
         (Chc (BRef "B" &&& BRef "C")
           (Chc (BRef "A")
             (One . Just . PrimE $ ErrorOp1 U_U (I 1))
@@ -165,7 +165,7 @@ testMergeMask = testGroup "mergeMask"
           (One . Just . PrimE $ ErrorOp1 U_U (I 3))
         ),
     testCase "Merge with d |=>!| d'" $
-      mergeMask
+      mergeVError
         (Chc (bnot (BRef "B"))
           (Chc (BRef "A")
             (One . Just . PrimE $ ErrorOp1 U_U (I 1))

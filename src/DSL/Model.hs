@@ -93,7 +93,7 @@ execStmt stmt@(If cond tru fls) = unVM (do
     case val of
       B True  -> toVM $ execBlock tru
       B False -> toVM $ execBlock fls
-      _ -> VM $ vError (StmtE $ StmtError stmt IfTypeError val)) >> return ()
+      _ -> VM $ vThrowError (StmtE $ StmtError stmt IfTypeError val)) >> return ()
 -- do work in sub-environment
 execStmt (In path body) = execInSub path (execBlock body)
 -- loop over indexed sub-environments
@@ -102,7 +102,7 @@ execStmt stmt@(For var expr body) = unVM (do
     val <- evalExprV expr
     case val of
       I n -> toVM $ forM_ [1..n] iter
-      _ -> VM $ vError (StmtE $ StmtError stmt ForTypeError val)) >> return ()
+      _ -> VM $ vThrowError (StmtE $ StmtError stmt ForTypeError val)) >> return ()
 -- extend the variable environment
 execStmt (Let var expr body) = do
     val <- unVM $ evalExprV expr
@@ -112,4 +112,4 @@ execStmt stmt@(Load comp args) = unVM (do
     res <- evalExprV comp
     case res of
       S cid -> toVM $ loadComp cid args
-      _ -> VM $ vError (StmtE $ StmtError stmt LoadTypeError res)) >> return ()
+      _ -> VM $ vThrowError (StmtE $ StmtError stmt LoadTypeError res)) >> return ()

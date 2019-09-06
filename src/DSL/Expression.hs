@@ -32,17 +32,20 @@ isArgTypeError _ = False
 
 -- | Evaluate an expression.
 evalExpr :: MonadEval m => Expr -> VM m PVal
-evalExpr (Ref x)      = VM (getVarEnv >>= (\env -> envLookupV
-                                                     (ExprE . VarNotFound . NF)
-                                                     (\k x y -> ExprE . VarNotFound $ VNF k x y)
-                                                     x env))
-evalExpr (Res p)      = VM (do rID <- getResID p
-                               env <- getResEnv
-                               envLookupV
-                                 (ExprE . ResNotFound . NF)
-                                 (\k x y -> ExprE . ResNotFound $ VNF k x y)
-                                 rID env)
-evalExpr (Lit v)      = VM . return . toVMaybe $ v
+evalExpr (Ref x) = VM $ do
+    env <- getVarEnv
+    envLookupV
+      (ExprE . VarNotFound . NF)
+      (\k x y -> ExprE . VarNotFound $ VNF k x y)
+      x env
+evalExpr (Res p) = VM $ do
+    rID <- getResID p
+    env <- getResEnv
+    envLookupV
+      (ExprE . ResNotFound . NF)
+      (\k x y -> ExprE . ResNotFound $ VNF k x y)
+      rID env
+evalExpr (Lit v)      = VM (return (toVMaybe v))
 evalExpr (P1 o e)     = applyPrim1 o (evalExprV e)
 evalExpr (P2 o l r)   = applyPrim2 o (evalExprV l) (evalExprV r)
 evalExpr (P3 o c t e) = applyPrim3 o (evalExprV c) (evalExprV t) (evalExprV e)

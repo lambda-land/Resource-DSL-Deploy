@@ -248,29 +248,29 @@ instance Variational a => Variational (Maybe a) where
 -- * Other functions
 --
 
--- | Merge second mask into the first.
-mergeMask :: Mask -> Mask -> Mask
+-- | Merge second variational error into the first.
+mergeVError :: VError -> VError -> VError
 -- If there's no error in one of the masks, then just choose the other mask
-mergeMask (One Nothing) m = m
-mergeMask m (One Nothing) = m
+mergeVError (One Nothing) m = m
+mergeVError m (One Nothing) = m
 -- An error in the original mask dominates the mergee
-mergeMask e@(One (Just _)) _ = e
+mergeVError e@(One (Just _)) _ = e
 -- Merge a single error with the leaves of the choice tree
-mergeMask (Chc d l r ) e@(One (Just _)) = Chc d (mergeMask l e) (mergeMask r e)
+mergeVError (Chc d l r ) e@(One (Just _)) = Chc d (mergeVError l e) (mergeVError r e)
 -- Merge errors in variational contexts
-mergeMask m@(Chc d l r) m'@(Chc d' l' r')
+mergeVError m@(Chc d l r) m'@(Chc d' l' r')
   -- If the dimensions are equiv, merge both sides with each other
-  | d |=|   d'  = Chc d (mergeMask l l') (mergeMask r r')
+  | d |=|   d'  = Chc d (mergeVError l l') (mergeVError r r')
   -- If d |<=| d', merge new mask only into left choice
-  | d |<=|  d' = Chc d (mergeMask l m') r
+  | d |<=|  d' = Chc d (mergeVError l m') r
   -- If d |!<=| d', merge new mask only into right choice
-  | d |!<=| d' = Chc d l (mergeMask r m')
+  | d |!<=| d' = Chc d l (mergeVError r m')
   -- If d |=>| d', merge original mask into left choice of new mask
-  | d |=>|  d' = Chc d' (mergeMask m l') r'
+  | d |=>|  d' = Chc d' (mergeVError m l') r'
   -- If d |=>!| d', merge original mask into right choice of new mask
-  | d |=>!| d' = Chc d' l' (mergeMask m r')
+  | d |=>!| d' = Chc d' l' (mergeVError m r')
   -- Otherwise, merge new mask into both sides of choice
-  | otherwise  = Chc d (mergeMask l m') (mergeMask r m')
+  | otherwise  = Chc d (mergeVError l m') (mergeVError r m')
 
 -- | Turns a variational value into a variational optional value
 toVMaybe :: V a -> V (Maybe a)

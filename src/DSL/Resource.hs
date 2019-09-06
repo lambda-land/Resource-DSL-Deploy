@@ -10,37 +10,27 @@ import Data.Typeable
 
 import DSL.Boolean
 import DSL.Types
-import DSL.SAT
 import DSL.Name
 import DSL.Path
 import DSL.Environment
 import DSL.V
 
 
--- | Execute a computation in a given context.
-runInContext' :: Context -> StateCtx -> EvalM a -> (Either Mask a, StateCtx)
-runInContext' ctx init mx = runReader (runStateT (runExceptT mx) init) ctx
+-- | Execute a computation in the given
+runEvalM :: Context -> StateCtx -> EvalM a -> (Either VError a, StateCtx)
+runEvalM ctx init mx = runReader (runStateT (runExceptT mx) init) ctx
 
-runInContext :: Context -> ResEnv -> EvalM a -> (Either Mask a, StateCtx)
-runInContext ctx renv mx = runReader (runStateT (runExceptT mx) (SCtx renv (BLit False) (One Nothing))) ctx
+-- | Initialize a context with the given dictionary.
+withDict :: Dictionary -> Context
+withDict dict = Ctx (ResID []) envEmpty dict (BLit True)
 
--- | Execute a computation with a given dictionary and an empty variable
---   environment and prefix.
-runWithDict' :: Dictionary -> StateCtx -> EvalM a -> (Either Mask a, StateCtx)
-runWithDict' dict = runInContext' (Ctx (ResID []) envEmpty dict (BLit True))
+-- | Initialize a state context with the given resource environment.
+withResEnv :: ResEnv -> StateCtx
+withResEnv renv = SCtx renv (BLit False) (One Nothing)
 
-runWithDict :: Dictionary -> ResEnv -> EvalM a -> (Either Mask a, StateCtx)
-runWithDict dict = runInContext (Ctx (ResID []) envEmpty dict (BLit True))
-
--- | Execute a computation in the empty context.
-runInEmptyContext' :: StateCtx -> EvalM a -> (Either Mask a, StateCtx)
-runInEmptyContext' = runWithDict' envEmpty
-
-runInEmptyContext :: ResEnv -> EvalM a -> (Either Mask a, StateCtx)
-runInEmptyContext = runWithDict envEmpty
-
-runEmpty :: EvalM a -> (Either Mask a, StateCtx)
-runEmpty = runInEmptyContext envEmpty
+-- | An initial context with no dictionary.
+withNoDict :: Context 
+withNoDict = withDict envEmpty
 
 -- | Take a value in the plain monadic evaluation context and
 --   turn it into a varitional value in the same context.
@@ -67,11 +57,11 @@ getVarEnv = asks environment
 
 -- | Get the current resource environment.
 getResEnv :: MonadEval m => m ResEnv
-getResEnv = gets renv
+getResEnv = gets resEnv
 
 -- | Get the current mask.
-getMask :: MonadEval m => m Mask
-getMask = gets mask
+getVError :: MonadEval m => m VError
+getVError = gets vError
 
 -- | Get the current error context.
 getErrCtx :: MonadEval m => m BExpr
@@ -92,6 +82,10 @@ queryVarEnv f = fmap f getVarEnv
 -- | Query the current resource environment.
 queryResEnv :: MonadEval m => (ResEnv -> a) -> m a
 queryResEnv f = fmap f getResEnv
+
+-- | Execute a computation in an extended variation context.
+inVCtx :: MonadEval m => BExpr -> m a -> m a
+inVCtx c' = local (\(Ctx p m d c) -> Ctx p m d (c &&& c'))
 
 -- | Execute a computation with a specific prefix.
 withPrefix :: MonadEval m => ResID -> m a -> m a
@@ -114,16 +108,13 @@ updateErrCtx :: MonadEval m => (BExpr -> BExpr) -> m ()
 updateErrCtx f = modify (\(SCtx r e m) -> SCtx r (f e) m)
 
 -- | Update the mask.
-updateMask :: MonadEval m => (Mask -> Mask) -> m ()
-updateMask f = modify (\(SCtx r e m) -> SCtx r e (f m))
-
-vMove :: MonadEval m => BExpr -> m a -> m a
-vMove d = local (\(Ctx p m dict c) -> Ctx p m dict (c &&& d))
+updateVError :: MonadEval m => (VError -> VError) -> m ()
+updateVError f = modify (\(SCtx r e m) -> SCtx r e (f m))
 
 vHandleUnit' :: MonadEval m => BExpr -> m () -> m () -> m ()
 vHandleUnit' d l r = do
-  let r' = vMove (bnot d) r
-  let l' = vMove d l
+  let r' = inVCtx (bnot d) r
+  let l' = inVCtx d l
   l' `catchError` (\e -> do
     r' `catchError` (\e' -> throwError (Chc d e e'))
     return ())
@@ -135,8 +126,8 @@ vHandleUnit d f l r = vHandleUnit' d (f l) (f r)
 
 vHandle' :: MonadEval m => BExpr -> m (V (Maybe a)) -> m (V (Maybe a)) -> m (V (Maybe a))
 vHandle' d l r = do
-  let r' = vMove (bnot d) r
-  let l' = vMove d l
+  let r' = inVCtx (bnot d) r
+  let l' = inVCtx d l
   l'' <- l' `catchError` (\e -> do
     r' `catchError` (\e' -> throwError (Chc d e e'))
     return (One Nothing))
@@ -149,7 +140,7 @@ vHandle d f l r = vHandle' d (f l) (f r)
 lookupHelper :: (MonadEval m) => (BExpr -> Error) -> V (Maybe a) -> m (V (Maybe a))
 lookupHelper g (One Nothing) = do
   c <- getVCtx
-  vError (g c)
+  vThrowError (g c)
 lookupHelper _ v@(One (Just _)) = return v
 lookupHelper g (Chc d l r) = vHandle d (lookupHelper g) l r
 
@@ -163,7 +154,7 @@ envLookupV
 envLookupV f g k env = do
   case envLookup k env of
     -- throw appropriate error for whole context
-    Left (EnvE nf) -> vError (f nf)
+    Left (EnvE nf) -> vThrowError (f nf)
     Right v -> do
       -- throw errors for malformed contexts
       let g' = (\d -> g k d v)
@@ -187,21 +178,22 @@ resLookup rID = do
       c <- getVCtx
       return $ select c v -- select on the result for the current variational context
 
-combineMasks :: BExpr -> Error -> Mask -> Mask
-combineMasks (BLit True)  e m = mergeMask m (One (Just e))
-combineMasks (BLit False) _ m = mergeMask m (One Nothing)
-combineMasks b            e m = mergeMask m (Chc b (One (Just e)) (One Nothing))
+combineVErrors :: BExpr -> Error -> VError -> VError
+combineVErrors (BLit True)  e m = mergeVError m (One (Just e))
+combineVErrors (BLit False) _ m = mergeVError m (One Nothing)
+combineVErrors b            e m = mergeVError m (Chc b (One (Just e)) (One Nothing))
 
-vError :: MonadEval m => Error -> m a
-vError e = do
-  c <- getVCtx
-  updateErrCtx (\bexpr -> bexpr ||| c)
-  updateMask (combineMasks c e)
-  throwError (One (Just e))
+-- | Throw an error in the current variation context.
+vThrowError :: MonadEval m => Error -> m a
+vThrowError e = do
+    c <- getVCtx
+    updateErrCtx (||| c)
+    updateVError (combineVErrors c e)
+    throwError (One (Just e))
 
 promoteError :: MonadEval m => Either Error a -> m a
 promoteError (Right a) = return a
-promoteError (Left e) = vError e
+promoteError (Left e) = vThrowError e
 
 vBind :: MonadEval m => m (V (Maybe a)) -> (a -> m (V (Maybe b))) -> m (V (Maybe b))
 vBind v f = do

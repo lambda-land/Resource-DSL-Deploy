@@ -18,8 +18,8 @@ import DSL.VEnv
 checkResult :: MonadEval m => (EffectErrorKind -> Error) -> Value -> m ()
 checkResult _ (One Nothing) = return ()
 checkResult _ (One (Just (B True))) = return ()
-checkResult f (One (Just (B False))) = vError (f CheckFailure)
-checkResult f (One (Just _)) = vError (f CheckTypeError)
+checkResult f (One (Just (B False))) = vThrowError (f CheckFailure)
+checkResult f (One (Just _)) = vThrowError (f CheckTypeError)
 checkResult f (Chc d l r) = vHandleUnit d (checkResult f) l r
 
 -- | Execute the effect on the given resource environment.

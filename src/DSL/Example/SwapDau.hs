@@ -689,7 +689,8 @@ findReplacement mx rules inv req = do
     daus = toReplace req
     invs = toSearch mx daus inv
     ports = buildPortMap daus
-    test i = runWithDict envEmpty (initEnv i) (loadModel (appModel rules (provisions i) daus) [])
+    test i = runEvalM withNoDict (withResEnv (initEnv i))
+               (loadModel (appModel rules (provisions i) daus) [])
     loop []     = Nothing
     loop (i:is) = case test i of
         -- (Left _, s) -> traceShow (shrink s) (loop is)

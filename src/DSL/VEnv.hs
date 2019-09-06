@@ -23,7 +23,7 @@ vLookup' k env
 -- | Check if a value exists in all variants, throwing errors
 --   for variants where it does not exist.
 checkExists :: MonadEval m => Error -> VOpt v -> m ()
-checkExists e (One Nothing) = vError e
+checkExists e (One Nothing) = vThrowError e
 checkExists _ (One (Just _)) = return ()
 checkExists e (Chc d l r) = vHandleUnit d (checkExists e) l r
 
@@ -36,7 +36,7 @@ vLookup e k env = do
     return v
 
 vDelete' :: (MonadEval m) => Error -> BExpr -> VOpt v -> m (VOpt v)
-vDelete' e _ (One Nothing) = vError e
+vDelete' e _ (One Nothing) = vThrowError e
 vDelete' _ d v@(One (Just _)) = return (Chc d (One Nothing) v)
 vDelete' e d (Chc d' l r)
                           | d |=>| d' = do
@@ -46,16 +46,16 @@ vDelete' e d (Chc d' l r)
                               r' <- vDelete' e d r
                               return (Chc d' l r')
                           | d |<=| d' = do
-                              let r' = vMove (bnot d') (vDelete' e d r)
-                              vMove d' (checkExists e l) `catchError` (\e -> do
+                              let r' = inVCtx (bnot d') (vDelete' e d r)
+                              inVCtx d' (checkExists e l) `catchError` (\e -> do
                                   r' `catchError` (\e' -> throwError (Chc d' e e'))
                                   return ()
                                 )
                               r'' <- r' `catchError` (\_ -> return (One Nothing))
                               return (Chc d' (One Nothing) r'')
                           | d |!<=| d' = do
-                              let l' = vMove d' (vDelete' e d l)
-                              vMove (bnot d') (checkExists e r) `catchError` (\e -> do
+                              let l' = inVCtx d' (vDelete' e d l)
+                              inVCtx (bnot d') (checkExists e r) `catchError` (\e -> do
                                   l' `catchError` (\e' -> throwError (Chc d' e' e))
                                   return ()
                                 )
@@ -68,16 +68,16 @@ vDelete e k env | Just v <- envLookup' k env = do
                     c <- getVCtx
                     v' <- vDelete' e c v
                     return (envExtend k v' env)
-                | otherwise = vError e
+                | otherwise = vThrowError e
 
 checkNExists :: MonadEval m => Error -> VOpt v -> m ()
-checkNExists e (One (Just _)) = vError e
+checkNExists e (One (Just _)) = vThrowError e
 checkNExists _ (One Nothing) = return ()
 checkNExists e (Chc d l r) = vHandleUnit d (checkNExists e) l r
 
 vCreate' :: (MonadEval m) => Error -> BExpr -> VOpt v -> VOpt v -> m (VOpt v)
 vCreate' _ d v@(One Nothing) new = return (Chc d new v)
-vCreate' e _ (One (Just _)) _ = vError e
+vCreate' e _ (One (Just _)) _ = vThrowError e
 vCreate' e d (Chc d' l r) new
                               | d |=>| d' = do
                                   l' <- vCreate' e d l new
@@ -86,16 +86,16 @@ vCreate' e d (Chc d' l r) new
                                   r' <- vCreate' e d r new
                                   return (Chc d' l r')
                               | d |<=| d' = do
-                                  let r' = vMove (bnot d') (vCreate' e d r new)
-                                  vMove d' (checkNExists e l) `catchError` (\e -> do
+                                  let r' = inVCtx (bnot d') (vCreate' e d r new)
+                                  inVCtx d' (checkNExists e l) `catchError` (\e -> do
                                       r' `catchError` (\e' -> throwError (Chc d' e e'))
                                       return ()
                                     )
                                   r'' <- r' `catchError` (\_ -> return (One Nothing))
                                   return (Chc d' new r'')
                               | d |!<=| d' = do
-                                  let l' = vMove d' (vCreate' e d l new)
-                                  vMove (bnot d') (checkNExists e r) `catchError` (\e -> do
+                                  let l' = inVCtx d' (vCreate' e d l new)
+                                  inVCtx (bnot d') (checkNExists e r) `catchError` (\e -> do
                                       l' `catchError` (\e' -> throwError (Chc d' e' e))
                                       return ()
                                     )
@@ -119,7 +119,7 @@ vModify'' e f v = do
   f v
 
 vModify' :: MonadEval m => Error -> BExpr -> (VOpt v -> m (VOpt v)) -> VOpt v -> m (VOpt v)
-vModify' e _ _ (One Nothing) = vError e
+vModify' e _ _ (One Nothing) = vThrowError e
 vModify' _ d f v@(One (Just _)) = do
   v' <- f v
   return (Chc d v' v)
@@ -131,16 +131,16 @@ vModify' e d f (Chc d' l r)
                                 r' <- vModify' e d f r
                                 return (Chc d' l r')
                             | d |<=| d' = do
-                                let r' = vMove (bnot d') (vModify' e d f r)
-                                l' <- vMove d' (vModify'' e f l) `catchError` (\e -> do
+                                let r' = inVCtx (bnot d') (vModify' e d f r)
+                                l' <- inVCtx d' (vModify'' e f l) `catchError` (\e -> do
                                     r' `catchError` (\e' -> throwError (Chc d' e e'))
                                     return (One Nothing)
                                   )
                                 r'' <- r' `catchError` (\_ -> return (One Nothing))
                                 return (Chc d' l' r'')
                             | d |!<=| d' = do
-                                let l' = vMove d' (vModify' e d f l)
-                                r' <- vMove (bnot d') (vModify'' e f l) `catchError` (\e -> do
+                                let l' = inVCtx d' (vModify' e d f l)
+                                r' <- inVCtx (bnot d') (vModify'' e f l) `catchError` (\e -> do
                                     l' `catchError` (\e' -> throwError (Chc d' e' e))
                                     return (One Nothing)
                                   )

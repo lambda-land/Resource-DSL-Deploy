@@ -30,6 +30,7 @@ import DSL.Name
 newtype Env k v = Env { envAsMap :: Map k v }
   deriving (Eq,Show,Data,Read,Functor,Foldable)
 
+-- | A variational environment maps keys to variational optional values.
 type VEnv k v = Env k (VOpt v)
 
 -- | Error thrown when a name is not found in the environment.
@@ -357,7 +358,7 @@ type VList a = [VOpt a]
 
 type Value = VOpt PVal
 
-type Mask = VOpt Error
+type VError = VOpt Error
 
 type VType = V PType
 
@@ -586,37 +587,42 @@ type VarEnv = Env Var Value
 -- | Resource environment.
 type ResEnv = Env ResID Value
 
+-- | State context for evaluation.
 data StateCtx = SCtx {
-  renv :: ResEnv,
-  errCtx :: BExpr,
-  mask :: Mask
+  resEnv :: ResEnv,  -- ^ the resource environment
+  errCtx :: BExpr,   -- ^ variation context of errors that have occurred
+  vError :: VError   -- ^ variational error
 } deriving (Show,Eq)
 
 -- | Reader context for evaluation.
 data Context = Ctx {
-    prefix      :: ResID,      -- ^ resource ID prefix
-    environment :: VarEnv,     -- ^ variable environment
-    dictionary  :: Dictionary, -- ^ dictionary of profiles and models
-    vCtx        :: BExpr       -- ^ current variational context
+  prefix      :: ResID,      -- ^ resource ID prefix
+  environment :: VarEnv,     -- ^ variable environment
+  dictionary  :: Dictionary, -- ^ dictionary of profiles and models
+  vCtx        :: BExpr       -- ^ current variational context
 } deriving (Show,Data,Read)
 
-type MonadEval m = (MonadError Mask m, MonadReader Context m, MonadState StateCtx m)
+type MonadEval m = (MonadError VError m, MonadReader Context m, MonadState StateCtx m)
 
 -- | A specific monad for running MonadEval computations.
-type EvalM a = ExceptT Mask (StateT StateCtx (Reader Context)) a
+type EvalM a = ExceptT VError (StateT StateCtx (Reader Context)) a
 
 
 --
 -- * Errors
 --
 
-data Error = EnvE (NotFound)
-           | PathE (PathError)
-           | PrimE (PrimTypeError)
-           | ExprE (ExprError)
-           | EffE (EffectError)
-           | StmtE (StmtError)
+-- | The kinds of errors that can occur.
+data Error = EnvE  NotFound
+           | PathE PathError
+           | PrimE PrimTypeError
+           | ExprE ExprError
+           | EffE  EffectError
+           | StmtE StmtError
     deriving (Eq,Show)
 
-data SuccessCtx = SuccessCtx { ctx :: BExpr, cfgSpc :: Set Var }
-  deriving (Eq,Show,Data,Read)
+-- | Context of a successful computation.
+data SuccessCtx = SuccessCtx {
+    successCtx  :: BExpr,   -- ^ the variants that succeeded
+    configSpace :: Set Var  -- ^ dimensions in the configuration space
+} deriving (Eq,Show,Data,Read)

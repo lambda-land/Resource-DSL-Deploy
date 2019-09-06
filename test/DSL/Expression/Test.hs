@@ -10,13 +10,13 @@ import Data.SBV ((|||), (&&&))
 
 testExpr = testGroup "DSL.Expression" [testEvalExpr]
 
-runExpr :: VarEnv -> ResEnv -> Expr -> (Either Mask (V (Maybe PVal)), StateCtx)
+runExpr :: VarEnv -> ResEnv -> Expr -> (Either VError (V (Maybe PVal)), StateCtx)
 runExpr v r e = runInContext
                   (Ctx (ResID []) v envEmpty (BLit True))
                   (SCtx r (BLit False) (One Nothing))
                   (unVM . evalExpr $ e)
 
-runExprEmpty :: Expr -> (Either Mask (V (Maybe PVal)), StateCtx)
+runExprEmpty :: Expr -> (Either VError (V (Maybe PVal)), StateCtx)
 runExprEmpty = runExpr envEmpty envEmpty
 
 testEvalExpr = testGroup "evalExpr" [testRefs, testLits]
