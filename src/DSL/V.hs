@@ -3,7 +3,6 @@ module DSL.V where
 import Data.Set (Set)
 
 import DSL.Boolean
-import DSL.Name
 import DSL.Predicate
 import DSL.SAT
 import DSL.Types

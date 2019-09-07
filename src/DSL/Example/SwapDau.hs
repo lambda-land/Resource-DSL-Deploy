@@ -28,7 +28,6 @@ import qualified Data.Set as Set
 import DSL.Boolean
 import DSL.Environment
 import DSL.Model
-import DSL.Name
 import DSL.Parser (parseExprText)
 import DSL.Path
 import DSL.Primitive
@@ -444,7 +443,7 @@ requirePortAttrs rules@(MkRules rs) as = do
       TBool   -> One (P2 (BB_B Eqv) a b)
       TInt    -> One (P2 (NN_B Equ) a b)
       TFloat  -> One (P2 (NN_B Equ) a b)
-      TSymbol -> One (P2 (SS_B SEqu) a b)
+      TString -> One (P2 (SS_B SEqu) a b)
     compatible n v = case envLookup (n,v) rs of
       Right (Compatible vs) -> vs
       _ -> [v]

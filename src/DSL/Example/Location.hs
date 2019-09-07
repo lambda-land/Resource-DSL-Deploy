@@ -23,7 +23,7 @@ import DSL.Sugar
 
 -- | Location-provider application model. The input parameter is the ID of the
 --   location provider to use.
-appModel = Model [Param "provider" (One TSymbol)]
+appModel = Model [Param "provider" (One TString)]
     [ Elems [ Load (One . Ref $ "provider") [] ]]
 
 

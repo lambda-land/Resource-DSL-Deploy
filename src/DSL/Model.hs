@@ -8,7 +8,6 @@ import DSL.Types
 import DSL.Effect
 import DSL.Environment
 import DSL.Expression
-import DSL.Name
 import DSL.Path
 import DSL.Profile
 import DSL.Resource
@@ -23,11 +22,11 @@ import DSL.SegList
 
 -- | Construct a model dictionary from an association list of models.
 modelDict :: [(Name,Model)] -> Dictionary
-modelDict l = envFromList [(Symbol n, ModEntry m) | (n,m) <- l]
+modelDict l = envFromList [(n, ModEntry m) | (n,m) <- l]
 
 -- | Construct a profile dictionary from an association list of models.
 profileDict :: [(Name,Model)] -> Dictionary
-profileDict l = envFromList [(Symbol n, ProEntry (toProfile m)) | (n,m) <- l]
+profileDict l = envFromList [(n, ProEntry (toProfile m)) | (n,m) <- l]
 
 vMergeEff :: Env Path (SegList Effect) -> (Path, Maybe BExpr, Effect) -> Env Path (SegList Effect)
 vMergeEff env (p, d, e) | Just es <- envLookup' p env = envExtend p (segSetInsert d e es) env
@@ -63,7 +62,7 @@ loadModel :: MonadEval m => Model -> [V Expr] -> m ()
 loadModel (Model xs block) args = withArgs xs args (execBlock block)
 
 -- | Load a component by ID.
-loadComp :: MonadEval m => CompID -> [V Expr] -> m ()
+loadComp :: MonadEval m => Name -> [V Expr] -> m ()
 loadComp cid args = do
     dict <- getDict
     def <- promoteError (envLookup cid dict)

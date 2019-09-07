@@ -7,7 +7,7 @@ import GHC.Generics (Generic)
 import Data.Aeson hiding (Value)
 
 import Control.Monad (when)
-import Options.Applicative
+import Options.Applicative hiding (str)
 import Data.Foldable
 import Data.List ((\\))
 import qualified Data.Text as T
@@ -16,7 +16,6 @@ import qualified Data.Set as S
 import DSL.Boolean
 import DSL.Environment
 import DSL.Model
-import DSL.Name
 import DSL.Options
 import DSL.Serialize
 import DSL.Sugar
@@ -52,16 +51,16 @@ crossAppResEnvAll = envFromList
 
 appModel = Model
   [
-    Param "serverProvider" (One TSymbol),
-    Param "clientProvider" (One TSymbol)
+    Param "serverProvider" (One TString),
+    Param "clientProvider" (One TString)
   ]
   (checkSEP ++ checkRules ++ [Elems [
     In "/Server/Cipher" [Elems [Load (ref "serverProvider") []]],
     In "/Client/Cipher" [Elems [Load (ref "clientProvider") []]],
-    check "/Server/Cipher/Algorithm" tSymbol (val .==. res "/Client/Cipher/Algorithm"),
-    check "/Server/Cipher/Mode"      tSymbol (val .==. res "/Client/Cipher/Mode"),
-    check "/Server/Cipher/KeySize"   tSymbol (val .==. res "/Client/Cipher/KeySize"),
-    check "/Server/Cipher/Padding"   tSymbol (val .==. res "/Client/Cipher/Padding")
+    check "/Server/Cipher/Algorithm" tString (val .==. res "/Client/Cipher/Algorithm"),
+    check "/Server/Cipher/Mode"      tString (val .==. res "/Client/Cipher/Mode"),
+    check "/Server/Cipher/KeySize"   tString (val .==. res "/Client/Cipher/KeySize"),
+    check "/Server/Cipher/Padding"   tString (val .==. res "/Client/Cipher/Padding")
   ]])
   where
     checkSEP :: Block
@@ -131,14 +130,14 @@ allModes = ["ECB", "CBC", "CTR", "CFB", "CTS", "OFB", "OpenPGPCFB", "PGPCFBBlock
 
 mkCrossAppDFU :: T.Text -> [T.Text] -> [T.Text] -> [T.Text] -> Block
 mkCrossAppDFU name algs pads modes =
-    [ Elems [ create "DFU-Type" (sym "Cipher")
-            , create "DFU-Name" (sym name) ]]
+    [ Elems [ create "DFU-Type" (str "Cipher")
+            , create "DFU-Name" (str name) ]]
         ++ mk "Algorithm" algs allAlgs
         ++ mk "Mode" modes allModes
         ++ mk "Padding" pads allPads
         ++ mk "KeySize" allKeys allKeys
     where
-      mk name good all = foldMap (\a -> [Split (foldOthers a all) [Elems [create name (mkVExpr (S . Symbol $ a)) ]] []]) good
+      mk name good all = foldMap (\a -> [Split (foldOthers a all) [Elems [create name (mkVExpr (S a)) ]] []]) good
       others x xs = S.difference (S.fromList xs) (S.singleton x)
       foldOthers x xs = foldl' (\b a -> b &&& (bnot (BRef a))) (BRef x) (S.toList (others x xs))
 
@@ -150,7 +149,7 @@ javaxDFU = Model [] $ mkCrossAppDFU "Javax"
 
 bouncyDFU :: Model
 bouncyDFU = Model [] $ mkCrossAppDFU "BouncyCastle" allAlgs allPads allModes
-              ++ [Elems [If (res "Algorithm" .==. sym "AES") [Elems [checkUnit "../AES-NI"]] []]]
+              ++ [Elems [If (res "Algorithm" .==. str "AES") [Elems [checkUnit "../AES-NI"]] []]]
 
 crossAppDFUs :: Dictionary
 crossAppDFUs = modelDict [("Javax", javaxDFU), ("BouncyCastle", bouncyDFU)]
@@ -158,8 +157,8 @@ crossAppDFUs = modelDict [("Javax", javaxDFU), ("BouncyCastle", bouncyDFU)]
 
 -- * Config
 
-crossAppConfig :: Symbol -> Symbol -> [V PVal]
-crossAppConfig s c = [One . S $ s, One . S $ c]
+crossAppConfig :: Name -> Name -> [V PVal]
+crossAppConfig s c = [One (S s), One (S c)]
 
 crossAppConfigAll :: [V PVal]
 crossAppConfigAll = [ Chc "ServerJavax" (One "Javax") (One "BouncyCastle")
@@ -250,9 +249,7 @@ runCrossApp opts = do
       Nothing -> return ()
     when (genInitAll opts) (writeJSON defaultInit crossAppResEnvAll)
     case (genConfig opts) of
-      Just (CrossAppConfig s c) -> writeJSON defaultConfig (crossAppConfig (str2sym s) (str2sym c))
+      Just (CrossAppConfig s c) -> writeJSON defaultConfig (crossAppConfig (T.pack s) (T.pack c))
       Nothing -> return ()
     when (genConfigAll opts) (writeJSON defaultConfig crossAppConfigAll)
     when (genReqs opts) (writeJSON defaultReqs crossAppReqs)
-    where
-      str2sym = Symbol . T.pack

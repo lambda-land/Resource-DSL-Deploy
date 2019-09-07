@@ -5,7 +5,6 @@ import Test.Tasty.HUnit
 
 import DSL.Environment
 import DSL.Example.SwapDau
-import DSL.Name
 import DSL.Types
 
 

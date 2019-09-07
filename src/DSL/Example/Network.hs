@@ -4,7 +4,7 @@ import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
 import Control.Monad (when)
-import Options.Applicative
+import Options.Applicative hiding (str)
 
 import DSL.Boolean
 import DSL.Types
@@ -40,8 +40,8 @@ saParams =
 -- | Application model.
 appModel :: Model
 appModel = Model (Param "clients" (One TInt) : imageParams ++ saParams)
-    [ Elems [ Load (dfu "image-producer") [imageRate, resX, resY, color, scale, compress]
-    , Load (dfu "situational-awareness-producer") [pliRate]
+    [ Elems [ Load (str "image-producer") [imageRate, resX, resY, color, scale, compress]
+    , Load (str "situational-awareness-producer") [pliRate]
     , modify "/Network/Bandwidth" TFloat
         (val - clients * clients * convert imageRate (One (Res "Image/Size")))
     , modify "/Network/Bandwidth" TFloat
@@ -72,9 +72,9 @@ imageProducer = Model imageParams
       , create "ResY"  resY
       , create "Color" color
       , create "Size"  (resX * resY * (One (color ?? (24,8))) ./ One (Lit (One (F 15.0)))) ]] -- bits
-      , Load (dfu "image-producer-scale") [scale]
+      , Load (str "image-producer-scale") [scale]
     , If compress
-        [Elems [ Load (dfu "image-producer-compress") [] ]]
+        [Elems [ Load (str "image-producer-compress") [] ]]
         []
     ]]
 

@@ -11,7 +11,6 @@ import DSL.Serialize
 import DSL.Primitive
 import DSL.Expression
 import DSL.Path
-import DSL.Name
 import DSL.Environment
 import DSL.Effect
 import DSL.Profile
@@ -42,8 +41,8 @@ testSerialize = testGroup "Roundtripping for Serialize"
     , testCase "Round Trip TInt" $
       roundTrip "A Int" TInt asPType
 
-    , testCase "Round Trip TSymbol" $
-      roundTrip "A Int" TSymbol asPType
+    , testCase "Round Trip TString" $
+      roundTrip "A Int" TString asPType
     ]
 
   , testGroup "RoundTrip PVals"
@@ -70,8 +69,8 @@ testSerialize = testGroup "Roundtripping for Serialize"
     , testCase "Round Trip Param with a TUnit" $
       roundTrip "a Param" (Param "foo" TUnit) asParam
 
-    , testCase "Round Trip Param with a TSymbol" $
-      roundTrip "a Param" (Param "foo" TSymbol) asParam
+    , testCase "Round Trip Param with a TString" $
+      roundTrip "a Param" (Param "foo" TString) asParam
     ]
 
   , testGroup "RoundTrip for Functions"
@@ -161,7 +160,7 @@ testSerialize = testGroup "Roundtripping for Serialize"
       roundTrip "RoundTrip Dictionary"
       (envFromList [("Symbol"
                     , ProEntry $ profile [Param "x" TInt, Param "y" TBool
-                                         , Param "z" TUnit, Param "s" TSymbol]
+                                         , Param "z" TUnit, Param "s" TString]
                     [(Path Absolute ["foo"], [Create (bnot true)])
                                  , (Path Relative ["bar"], [Create (8 .% 4)])
                                  , (Path Absolute ["foo"], [Delete])
@@ -174,7 +173,7 @@ testSerialize = testGroup "Roundtripping for Serialize"
       roundTrip "RoundTrip Dictionary"
       (envFromList [("CompID"
                     , ModEntry $ Model [Param "x" TInt, Param "y" TBool
-                                       , Param "z" TUnit , Param "s" TSymbol]
+                                       , Param "z" TUnit , Param "s" TString]
                       [Do (Path Absolute ["foo"])
                        (Create (Res (Path Relative ["foo", "bar"])))
                       , If (true ||| false) [Let "gambino" (Ref "worldstar")

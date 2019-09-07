@@ -4,7 +4,6 @@ import qualified Data.Text as T
 import qualified Data.Set as S
 
 import DSL.Boolean
-import DSL.Name
 import DSL.Types
 import DSL.Parser
 
@@ -40,12 +39,12 @@ splitN _ _ = error "splitN: illegal arguments"
 -- ** Types
 
 -- | Non-variational primitive types.
-tUnit, tBool, tInt, tFloat, tSymbol :: V PType
+tUnit, tBool, tInt, tFloat, tString :: V PType
 tUnit   = One TUnit
 tInt    = One TInt
 tBool   = One TBool
 tFloat  = One TFloat
-tSymbol = One TSymbol
+tString = One TString
 
 
 -- ** Expressions
@@ -58,6 +57,10 @@ lit = One . Lit . One
 int :: Int -> V Expr
 int = lit . I
 
+-- | Literal string.
+str :: Name -> V Expr
+str = lit . S
+
 -- | Non-variational variable reference.
 ref :: Var -> V Expr
 ref = One . Ref
@@ -65,14 +68,6 @@ ref = One . Ref
 -- | Non-variational resource reference.
 res :: Path -> V Expr
 res = One . Res
-
--- | Literal symbol name.
-sym :: Name -> V Expr
-sym = One . Lit . One . S . mkSymbol
-
--- | Literal component ID.
-dfu :: Name -> V Expr
-dfu = sym
 
 -- | Primitive floor operation.
 pFloor :: V Expr -> Expr

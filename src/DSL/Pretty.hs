@@ -4,7 +4,6 @@ import Prelude hiding (LT,GT,concat,unwords,unlines)
 import Data.Text
 
 import DSL.Types
-import DSL.Name
 
 
 class Pretty a => PrettyTerm a where
@@ -128,7 +127,7 @@ instance Pretty PType where
   pretty TBool   = "bool"
   pretty TInt    = "int"
   pretty TFloat  = "float"
-  pretty TSymbol = "symbol"
+  pretty TString = "string"
 
 instance Pretty PVal where
   pretty Unit      = "()"
@@ -136,7 +135,7 @@ instance Pretty PVal where
   pretty (B False) = "false"
   pretty (I i)     = pretty i
   pretty (F f)     = pretty f
-  pretty (S s)     = toName s
+  pretty (S t)     = concat ["\"", t, "\""]
 
 -- ** Expressions
 

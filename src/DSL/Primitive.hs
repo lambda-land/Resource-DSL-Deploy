@@ -15,7 +15,7 @@ primType Unit  = TUnit
 primType (B _) = TBool
 primType (I _) = TInt
 primType (F _) = TFloat
-primType (S _) = TSymbol
+primType (S _) = TString
 
 -- | Evaluate a primitive unary operator.
 primOp1 :: Op1 -> PVal -> Either Error PVal

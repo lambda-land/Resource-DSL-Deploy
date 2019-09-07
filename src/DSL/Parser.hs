@@ -14,7 +14,6 @@ import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
 import DSL.Types
-import DSL.Name
 import DSL.Pretty ()
 import DSL.Primitive
 
@@ -104,6 +103,9 @@ int = fmap fromInteger (lexeme L.decimal) <?> "integer literal"
 
 float :: Parser Double
 float = lexeme L.float <?> "float literal"
+
+stringLit :: Parser Text
+stringLit = between (char '"') (char '"') (pack <$> many (anySingleBut '"'))
 
 maybe' :: Parser a -> Parser (Maybe a)
 maybe' some = none <|> Just <$> some <?> "maybe"
@@ -232,25 +234,13 @@ value = v (maybe' pval)
 
 -- ** Expression Parser
 
-symbol :: Parser Symbol
-symbol = char ':' >> Symbol <$> name start rest <?> "symbol"
-  where
-    start = char '_' <|> letterChar
-    rest  = choice [char '_', char '-', alphaNumChar]
-
 pval :: Parser PVal
-pval = unit
-    <|> b
-    <|> s
-    <|> f
-    <|> i
+pval = Unit <$ verbatim "()"
+    <|> B <$> bool
+    <|> F <$> try float
+    <|> I <$> int
+    <|> S <$> stringLit
     <?> "primitive value"
-  where
-    unit = Unit <$ verbatim "()"
-    b = B <$> bool
-    i = I <$> int
-    f = F <$> try float
-    s = S <$> symbol
 
 path :: Parser Path
 path = char '@' >> absolute <|> relative <?> "resource path"

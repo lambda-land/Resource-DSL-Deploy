@@ -3,51 +3,33 @@
 
 module DSL.Types where
 
+import Data.Data
+
 import Prelude hiding (LT, GT)
 
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Except
-import Data.Data
 import Data.String (IsString(..))
-import Data.Text (pack, splitOn)
+import Data.Text (Text,pack,splitOn)
 import Data.Map.Strict (Map)
 import Data.SBV (SBool,SInteger,SInt8,SInt16,SInt32,SInt64)
 import qualified Data.SBV as SBV
 import Data.Fixed (mod')
-import Data.Text
 import Data.Set (Set)
 
 import DSL.Boolean
-import DSL.Name
 
 
 --
--- * Environments
+-- * Names and Paths
 --
 
--- | An environment is a map from keys to values.
-newtype Env k v = Env { envAsMap :: Map k v }
-  deriving (Eq,Show,Data,Read,Functor,Foldable)
+-- | Miscellaneous name.
+type Name = Text
 
--- | A variational environment maps keys to variational optional values.
-type VEnv k v = Env k (VOpt v)
-
--- | Error thrown when a name is not found in the environment.
-data NotFound = forall k. (Eq k, Show k, Typeable k) => NotFound k [k]
-
-instance Eq NotFound where
-  (NotFound k ks) == (NotFound x xs)
-    | Just k' <- cast x, Just ks' <- cast xs = k == k' && ks == ks'
-    | otherwise = False
-
-instance Show NotFound where
-  show (NotFound k ks) = "NotFound (" ++ show k ++ ") (" ++ show ks ++ ")"
-
-
---
--- * Paths
---
+-- | Variable name.
+type Var = Name
 
 -- | A path is either absolute or relative.
 data PathKind = Absolute | Relative
@@ -63,7 +45,7 @@ data Path = Path PathKind [Name]
 
 -- | Error that can occur when converting paths.
 data PathError
-     = CannotNormalize Path
+   = CannotNormalize Path
   deriving (Eq,Data,Read,Show)
 
 instance IsString Path where
@@ -80,20 +62,48 @@ instance IsString ResID where
 
 
 --
+-- * Environments
+--
+
+-- | An environment is a map from keys to values.
+newtype Env k v = Env { envAsMap :: Map k v }
+  deriving (Eq,Show,Data,Read,Functor,Foldable)
+
+-- | Error thrown when a name is not found in the environment.
+data NotFound = forall k. (Eq k, Show k, Typeable k) => NotFound k [k]
+
+instance Eq NotFound where
+  NotFound k ks == NotFound x xs
+    | Just k' <- cast x, Just ks' <- cast xs = k == k' && ks == ks'
+    | otherwise = False
+
+instance Show NotFound where
+  show (NotFound k ks) = "NotFound (" ++ show k ++ ") (" ++ show ks ++ ")"
+
+-- | A variational environment maps keys to variational optional values.
+type VEnv k v = Env k (VOpt v)
+
+
+--
 -- * Primitives
 --
 
 -- | Primitive base types.
-data PType = TUnit | TBool | TInt | TFloat | TSymbol
+data PType
+   = TUnit
+   | TBool
+   | TInt
+   | TFloat
+   | TString
   deriving (Eq,Data,Ord,Read,Show)
 
 -- | Primitive values.
 data PVal
-     = Unit
-     | B Bool
-     | I Int
-     | F Double
-     | S Symbol
+   = Unit
+   | B Bool
+   | I Int
+   | F Double
+   | S Text
   deriving (Eq,Data,Ord,Show,Read)
 
 instance IsString PVal where
@@ -574,7 +584,7 @@ data Entry
   deriving (Eq,Show,Data,Read)
 
 -- | Dictionary of profiles and models.
-type Dictionary = Env CompID Entry
+type Dictionary = Env Name Entry
 
 
 --

@@ -20,7 +20,6 @@ import qualified Data.Set as S
 
 import DSL.Types
 import DSL.Environment
-import DSL.Name
 import DSL.Parser
 import DSL.Pretty
 
@@ -109,12 +108,6 @@ asMaybe asA = nothing <|> just
 asName :: ParseIt Name
 asName = asText
 
-instance ToJSON Symbol where
-  toJSON (Symbol n) = toJSON n
-
-asSymbol :: ParseIt Symbol
-asSymbol = mkSymbol <$> asName
-
 instance ToJSON Path where
   toJSON = String . prettyPath
 
@@ -163,8 +156,8 @@ asPType = do
       "bool"   -> pure TBool
       "int"    -> pure TInt
       "float"  -> pure TFloat
-      "symbol" -> pure TSymbol
-      _ -> throwCustomError (BadCase "primitive type" ["unit","bool","int","float","symbol"] t)
+      "string" -> pure TString
+      _ -> throwCustomError (BadCase "primitive type" ["unit","bool","int","float","string"] t)
 
 instance ToJSON PVal where
   toJSON Unit  = Null
@@ -187,7 +180,7 @@ asPVal = do
       Null     -> pure Unit
       Bool b   -> pure (B b)
       Number n -> pure (either F I (floatingOrInteger n))
-      String _ -> S <$> asSymbol
+      String _ -> S <$> asText
       _ -> throwCustomError (BadPVal v)
 
 asConfig :: ParseIt [V PVal]
@@ -353,7 +346,7 @@ asResEnv :: ParseIt ResEnv
 asResEnv = asEnv asResID (asV (asMaybe asPVal))
 
 asDictionary :: ParseIt Dictionary
-asDictionary = asEnv asSymbol asEntry
+asDictionary = asEnv asName asEntry
 
 instance ToJSON Model where
   toJSON (Model xs block) = object
