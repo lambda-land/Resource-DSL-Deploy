@@ -49,24 +49,9 @@ class MergeDup v where
 instance MergeDup [a] where
   mergeDup = (++)
 
--- Merge duplicate dictionary entries. For now, merges profiles w/ profiles
--- and models w/ models, otherwise throws an error.
-instance MergeDup Entry where
-  mergeDup (ProEntry l) (ProEntry r) = ProEntry (mergeDup l r)
-  mergeDup (ModEntry l) (ModEntry r) = ModEntry (mergeDup l r)
-  mergeDup _ _ = error "mergeDup (Entry): cannot merge profile and model"
-
 -- Throw an error if we attempt to merge two primitive values.
 instance MergeDup Value where
   mergeDup _ _ = error "mergeDup (Value): attempted to merge duplicate entries"
-
--- | Compose two resource profiles. Merges parameters by name.
-composeProfiles :: Profile -> Profile -> Profile
-composeProfiles (Profile ps1 h1) (Profile ps2 h2) =
-    Profile (union ps1 ps2) (envUnionWith (++) h1 h2)
-
-instance MergeDup Profile where
-  mergeDup = composeProfiles
 
 -- | Compose two models by sequencing the statements in their bodies.
 --   Merges parameters by name.

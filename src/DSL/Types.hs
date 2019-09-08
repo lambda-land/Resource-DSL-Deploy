@@ -359,15 +359,6 @@ newtype VM m a = VM { unVM :: (m (VOpt a)) }
 
 type VOpt a = V (Maybe a)
 
-type SegList a = [Segment a]
-
-data Segment a = Elems [a] | Split BExpr (SegList a) (SegList a)
-  deriving (Eq,Data,Read,Show)
-
-type VList a = [VOpt a]
-
-type Value = VOpt PVal
-
 type VError = VOpt Error
 
 -- | Variational primitive type.
@@ -532,25 +523,18 @@ data EffectError = EffectError {
 
 
 --
--- * Profiles
---
-
--- | Resource profile: a parameterized account of all of the resource effects
---   of a program or component.
-data Profile = Profile [Param] (Env Path (SegList Effect))
-  deriving (Show,Data,Read,Eq)
-
-
---
 -- * Models
 --
+
+-- | A dictionary maps component names to their models.
+type Dictionary = Env Name Model
 
 -- | An application model.
 data Model = Model [Param] Block
   deriving (Show,Eq,Data,Read)
 
 -- | Statement block.
-type Block = SegList Stmt
+type Block = [Stmt]
 
 -- | Statement in an application model.
 data Stmt
@@ -575,20 +559,6 @@ data StmtError = StmtError {
   stmtErrorKind  :: StmtErrorKind,
   stmtErrorValue :: PVal
 } deriving (Eq,Show,Data,Read)
-
-
---
--- * Dictionaries
---
-
--- | Dictionary entry.
-data Entry
-   = ProEntry Profile
-   | ModEntry Model
-  deriving (Eq,Show,Data,Read)
-
--- | Dictionary of profiles and models.
-type Dictionary = Env Name Entry
 
 
 --

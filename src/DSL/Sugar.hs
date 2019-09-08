@@ -28,11 +28,15 @@ chcN _ _ = error "chcN: illegal arguments"
 
 -- ** Variational blocks
 
--- | Construct an n-ary variational block by cascading choices drawn from the
+-- | Construct a variational statement by branching on a choice.
+split :: Var -> Block -> Block -> Stmt
+split d = If (chc d true false)
+
+-- | Construct an n-ary variational block by cascading if-statement drawn from the
 --   given list of dimensions.
 splitN :: [Var] -> [Block] -> Block
 splitN _      [b]    = b
-splitN (d:ds) (b:bs) = [Split (BRef d) b (splitN ds bs)]
+splitN (d:ds) (b:bs) = [split d b (splitN ds bs)]
 splitN _ _ = error "splitN: illegal arguments"
 
 
@@ -98,10 +102,6 @@ modify' p t e = Do p (Modify (Fun (Param "$val" t) e))
 
 modify :: Path -> PType -> V Expr -> Stmt
 modify p t e = modify' p (One t) e
-
--- | Conditional statement.
-if' :: V Expr -> [Stmt] -> [Stmt] -> Stmt
-if' c t e = If c [Elems t] [Elems e]
 
 -- | Reference the current value of a resource.
 --   For use with the 'check' and 'modify' smart constructors.

@@ -72,10 +72,8 @@ library
     , DSL.Predicate
     , DSL.Pretty
     , DSL.Primitive
-    , DSL.Profile
     , DSL.Resource
     , DSL.SAT
-    , DSL.SegList
     , DSL.Serialize
     , DSL.Sugar
     , DSL.Types

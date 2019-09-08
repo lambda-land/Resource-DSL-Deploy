@@ -15,7 +15,6 @@ import qualified Data.Set as S
 
 import DSL.Boolean
 import DSL.Environment
-import DSL.Model
 import DSL.Options
 import DSL.Serialize
 import DSL.Sugar
@@ -50,26 +49,25 @@ crossAppResEnvAll = envFromList
 -- ** Application model
 
 appModel = Model
-  [
-    Param "serverProvider" (One TString),
-    Param "clientProvider" (One TString)
-  ]
-  (checkSEP ++ checkRules ++ [Elems [
-    In "/Server/Cipher" [Elems [Load (ref "serverProvider") []]],
-    In "/Client/Cipher" [Elems [Load (ref "clientProvider") []]],
-    check "/Server/Cipher/Algorithm" tString (val .==. res "/Client/Cipher/Algorithm"),
-    check "/Server/Cipher/Mode"      tString (val .==. res "/Client/Cipher/Mode"),
-    check "/Server/Cipher/KeySize"   tString (val .==. res "/Client/Cipher/KeySize"),
-    check "/Server/Cipher/Padding"   tString (val .==. res "/Client/Cipher/Padding")
-  ]])
+    [ Param "serverProvider" tString
+    , Param "clientProvider" tString
+    ]
+    ( checkSEP ++ checkRules ++
+    [ In "/Server/Cipher" [Load (ref "serverProvider") []]
+    , In "/Client/Cipher" [Load (ref "clientProvider") []]
+    , check "/Server/Cipher/Algorithm" tString (val .==. res "/Client/Cipher/Algorithm")
+    , check "/Server/Cipher/Mode"      tString (val .==. res "/Client/Cipher/Mode")
+    , check "/Server/Cipher/KeySize"   tString (val .==. res "/Client/Cipher/KeySize")
+    , check "/Server/Cipher/Padding"   tString (val .==. res "/Client/Cipher/Padding")
+    ])
   where
     checkSEP :: Block
-    checkSEP = [
-        Split (foldOr (mkKeys [24,32,40,48,56,64]))
-          [Elems [ checkUnit "/Server/StrongEncryptionPolicy"
-                 , checkUnit "/Client/StrongEncryptionPolicy" ]]
-          []
-      ]
+    checkSEP =
+        [ If (Chc (foldOr (mkKeys [24,32,40,48,56,64])) true false)
+          [ checkUnit "/Server/StrongEncryptionPolicy"
+          , checkUnit "/Client/StrongEncryptionPolicy"
+          ] []
+        ]
 
     algRules = [
         ("AES", [16, 24, 32]),
@@ -107,11 +105,10 @@ appModel = Model
     checkRules = foldMap (uncurry keyRule) algRules
 
     keyRule :: T.Text -> [Int] -> Block
-    keyRule alg is = [
-        Split (BRef alg &&& foldOr (allKeys \\ (mkKeys is)))
-          [Elems [checkUnit "Fail"]]
-          []
-      ]
+    keyRule alg is =
+        [ If (Chc (BRef alg &&& foldOr (allKeys \\ (mkKeys is))) true false)
+          [ checkUnit "Fail" ] []
+        ]
 
     foldOr [] = BLit False
     foldOr [x] = BRef x
@@ -130,16 +127,16 @@ allModes = ["ECB", "CBC", "CTR", "CFB", "CTS", "OFB", "OpenPGPCFB", "PGPCFBBlock
 
 mkCrossAppDFU :: T.Text -> [T.Text] -> [T.Text] -> [T.Text] -> Block
 mkCrossAppDFU name algs pads modes =
-    [ Elems [ create "DFU-Type" (str "Cipher")
-            , create "DFU-Name" (str name) ]]
-        ++ mk "Algorithm" algs allAlgs
-        ++ mk "Mode" modes allModes
-        ++ mk "Padding" pads allPads
-        ++ mk "KeySize" allKeys allKeys
-    where
-      mk name good all = foldMap (\a -> [Split (foldOthers a all) [Elems [create name (mkVExpr (S a)) ]] []]) good
-      others x xs = S.difference (S.fromList xs) (S.singleton x)
-      foldOthers x xs = foldl' (\b a -> b &&& (bnot (BRef a))) (BRef x) (S.toList (others x xs))
+    [ create "DFU-Type" (str "Cipher")
+    , create "DFU-Name" (str name)
+    ] ++ mk "Algorithm" algs allAlgs
+      ++ mk "Mode" modes allModes
+      ++ mk "Padding" pads allPads
+      ++ mk "KeySize" allKeys allKeys
+  where
+    mk name good all = foldMap (\a -> [If (Chc (foldOthers a all) true false) [create name (mkVExpr (S a)) ] []]) good
+    others x xs = S.difference (S.fromList xs) (S.singleton x)
+    foldOthers x xs = foldl' (\b a -> b &&& (bnot (BRef a))) (BRef x) (S.toList (others x xs))
 
 javaxDFU :: Model
 javaxDFU = Model [] $ mkCrossAppDFU "Javax"
@@ -149,10 +146,10 @@ javaxDFU = Model [] $ mkCrossAppDFU "Javax"
 
 bouncyDFU :: Model
 bouncyDFU = Model [] $ mkCrossAppDFU "BouncyCastle" allAlgs allPads allModes
-              ++ [Elems [If (res "Algorithm" .==. str "AES") [Elems [checkUnit "../AES-NI"]] []]]
+              ++ [If (res "Algorithm" .==. str "AES") [checkUnit "../AES-NI"] []]
 
 crossAppDFUs :: Dictionary
-crossAppDFUs = modelDict [("Javax", javaxDFU), ("BouncyCastle", bouncyDFU)]
+crossAppDFUs = envFromList [("Javax", javaxDFU), ("BouncyCastle", bouncyDFU)]
 
 
 -- * Config
@@ -168,8 +165,8 @@ crossAppConfigAll = [ Chc "ServerJavax" (One "Javax") (One "BouncyCastle")
 -- * Requirements
 --
 
-crossAppReqs :: Profile
-crossAppReqs = toProfile $ Model [] []
+crossAppReqs :: Model
+crossAppReqs = Model [] []
 
 --
 -- * Driver

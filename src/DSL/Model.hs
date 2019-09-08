@@ -1,59 +1,18 @@
 module DSL.Model where
 
 import Control.Monad (forM_)
-import Data.Foldable (foldl')
 
-import DSL.Boolean
 import DSL.Types
 import DSL.Effect
 import DSL.Environment
 import DSL.Expression
 import DSL.Path
-import DSL.Profile
 import DSL.Resource
-import DSL.SegList
 
 
 --
 -- * Components
 --
-
--- ** Operations
-
--- | Construct a model dictionary from an association list of models.
-modelDict :: [(Name,Model)] -> Dictionary
-modelDict l = envFromList [(n, ModEntry m) | (n,m) <- l]
-
--- | Construct a profile dictionary from an association list of models.
-profileDict :: [(Name,Model)] -> Dictionary
-profileDict l = envFromList [(n, ProEntry (toProfile m)) | (n,m) <- l]
-
-vMergeEff :: Env Path (SegList Effect) -> (Path, Maybe BExpr, Effect) -> Env Path (SegList Effect)
-vMergeEff env (p, d, e) | Just es <- envLookup' p env = envExtend p (segSetInsert d e es) env
-                        | otherwise                   = envExtend p (segSetInsert d e []) env
-
-vEnvFromList :: [(Path, Maybe BExpr, Effect)] -> Env Path (SegList Effect)
-vEnvFromList = foldl' vMergeEff envEmpty
-
-toProfileEntries :: Path -> Maybe BExpr -> Block -> [(Path, Maybe BExpr, Effect)]
-toProfileEntries _ _ [] = []
-toProfileEntries p d ((Elems xs):ys) = fromElems p d xs ++ toProfileEntries p d ys
-  where
-    fromElems _ _ [] = []
-    fromElems p d ((In path blk):xs) = toProfileEntries (pathAppend p path) d blk ++ fromElems p d xs
-    fromElems p d ((Do path eff):xs) = (pathAppend p path, d, eff):(fromElems p d xs)
-    fromElems _ _ _ = error "toProfile: cannot convert model to profile"
-toProfileEntries p Nothing ((Split d' l r):ys) = toProfileEntries p (Just d') l ++ toProfileEntries p (Just (bnot d')) r ++ toProfileEntries p Nothing ys
-toProfileEntries p (Just d) ((Split d' l r):ys) = toProfileEntries p (Just (d &&& d')) l ++ toProfileEntries p (Just (d &&& (bnot d'))) r ++ toProfileEntries p (Just d) ys
-
-toProfile :: Model -> Profile
-toProfile (Model xs vstmts) =
-    Profile xs (vEnvFromList (toProfileEntries pathThis Nothing vstmts))
-
-
-
--- TODO: convert profiles to models, compose profiles and models
-
 
 -- ** Semantics
 
@@ -65,14 +24,12 @@ loadModel (Model xs block) args = withArgs xs args (execBlock block)
 loadComp :: MonadEval m => Name -> [V Expr] -> m ()
 loadComp cid args = do
     dict <- getDict
-    def <- promoteError (envLookup cid dict)
-    case def of
-      ProEntry profile -> loadProfile profile args
-      ModEntry model   -> loadModel model args
+    model <- promoteError (envLookup cid dict)
+    loadModel model args
 
 -- | Execute a block of statements.
 execBlock :: MonadEval m => Block -> m ()
-execBlock = segMapM_ execStmt
+execBlock = mapM_ execStmt
 
 -- | Execute a command in a sub-environment.
 execInSub :: MonadEval m => Path -> m a -> m a

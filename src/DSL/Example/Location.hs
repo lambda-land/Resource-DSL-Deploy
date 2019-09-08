@@ -10,7 +10,6 @@ import qualified Data.Text as T
 
 import DSL.Types
 import DSL.Environment
-import DSL.Model
 import DSL.Serialize
 import DSL.Sugar
 
@@ -23,15 +22,15 @@ import DSL.Sugar
 
 -- | Location-provider application model. The input parameter is the ID of the
 --   location provider to use.
-appModel = Model [Param "provider" (One TString)]
-    [ Elems [ Load (One . Ref $ "provider") [] ]]
+appModel = Model [Param "provider" tString]
+    [ Load (ref "provider") [] ]
 
 
 -- ** DFUs
 
 -- | A dictionary of all the location DFUs with associated names.
 locationDFUs :: Dictionary
-locationDFUs = profileDict
+locationDFUs = envFromList
     [ ("gps-android",    gpsAndroid)
     , ("gps-bluetooth",  gpsBluetooth)
     , ("gps-usb",        gpsUsb)
@@ -42,43 +41,41 @@ locationDFUs = profileDict
 -- | Use built-in android GPS API.
 gpsAndroid :: Model
 gpsAndroid = Model []
-    [ Elems [ In "GPS"
-      [ Elems [ checkUnit "SAT"
-      , checkUnit "Dev" ]]
+    [ In "GPS" [checkUnit "SAT", checkUnit "Dev"]
     , createUnit "Location"
-    ]]
+    ]
 
 -- | Bluetooth-based GPS.
 gpsBluetooth :: Model
 gpsBluetooth = Model []
-    [ Elems [ In "GPS" [ Elems [checkUnit "SAT"]]
-    , In "Ext" [ Elems [checkUnit "BT"]]
+    [ In "GPS" [checkUnit "SAT"]
+    , In "Ext" [checkUnit "BT"]
     , createUnit "Location"
-    ]]
+    ]
 
 -- | Generic USB-based GPS.
 gpsUsb :: Model
 gpsUsb = Model []
-    [ Elems [ In "GPS" [ Elems [checkUnit "SAT"]]
-    , In "Ext" [ Elems [checkUnit "USB"]]
+    [ In "GPS" [checkUnit "SAT"]
+    , In "Ext" [checkUnit "USB"]
     , createUnit "Location"
-    ]]
+    ]
 
 -- | USB-based SAASM GPS.
 gpsSaasm :: Model
 gpsSaasm = Model []
-    [ Elems [ In "GPS" [ Elems [checkUnit "SAT"]]
-    , In "Ext" [ Elems [checkUnit "USB"]]
+    [ In "GPS" [checkUnit "SAT"]
+    , In "Ext" [checkUnit "USB"]
     , createUnit "Location"
-    , In "Location" [ Elems [createUnit "SAASM"]]
-    ]]
+    , In "Location" [createUnit "SAASM"]
+    ]
 
 -- | Manual / dead reckoning location capability.
 deadReck :: Model
 deadReck = Model []
-    [ Elems [ checkUnit "UI"
+    [ checkUnit "UI"
     , createUnit "Location"
-    ]]
+    ]
 
 
 -- ** Initial environments
@@ -102,18 +99,18 @@ lookupLocationEnv envID = case lookup envID locationEnvs of
 -- ** Mission requirements
 
 -- | Require location.
-hasLocation :: Profile
-hasLocation = toProfile $ Model [] [ Elems [checkUnit "Location"]]
+hasLocation :: Model
+hasLocation = Model [] [checkUnit "Location"]
 
 -- | Require SAASM location.
-hasSaasm :: Profile
-hasSaasm = toProfile $ Model []
-    [ Elems [ checkUnit "Location"
-    , In "Location" [ Elems [checkUnit "SAASM"]]
-    ]]
+hasSaasm :: Model
+hasSaasm = Model []
+    [ checkUnit "Location"
+    , In "Location" [checkUnit "SAASM"]
+    ]
 
 -- | All relevant mission requirements for the location scenario.
-locationReqs :: [(String, Profile)]
+locationReqs :: [(String, Model)]
 locationReqs = [("location", hasLocation), ("saasm", hasSaasm)]
 
 

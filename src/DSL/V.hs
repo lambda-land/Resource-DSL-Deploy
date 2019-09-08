@@ -79,35 +79,6 @@ instance Variational a => Variational (V a) where
   dimensions (Chc d l r) = boolVars d <> dimensions l <> dimensions r
 
 
-instance Variational a => Variational (SegList a) where
-  configure c = concatMap segment
-    where
-      segment (Elems xs) = [Elems (map (configure c) xs)]
-      segment (Split d l r)
-        | sat (c &&& d) = configure c l
-        | otherwise     = configure c r
-        
-  select c = concatMap segment
-    where
-      segment (Elems xs) = [Elems (map (select c) xs)]
-      segment (Split d l r)
-        | c |=>|  d = select c l
-        | c |=>!| d = select c r
-        | otherwise = [Split d (select c l) (select c r)]
-  
-  shrink = concatMap segment
-    where
-      segment (Elems xs) = [Elems (map shrink xs)]
-      segment (Split d l r)
-          | taut  d   = shrink l
-          | unsat d   = shrink r
-          | otherwise = [Split (shrinkBExpr d) (shrink l) (shrink r)]
-
-  dimensions [] = mempty
-  dimensions (Elems xs : ys) = foldMap dimensions xs <> dimensions ys
-  dimensions (Split d l r : ys) = boolVars d <> dimensions l <> dimensions r <> dimensions ys
-
-
 -- Congruence instances
 
 instance Variational Param where
@@ -143,7 +114,7 @@ instance Variational Expr where
   dimensions (P3 _ e1 e2 e3) = dimensions e1 <> dimensions e2 <> dimensions e3
   dimensions _ = mempty
 
-instance Variational a => Variational [V a] where
+instance Variational a => Variational [a] where
   configure c = map (configure c)
   select    c = map (select c)
   shrink      = map shrink
@@ -204,25 +175,6 @@ instance Variational Model where
   select    c (Model ps ss) = Model (map (select c) ps) (select c ss)
   shrink      (Model ps ss) = Model (map shrink ps) (shrink ss)
   dimensions  (Model ps ss) = foldMap dimensions ps <> dimensions ss
-
-instance Variational Profile where
-  configure c (Profile ps es) = Profile (map (configure c) ps) (fmap (configure c) es)
-  select    c (Profile ps es) = Profile (map (select c) ps) (fmap (select c) es)
-  shrink      (Profile ps es) = Profile (map shrink ps) (fmap shrink es)
-  dimensions  (Profile ps es) = foldMap dimensions ps <> foldMap dimensions es
-
-instance Variational Entry where
-  configure c (ProEntry p) = ProEntry (configure c p)
-  configure c (ModEntry m) = ModEntry (configure c m)
-
-  select c (ProEntry p) = ProEntry (select c p)
-  select c (ModEntry m) = ModEntry (select c m)
-
-  shrink (ProEntry p) = ProEntry (shrink p)
-  shrink (ModEntry m) = ModEntry (shrink m)
-  
-  dimensions (ProEntry p) = dimensions p
-  dimensions (ModEntry m) = dimensions m
 
 instance Variational StateCtx where
   configure c (SCtx r e m) = SCtx (configure c r) e (configure c m)
