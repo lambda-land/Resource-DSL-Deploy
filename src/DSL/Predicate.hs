@@ -10,7 +10,6 @@ import Data.SBV (SBool,SInt32,Symbolic)
 
 import DSL.Boolean
 import DSL.Types
-import DSL.Name
 import DSL.Environment
 import DSL.Primitive
 

@@ -10,7 +10,6 @@ import Data.Typeable
 
 import DSL.Boolean
 import DSL.Types
-import DSL.Name
 import DSL.Path
 import DSL.Environment
 import DSL.V

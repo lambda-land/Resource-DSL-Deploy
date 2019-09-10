@@ -28,7 +28,6 @@ import qualified Data.Set as Set
 import DSL.Boolean
 import DSL.Environment
 import DSL.Model
-import DSL.Name
 import DSL.Parser (parseExprText)
 import DSL.Path
 import DSL.Primitive
@@ -336,9 +335,8 @@ providePortAttrs
   -> PortAttrs Constraint  -- ^ provided attributes
   -> Block
 providePortAttrs rules@(MkRules rs) dimGen as =
-    [ Elems $ [providePortAttr (dimGen n) n c | (n,c) <- attrs]
-        ++ map (uncurry providePortEquation) eqns
-    ]
+    [providePortAttr (dimGen n) n c | (n,c) <- attrs]
+    ++ map (uncurry providePortEquation) eqns
   where
     (attrs,eqns) = foldr split ([],[]) (portAttrsToList as)
     split (n, Exactly v) (as,es)
@@ -390,10 +388,9 @@ requirePortGroup rules prov reqDauID reqGrpIx reqGrp =
         let portCount = toPath (invPrefix provDauID provGrpIx <> "PortCount")
         return $
           In provPath
-            [ Elems [
-              providePortGroup rules provDauID provGrpIx reqDauID reqGrpIx provGrp
+            [ providePortGroup rules provDauID provGrpIx reqDauID reqGrpIx provGrp
             , checkGroup rules dim portCount reqGrp
-            ]]
+            ]
     ) ++ [check "/PortsToMatch" tInt (val .== 0)]
   where
     relevant = fromMaybe [] (envLookup' (groupFunc reqGrp) prov)
@@ -403,20 +400,18 @@ checkGroup :: Rules -> Var -> Path -> PortGroup Constraint -> Stmt
 checkGroup rules dim portCount grp =
     -- if there are ports left to match, ports left in this group
     If (res "/PortsToMatch" .> 0 &&& res portCount .> 0)
-    [ Split (BRef dim)  -- tracks if this group was used for this requirement
-      [ Elems [
-        -- check all of the attributes
-        In "Attributes" [ Elems (requirePortAttrs rules (groupAttrs grp)) ]
+    [ If (chc dim true false) -- tracks if this group was used for this requirement
+      [ -- check all of the attributes
+        In "Attributes" (requirePortAttrs rules (groupAttrs grp))
         -- if success, update the ports available and required
-      , if' (res "/PortsToMatch" .> res portCount) [
-          modify "/PortsToMatch" TInt (val - res portCount)
+      , If (res "/PortsToMatch" .> res portCount)
+        [ modify "/PortsToMatch" TInt (val - res portCount)
         , modify portCount TInt 0
-        ] [
-          modify portCount TInt (val - res "/PortsToMatch")
+        ]
+        [ modify portCount TInt (val - res "/PortsToMatch")
         , modify "/PortsToMatch" TInt 0
         ]
-      ]]
-      []
+      ] []
      ] []
 
 -- | Check whether a required set of port attributes is satisfied in the
@@ -435,7 +430,7 @@ requirePortAttrs rules@(MkRules rs) as = do
       Range lo hi ->
         check path (One TInt) (val .>= int lo &&& val .<= int hi)
       Sync [as] ->
-        In path [ Elems (requirePortAttrs rules as) ]
+        In path (requirePortAttrs rules as)
       Sync _ ->
         error "requirePortAttrs: we don't support choices of synchronized attributes in requirements."
   where
@@ -444,7 +439,7 @@ requirePortAttrs rules@(MkRules rs) as = do
       TBool   -> One (P2 (BB_B Eqv) a b)
       TInt    -> One (P2 (NN_B Equ) a b)
       TFloat  -> One (P2 (NN_B Equ) a b)
-      TSymbol -> One (P2 (SS_B SEqu) a b)
+      TString -> One (P2 (SS_B SEqu) a b)
     compatible n v = case envLookup (n,v) rs of
       Right (Compatible vs) -> vs
       _ -> [v]
@@ -455,7 +450,7 @@ requirePortAttrs rules@(MkRules rs) as = do
 
 -- | Generate the application model.
 appModel :: Rules -> Provisions -> [Dau (PortGroups Constraint)] -> Model
-appModel rules prov daus = Model [] [ Elems (requireDaus rules prov daus) ]
+appModel rules prov daus = Model [] (requireDaus rules prov daus)
 
 
 --

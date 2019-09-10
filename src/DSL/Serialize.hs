@@ -20,7 +20,6 @@ import qualified Data.Set as S
 
 import DSL.Types
 import DSL.Environment
-import DSL.Name
 import DSL.Parser
 import DSL.Pretty
 
@@ -109,12 +108,6 @@ asMaybe asA = nothing <|> just
 asName :: ParseIt Name
 asName = asText
 
-instance ToJSON Symbol where
-  toJSON (Symbol n) = toJSON n
-
-asSymbol :: ParseIt Symbol
-asSymbol = mkSymbol <$> asName
-
 instance ToJSON Path where
   toJSON = String . prettyPath
 
@@ -163,8 +156,8 @@ asPType = do
       "bool"   -> pure TBool
       "int"    -> pure TInt
       "float"  -> pure TFloat
-      "symbol" -> pure TSymbol
-      _ -> throwCustomError (BadCase "primitive type" ["unit","bool","int","float","symbol"] t)
+      "string" -> pure TString
+      _ -> throwCustomError (BadCase "primitive type" ["unit","bool","int","float","string"] t)
 
 instance ToJSON PVal where
   toJSON Unit  = Null
@@ -187,7 +180,7 @@ asPVal = do
       Null     -> pure Unit
       Bool b   -> pure (B b)
       Number n -> pure (either F I (floatingOrInteger n))
-      String _ -> S <$> asSymbol
+      String _ -> S <$> asText
       _ -> throwCustomError (BadPVal v)
 
 asConfig :: ParseIt [V PVal]
@@ -256,11 +249,6 @@ instance ToJSON Stmt where
     [ "statement" .= String "in"
     , "context"   .= toJSON ctx
     , "body"      .= toJSON body ]
-  toJSON (For x expr body) = object
-    [ "statement" .= String "for"
-    , "variable"  .= String x
-    , "maximum"   .= toJSON expr
-    , "body"      .= toJSON body ]
   toJSON (Let x bound body) = object
     [ "statement" .= String "let"
     , "variable"  .= String x
@@ -282,9 +270,6 @@ asStmt = do
                      <*> key "else"      asBlock
       "in"   -> In   <$> key "context"   asPath
                      <*> key "body"      asBlock
-      "for"  -> For  <$> key "variable"  asName
-                     <*> key "maximum"   (asV asExpr)
-                     <*> key "body"      asBlock
       "let"  -> Let  <$> key "variable"  asName
                      <*> key "bound"     (asV asExpr)
                      <*> key "body"      asBlock
@@ -292,51 +277,8 @@ asStmt = do
                      <*> key "arguments" (eachInArray (asV asExpr))
       _ -> throwCustomError (BadCase "stmt" ["do","in","if","let","load"] stmt)
 
-instance (ToJSON a) => ToJSON (Segment a) where
-  toJSON (Elems xs) = object
-    [ "segType" .= String "elems"
-    , "elems" .= toJSON xs ]
-  toJSON (Split d l r) = object
-    [ "segType" .= String "split"
-    , "dim" .= toJSON d
-    , "l" .= toJSON l
-    , "r" .= toJSON r ]
-
-asSegment :: ParseIt a -> ParseIt (Segment a)
-asSegment asA = do
-  segType <- key "segType" asText
-  case segType of
-    "elems" -> elems
-    "split" -> split
-    _ -> throwCustomError (BadCase "segType" ["elems", "split"] segType)
-  where
-    elems = Elems <$> key "elems" (eachInArray asA)
-    split = Split
-      <$> key "dim" asBExpr
-      <*> key "l" (asSegList asA)
-      <*> key "r" (asSegList asA)
-
-asSegList :: ParseIt a -> ParseIt (SegList a)
-asSegList asA = eachInArray (asSegment asA)
-
 asBlock :: ParseIt Block
-asBlock = asSegList asStmt
-
-instance ToJSON Entry where
-  toJSON (ProEntry p) = object
-    [ "type"  .= String "profile"
-    , "entry" .= toJSON p ]
-  toJSON (ModEntry m) = object
-    [ "type"  .= String "model"
-    , "entry" .= toJSON m ]
-
-asEntry :: ParseIt Entry
-asEntry = do
-    t <- key "type" asText
-    case t of
-      "profile" -> ProEntry <$> key "entry" asProfile
-      "model"   -> ModEntry <$> key "entry" asModel
-      _ -> throwCustomError (BadCase "dictionary entry" ["profile","model"] t)
+asBlock = eachInArray asStmt
 
 instance (ToJSON k, ToJSON v) => ToJSON (Env k v) where
   toJSON (Env m) = Array (fromList (map entry (toAscList m)))
@@ -353,7 +295,7 @@ asResEnv :: ParseIt ResEnv
 asResEnv = asEnv asResID (asV (asMaybe asPVal))
 
 asDictionary :: ParseIt Dictionary
-asDictionary = asEnv asSymbol asEntry
+asDictionary = asEnv asName asModel
 
 instance ToJSON Model where
   toJSON (Model xs block) = object
@@ -364,16 +306,6 @@ asModel :: ParseIt Model
 asModel = Model
     <$> key "parameters" (eachInArray asParam)
     <*> key "block" asBlock
-
-instance ToJSON Profile where
-  toJSON (Profile xs effs) = object
-    [ "parameters" .= toJSON xs
-    , "effects"    .= toJSON effs ]
-
-asProfile :: ParseIt Profile
-asProfile = Profile
-    <$> key "parameters" (eachInArray asParam)
-    <*> key "effects" (asEnv asPath (asSegList asEffect))
 
 instance ToJSON Error where
   toJSON e = String (pretty e)

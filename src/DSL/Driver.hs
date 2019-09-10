@@ -17,9 +17,7 @@ import Data.SBV (AllSatResult(..))
 
 import DSL.Boolean
 import DSL.Model
-import DSL.Name
 import DSL.Parser (parseBExprString)
-import DSL.Profile
 import DSL.Resource
 import DSL.SAT
 import DSL.Serialize
@@ -113,8 +111,8 @@ run opts = do
       writeError (errorFile opts) sctx
       writeSuccess (successFile opts) sctx b vars
     else do
-      (reqsVars,reqs) <- s $ readJSON (reqsFile opts) asProfile
-      let (e, sctx') = runEvalM (withDict dict) sctx (loadProfile reqs [])
+      (reqsVars,reqs) <- s $ readJSON (reqsFile opts) asModel
+      let (e, sctx') = runEvalM (withDict dict) sctx (loadModel reqs [])
       writeError (errorFile opts) sctx'
       let vars' = vars <> reqsVars
       writeSuccess (successFile opts) sctx' (getBExpr vars' (selection opts)) vars'

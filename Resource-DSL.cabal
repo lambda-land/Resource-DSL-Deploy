@@ -66,17 +66,13 @@ library
     , DSL.Environment
     , DSL.Expression
     , DSL.Model
-    , DSL.Name
-    , DSL.Options
     , DSL.Parser
     , DSL.Path
     , DSL.Predicate
     , DSL.Pretty
     , DSL.Primitive
-    , DSL.Profile
     , DSL.Resource
     , DSL.SAT
-    , DSL.SegList
     , DSL.Serialize
     , DSL.Sugar
     , DSL.Types

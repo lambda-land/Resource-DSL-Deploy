@@ -4,7 +4,6 @@ import qualified Data.Text as T
 import qualified Data.Set as S
 
 import DSL.Boolean
-import DSL.Name
 import DSL.Types
 import DSL.Parser
 
@@ -29,23 +28,27 @@ chcN _ _ = error "chcN: illegal arguments"
 
 -- ** Variational blocks
 
--- | Construct an n-ary variational block by cascading choices drawn from the
+-- | Construct a variational statement by branching on a choice.
+split :: Var -> Block -> Block -> Stmt
+split d = If (chc d true false)
+
+-- | Construct an n-ary variational block by cascading if-statement drawn from the
 --   given list of dimensions.
 splitN :: [Var] -> [Block] -> Block
 splitN _      [b]    = b
-splitN (d:ds) (b:bs) = [Split (BRef d) b (splitN ds bs)]
+splitN (d:ds) (b:bs) = [split d b (splitN ds bs)]
 splitN _ _ = error "splitN: illegal arguments"
 
 
 -- ** Types
 
 -- | Non-variational primitive types.
-tUnit, tBool, tInt, tFloat, tSymbol :: V PType
+tUnit, tBool, tInt, tFloat, tString :: V PType
 tUnit   = One TUnit
 tInt    = One TInt
 tBool   = One TBool
 tFloat  = One TFloat
-tSymbol = One TSymbol
+tString = One TString
 
 
 -- ** Expressions
@@ -58,6 +61,10 @@ lit = One . Lit . One
 int :: Int -> V Expr
 int = lit . I
 
+-- | Literal string.
+str :: Name -> V Expr
+str = lit . S
+
 -- | Non-variational variable reference.
 ref :: Var -> V Expr
 ref = One . Ref
@@ -65,14 +72,6 @@ ref = One . Ref
 -- | Non-variational resource reference.
 res :: Path -> V Expr
 res = One . Res
-
--- | Literal symbol name.
-sym :: Name -> V Expr
-sym = One . Lit . One . S . mkSymbol
-
--- | Literal component ID.
-dfu :: Name -> V Expr
-dfu = sym
 
 -- | Primitive floor operation.
 pFloor :: V Expr -> Expr
@@ -103,10 +102,6 @@ modify' p t e = Do p (Modify (Fun (Param "$val" t) e))
 
 modify :: Path -> PType -> V Expr -> Stmt
 modify p t e = modify' p (One t) e
-
--- | Conditional statement.
-if' :: V Expr -> [Stmt] -> [Stmt] -> Stmt
-if' c t e = If c [Elems t] [Elems e]
 
 -- | Reference the current value of a resource.
 --   For use with the 'check' and 'modify' smart constructors.

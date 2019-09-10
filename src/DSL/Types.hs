@@ -3,51 +3,33 @@
 
 module DSL.Types where
 
+import Data.Data
+
 import Prelude hiding (LT, GT)
 
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Except
-import Data.Data
 import Data.String (IsString(..))
-import Data.Text (pack, splitOn)
+import Data.Text (Text,pack,splitOn)
 import Data.Map.Strict (Map)
 import Data.SBV (SBool,SInteger,SInt8,SInt16,SInt32,SInt64)
 import qualified Data.SBV as SBV
 import Data.Fixed (mod')
-import Data.Text
 import Data.Set (Set)
 
 import DSL.Boolean
-import DSL.Name
 
 
 --
--- * Environments
+-- * Names and Paths
 --
 
--- | An environment is a map from keys to values.
-newtype Env k v = Env { envAsMap :: Map k v }
-  deriving (Eq,Show,Data,Read,Functor,Foldable)
+-- | Miscellaneous name.
+type Name = Text
 
--- | A variational environment maps keys to variational optional values.
-type VEnv k v = Env k (VOpt v)
-
--- | Error thrown when a name is not found in the environment.
-data NotFound = forall k. (Eq k, Show k, Typeable k) => NotFound k [k]
-
-instance Eq NotFound where
-  (NotFound k ks) == (NotFound x xs)
-    | Just k' <- cast x, Just ks' <- cast xs = k == k' && ks == ks'
-    | otherwise = False
-
-instance Show NotFound where
-  show (NotFound k ks) = "NotFound (" ++ show k ++ ") (" ++ show ks ++ ")"
-
-
---
--- * Paths
---
+-- | Variable name.
+type Var = Name
 
 -- | A path is either absolute or relative.
 data PathKind = Absolute | Relative
@@ -63,7 +45,7 @@ data Path = Path PathKind [Name]
 
 -- | Error that can occur when converting paths.
 data PathError
-     = CannotNormalize Path
+   = CannotNormalize Path
   deriving (Eq,Data,Read,Show)
 
 instance IsString Path where
@@ -80,20 +62,48 @@ instance IsString ResID where
 
 
 --
+-- * Environments
+--
+
+-- | An environment is a map from keys to values.
+newtype Env k v = Env { envAsMap :: Map k v }
+  deriving (Eq,Show,Data,Read,Functor,Foldable)
+
+-- | Error thrown when a name is not found in the environment.
+data NotFound = forall k. (Eq k, Show k, Typeable k) => NotFound k [k]
+
+instance Eq NotFound where
+  NotFound k ks == NotFound x xs
+    | Just k' <- cast x, Just ks' <- cast xs = k == k' && ks == ks'
+    | otherwise = False
+
+instance Show NotFound where
+  show (NotFound k ks) = "NotFound (" ++ show k ++ ") (" ++ show ks ++ ")"
+
+-- | A variational environment maps keys to variational optional values.
+type VEnv k v = Env k (VOpt v)
+
+
+--
 -- * Primitives
 --
 
 -- | Primitive base types.
-data PType = TUnit | TBool | TInt | TFloat | TSymbol
+data PType
+   = TUnit
+   | TBool
+   | TInt
+   | TFloat
+   | TString
   deriving (Eq,Data,Ord,Read,Show)
 
 -- | Primitive values.
 data PVal
-     = Unit
-     | B Bool
-     | I Int
-     | F Double
-     | S Symbol
+   = Unit
+   | B Bool
+   | I Int
+   | F Double
+   | S Text
   deriving (Eq,Data,Ord,Show,Read)
 
 instance IsString PVal where
@@ -101,18 +111,18 @@ instance IsString PVal where
 
 -- | Primitive unary operators organized by type.
 data Op1
-     = U_U        -- ^ noop that matches a unit value
-     | B_B B_B    -- ^ unary boolean operator
-     | N_N N_N    -- ^ unary numeric operator
-     | F_I F_I    -- ^ unary float-to-integer operator
+   = U_U        -- ^ noop that matches a unit value
+   | B_B B_B    -- ^ unary boolean operator
+   | N_N N_N    -- ^ unary numeric operator
+   | F_I F_I    -- ^ unary float-to-integer operator
   deriving (Eq,Data,Read,Show)
 
 -- | Primitive binary operators organized by type.
 data Op2
-     = BB_B BB_B  -- ^ binary boolean operator
-     | NN_N NN_N  -- ^ binary numeric operator
-     | NN_B NN_B  -- ^ numeric comparison operator
-     | SS_B SS_B  -- ^ symbol comparison operator
+   = BB_B BB_B  -- ^ binary boolean operator
+   | NN_N NN_N  -- ^ binary numeric operator
+   | NN_B NN_B  -- ^ numeric comparison operator
+   | SS_B SS_B  -- ^ string comparison operator
   deriving (Eq,Data,Read,Show)
 
 -- | Primitive ternary operator.
@@ -148,9 +158,9 @@ data SS_B = SEqu
 
 -- | Type error applying primitive operator.
 data PrimTypeError
-     = ErrorOp1 Op1 PVal
-     | ErrorOp2 Op2 PVal PVal
-     | ErrorOp3 Op3 PVal PVal PVal
+   = ErrorOp1 Op1 PVal
+   | ErrorOp2 Op2 PVal PVal
+   | ErrorOp3 Op3 PVal PVal PVal
   deriving (Eq,Data,Read,Show)
 
 -- | Add division and modulus to the Num type class.
@@ -260,26 +270,26 @@ instance Prim SBool SInt64 where
 
 -- | Unary boolean predicates.
 data Pred
-     = UPred            -- ^ trivial predicate on unit value
-     | BPred Var BExpr  -- ^ predicate on boolean value
-     | IPred Var BExpr  -- ^ predicate on integer value
+   = UPred            -- ^ trivial predicate on unit value
+   | BPred Var BExpr  -- ^ predicate on boolean value
+   | IPred Var BExpr  -- ^ predicate on integer value
   deriving (Eq,Data,Read,Show)
 
 -- | Boolean expressions with variable references.
 data BExpr
-     = BLit Bool
-     | BRef Var
-     | OpB  B_B  BExpr
-     | OpBB BB_B BExpr BExpr
-     | OpIB NN_B IExpr IExpr
+   = BLit Bool
+   | BRef Var
+   | OpB  B_B  BExpr
+   | OpBB BB_B BExpr BExpr
+   | OpIB NN_B IExpr IExpr
   deriving (Eq,Data,Read,Show)
 
 -- | Integer expressions with variable references.
 data IExpr
-     = ILit Int
-     | IRef Var
-     | OpI  N_N  IExpr
-     | OpII NN_N IExpr IExpr
+   = ILit Int
+   | IRef Var
+   | OpI  N_N  IExpr
+   | OpII NN_N IExpr IExpr
   deriving (Eq,Data,Read,Show)
 
 -- Use SBV's Boolean type class for boolean expressions.
@@ -349,18 +359,13 @@ newtype VM m a = VM { unVM :: (m (VOpt a)) }
 
 type VOpt a = V (Maybe a)
 
-type SegList a = [Segment a]
-
-data Segment a = Elems [a] | Split BExpr (SegList a) (SegList a)
-  deriving (Eq,Data,Read,Show)
-
-type VList a = [VOpt a]
-
-type Value = VOpt PVal
-
 type VError = VOpt Error
 
+-- | Variational primitive type.
 type VType = V PType
+
+-- | Variational optional value.
+type Value = VOpt PVal
 
 
 --
@@ -377,12 +382,12 @@ data Fun = Fun Param (V Expr)
 
 -- | Expressions.
 data Expr
-     = Ref Var                             -- ^ variable reference
-     | Res Path                            -- ^ resource reference
-     | Lit (V PVal)                        -- ^ primitive literal
-     | P1  Op1 (V Expr)                    -- ^ primitive unary function
-     | P2  Op2 (V Expr) (V Expr)           -- ^ primitive binary function
-     | P3  Op3 (V Expr) (V Expr) (V Expr)  -- ^ conditional expression
+   = Ref Var                             -- ^ variable reference
+   | Res Path                            -- ^ resource reference
+   | Lit (V PVal)                        -- ^ primitive literal
+   | P1  Op1 (V Expr)                    -- ^ primitive unary function
+   | P2  Op2 (V Expr) (V Expr)           -- ^ primitive binary function
+   | P3  Op3 (V Expr) (V Expr) (V Expr)  -- ^ conditional expression
   deriving (Eq,Data,Read,Show)
 
 
@@ -400,8 +405,8 @@ data VEnvErr
      => VNF k BExpr (VOpt a)
 
 instance Eq VEnvErr where
-  (NF x) == (NF y) = x == y
-  (VNF k b v) == (VNF k' b' v')
+  NF x == NF y = x == y
+  VNF k b v == VNF k' b' v'
     | b == b', Just u' <- cast v', Just l' <- cast k' = v == u' && k == l'
     | otherwise = False
   _ == _ = False
@@ -491,10 +496,10 @@ instance Prim (V Expr) (V Expr) where
 
 -- | An effect on a particular resource.
 data Effect
-     = Create (V Expr)
-     | Check  Fun
-     | Modify Fun
-     | Delete
+   = Create (V Expr)
+   | Check  Fun
+   | Modify Fun
+   | Delete
   deriving (Show,Data,Read,Eq)
 
 
@@ -502,79 +507,56 @@ data Effect
 
 -- | Kinds of errors that can occur when resolving or combining an effect.
 data EffectErrorKind
-     = CheckFailure
-     | CheckTypeError
-     | NoSuchResource
-     | ResourceAlreadyExists
+   = CheckFailure
+   | CheckTypeError
+   | NoSuchResource
+   | ResourceAlreadyExists
   deriving (Show,Data,Read,Eq)
 
 -- | An error resulting from applying a resource effect.
 data EffectError = EffectError {
-     effectErrorEffect :: Effect,
-     effectErrorKind   :: EffectErrorKind,
-     effectErrorResID  :: ResID,
-     effectErrorValue  :: Maybe Value
+  effectErrorEffect :: Effect,
+  effectErrorKind   :: EffectErrorKind,
+  effectErrorResID  :: ResID,
+  effectErrorValue  :: Maybe Value
 } deriving (Show,Data,Read,Eq)
-
-
---
--- * Profiles
---
-
--- | Resource profile: a parameterized account of all of the resource effects
---   of a program or component.
-data Profile = Profile [Param] (Env Path (SegList Effect))
-  deriving (Show,Data,Read,Eq)
 
 
 --
 -- * Models
 --
 
+-- | A dictionary maps component names to their models.
+type Dictionary = Env Name Model
+
 -- | An application model.
 data Model = Model [Param] Block
   deriving (Show,Eq,Data,Read)
 
 -- | Statement block.
-type Block = SegList Stmt
+type Block = [Stmt]
 
 -- | Statement in an application model.
 data Stmt
-     = Do Path Effect           -- ^ apply an effect
-     | If (V Expr) Block Block  -- ^ conditional statement
-     | In Path Block            -- ^ do work in a sub-environment
-     | For Var (V Expr) Block   -- ^ loop over indexed sub-environments
-     | Let Var (V Expr) Block   -- ^ extend the variable environment
-     | Load (V Expr) [V Expr]   -- ^ load a sub-model or profile
+   = Do Path Effect           -- ^ apply an effect
+   | If (V Expr) Block Block  -- ^ conditional statement
+   | In Path Block            -- ^ do work in a sub-environment
+   | Let Var (V Expr) Block   -- ^ extend the variable environment
+   | Load (V Expr) [V Expr]   -- ^ load a sub-model or profile
   deriving (Eq,Show,Data,Read)
 
 -- | Kinds of errors that can occur in statements.
 data StmtErrorKind
-     = IfTypeError    -- ^ non-boolean condition
-     | ForTypeError   -- ^ non-integer range bound
-     | LoadTypeError  -- ^ not a component ID
+   = IfTypeError    -- ^ non-boolean condition
+   | LoadTypeError  -- ^ not a component ID
   deriving (Eq,Show,Data,Read)
 
 -- | Errors in statements.
 data StmtError = StmtError {
-     stmtErrorStmt  :: Stmt,
-     stmtErrorKind  :: StmtErrorKind,
-     stmtErrorValue :: PVal
+  stmtErrorStmt  :: Stmt,
+  stmtErrorKind  :: StmtErrorKind,
+  stmtErrorValue :: PVal
 } deriving (Eq,Show,Data,Read)
-
-
---
--- * Dictionaries
---
-
--- | Dictionary entry.
-data Entry
-     = ProEntry Profile
-     | ModEntry Model
-  deriving (Eq,Show,Data,Read)
-
--- | Dictionary of profiles and models.
-type Dictionary = Env CompID Entry
 
 
 --
@@ -613,16 +595,17 @@ type EvalM a = ExceptT VError (StateT StateCtx (Reader Context)) a
 --
 
 -- | The kinds of errors that can occur.
-data Error = EnvE  NotFound
-           | PathE PathError
-           | PrimE PrimTypeError
-           | ExprE ExprError
-           | EffE  EffectError
-           | StmtE StmtError
-    deriving (Eq,Show)
+data Error
+   = EnvE  NotFound
+   | PathE PathError
+   | PrimE PrimTypeError
+   | ExprE ExprError
+   | EffE  EffectError
+   | StmtE StmtError
+  deriving (Eq,Show)
 
 -- | Context of a successful computation.
 data SuccessCtx = SuccessCtx {
-    successCtx  :: BExpr,   -- ^ the variants that succeeded
-    configSpace :: Set Var  -- ^ dimensions in the configuration space
+  successCtx  :: BExpr,   -- ^ the variants that succeeded
+  configSpace :: Set Var  -- ^ dimensions in the configuration space
 } deriving (Eq,Show,Data,Read)
