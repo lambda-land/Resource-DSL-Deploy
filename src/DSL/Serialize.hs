@@ -249,11 +249,6 @@ instance ToJSON Stmt where
     [ "statement" .= String "in"
     , "context"   .= toJSON ctx
     , "body"      .= toJSON body ]
-  toJSON (For x expr body) = object
-    [ "statement" .= String "for"
-    , "variable"  .= String x
-    , "maximum"   .= toJSON expr
-    , "body"      .= toJSON body ]
   toJSON (Let x bound body) = object
     [ "statement" .= String "let"
     , "variable"  .= String x
@@ -274,9 +269,6 @@ asStmt = do
                      <*> key "then"      asBlock
                      <*> key "else"      asBlock
       "in"   -> In   <$> key "context"   asPath
-                     <*> key "body"      asBlock
-      "for"  -> For  <$> key "variable"  asName
-                     <*> key "maximum"   (asV asExpr)
                      <*> key "body"      asBlock
       "let"  -> Let  <$> key "variable"  asName
                      <*> key "bound"     (asV asExpr)

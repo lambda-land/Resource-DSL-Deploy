@@ -145,28 +145,24 @@ instance Variational Stmt where
   configure c (Do p e)     = Do p (configure c e)
   configure c (If b t e)   = If (configure c b) (configure c t) (configure c e)
   configure c (In p ss)    = In p (configure c ss)
-  configure c (For v e ss) = For v (configure c e) (configure c ss)
   configure c (Let v e ss) = Let v (configure c e) (configure c ss)
   configure c (Load e es)  = Load (configure c e) (map (configure c) es)
   
   select c (Do p e)     = Do p (select c e)
   select c (If b t e)   = If (select c b) (select c t) (select c e)
   select c (In p ss)    = In p (select c ss)
-  select c (For v e ss) = For v (select c e) (select c ss)
   select c (Let v e ss) = Let v (select c e) (select c ss)
   select c (Load e es)  = Load (select c e) (map (select c) es)
 
   shrink (Do p e)     = Do p (shrink e)
   shrink (If b t e)   = If (shrink b) (shrink t) (shrink e)
   shrink (In p ss)    = In p (shrink ss)
-  shrink (For v e ss) = For v (shrink e) (shrink ss)
   shrink (Let v e ss) = Let v (shrink e) (shrink ss)
   shrink (Load e es)  = Load (shrink e) (map (shrink) es)
 
   dimensions (Do _ e)     = dimensions e
   dimensions (If b t e)   = dimensions b <> dimensions t <> dimensions e
   dimensions (In _ ss)    = dimensions ss
-  dimensions (For _ e ss) = dimensions e <> dimensions ss
   dimensions (Let _ e ss) = dimensions e <> dimensions ss
   dimensions (Load e es)  = dimensions e <> foldMap dimensions es
 

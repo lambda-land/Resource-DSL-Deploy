@@ -541,7 +541,6 @@ data Stmt
    = Do Path Effect           -- ^ apply an effect
    | If (V Expr) Block Block  -- ^ conditional statement
    | In Path Block            -- ^ do work in a sub-environment
-   | For Var (V Expr) Block   -- ^ loop over indexed sub-environments
    | Let Var (V Expr) Block   -- ^ extend the variable environment
    | Load (V Expr) [V Expr]   -- ^ load a sub-model or profile
   deriving (Eq,Show,Data,Read)
@@ -549,7 +548,6 @@ data Stmt
 -- | Kinds of errors that can occur in statements.
 data StmtErrorKind
    = IfTypeError    -- ^ non-boolean condition
-   | ForTypeError   -- ^ non-integer range bound
    | LoadTypeError  -- ^ not a component ID
   deriving (Eq,Show,Data,Read)
 

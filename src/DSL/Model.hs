@@ -1,12 +1,9 @@
 module DSL.Model where
 
-import Control.Monad (forM_)
-
 import DSL.Types
 import DSL.Effect
 import DSL.Environment
 import DSL.Expression
-import DSL.Path
 import DSL.Resource
 
 
@@ -52,13 +49,6 @@ execStmt stmt@(If cond tru fls) = unVM (do
       _ -> VM $ vThrowError (StmtE $ StmtError stmt IfTypeError val)) >> return ()
 -- do work in sub-environment
 execStmt (In path body) = execInSub path (execBlock body)
--- loop over indexed sub-environments
-execStmt stmt@(For var expr body) = unVM (do
-    let iter i = execInSub (pathFor i) (withNewVar var (One. Just . I $ i) (execBlock body))
-    val <- evalExprV expr
-    case val of
-      I n -> toVM $ forM_ [1..n] iter
-      _ -> VM $ vThrowError (StmtE $ StmtError stmt ForTypeError val)) >> return ()
 -- extend the variable environment
 execStmt (Let var expr body) = do
     val <- unVM $ evalExprV expr

@@ -200,7 +200,6 @@ instance Pretty EffectError where
 
 instance Pretty StmtErrorKind where
   pretty IfTypeError   = "Non-Boolean condition"
-  pretty ForTypeError  = "Non-integer range bound"
   pretty LoadTypeError = "Not a component ID"
 
 instance Pretty StmtError where
