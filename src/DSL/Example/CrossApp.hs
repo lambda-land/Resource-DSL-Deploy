@@ -4,18 +4,20 @@ module DSL.Example.CrossApp where
 
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
-import Data.Aeson hiding (Value)
 
 import Control.Monad (when)
-import Options.Applicative hiding (str)
-import Data.Foldable
+import Data.Foldable (foldl')
 import Data.List ((\\))
-import qualified Data.Text as T
+import Data.String (fromString)
 import qualified Data.Set as S
+import qualified Data.Text as T
+
+import Data.Aeson hiding (Value)
+import Options.Applicative hiding (str)
 
 import DSL.Boolean
 import DSL.Environment
-import DSL.Options
+import DSL.Parser (parseValueText)
 import DSL.Serialize
 import DSL.Sugar
 import DSL.Types
@@ -236,6 +238,17 @@ parseCrossAppOpts = CrossAppOpts
   <*> switch
        ( long "reqs"
       <> help "Generate empty mission requirements" )
+
+readRecord :: FromJSON a => ReadM a
+readRecord = eitherReader $ \arg -> case decode (fromString arg) of
+  Just r -> return r
+  _      -> Left $ "cannot parse value `" ++ arg ++ "'"
+
+instance FromJSON Value where
+  parseJSON = withText "Value" $
+      \x -> case parseValueText x of
+              Right v -> return v
+              Left s  -> fail s
 
 runCrossApp :: CrossAppOpts -> IO ()
 runCrossApp opts = do
