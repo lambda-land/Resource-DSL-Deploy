@@ -31,7 +31,7 @@ import DSL.Model
 import DSL.Parser (parseExprText)
 import DSL.Path
 import DSL.Primitive
-import DSL.Resource
+import DSL.Evaluation
 import DSL.SAT
 import DSL.Serialize
 import DSL.Sugar
@@ -39,7 +39,7 @@ import DSL.Types
 
 -- For debugging...
 -- import Debug.Trace (traceShow)
--- import DSL.V
+-- import DSL.Variational
 
 
 --

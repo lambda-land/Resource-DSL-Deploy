@@ -3,7 +3,7 @@ module DSL.Resource.Test where
 import Test.Tasty
 import Test.Tasty.HUnit
 import DSL.Types
-import DSL.Resource
+import DSL.Evaluation
 import DSL.Environment
 
 testValue = testGroup "DSL.Resource" [testApplyPrim1]

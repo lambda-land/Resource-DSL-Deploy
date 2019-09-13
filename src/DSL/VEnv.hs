@@ -4,8 +4,8 @@ import Control.Monad.Except
 
 import DSL.Boolean
 import DSL.Types
-import DSL.V
-import DSL.Resource
+import DSL.Variational
+import DSL.Evaluation
 import DSL.Environment
 import DSL.SAT
 

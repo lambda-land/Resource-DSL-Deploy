@@ -16,13 +16,13 @@ import qualified Data.Set as S
 import Data.SBV (AllSatResult(..))
 
 import DSL.Boolean
+import DSL.Evaluation
 import DSL.Model
 import DSL.Parser (parseBExprString)
-import DSL.Resource
 import DSL.SAT
 import DSL.Serialize
 import DSL.Types hiding (Check)
-import DSL.V
+import DSL.Variational
 
 import DSL.Example.CrossApp
 import DSL.Example.Location

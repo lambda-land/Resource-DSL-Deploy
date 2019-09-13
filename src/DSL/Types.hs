@@ -8,15 +8,12 @@ import GHC.Generics (Generic)
 
 import Prelude hiding (LT,GT)
 
-import Control.Monad.Reader (MonadReader,Reader)
-import Control.Monad.State (MonadState,StateT)
 import Data.String (IsString(..))
 import Data.Text (Text,pack,splitOn)
 import Data.Map.Strict (Map)
 import Data.SBV (SBool,SInteger,SInt8,SInt16,SInt32,SInt64)
 import qualified Data.SBV as SBV
 import Data.Fixed (mod')
-import Data.Set (Set)
 
 import DSL.Boolean
 
@@ -474,44 +471,6 @@ data Effect
    | Modify Fun
    | Delete
   deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
-
-
---
--- * Evaluation Monad
---
-
--- | Variable environment.
-type VarEnv = Env Var Value
-
--- | Resource environment.
-type ResEnv = Env ResID Value
-
--- | State context for evaluation.
-data StateCtx = SCtx {
-  resEnv :: ResEnv,  -- ^ the resource environment
-  errCtx :: BExpr,   -- ^ variation context of errors that have occurred
-  vError :: VError   -- ^ variational error
-} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
-
--- | Reader context for evaluation.
-data Context = Ctx {
-  prefix      :: ResID,      -- ^ resource ID prefix
-  environment :: VarEnv,     -- ^ variable environment
-  dictionary  :: Dictionary, -- ^ dictionary of profiles and models
-  vCtx        :: BExpr       -- ^ current variational context
-} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
-
--- | Resulting context of a successful computation.
-data SuccessCtx = SuccessCtx {
-  successCtx  :: BExpr,   -- ^ the variants that succeeded
-  configSpace :: Set Var  -- ^ dimensions in the configuration space
-} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
-
--- | Requirements of an evaluation monad.
-type MonadEval m = (MonadReader Context m, MonadState StateCtx m)
-
--- | A specific monad for running MonadEval computations.
-type EvalM a = StateT StateCtx (Reader Context) a
 
 
 --

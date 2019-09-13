@@ -5,7 +5,7 @@ import Test.Tasty.HUnit
 
 import DSL.Boolean
 import DSL.Types
-import DSL.V
+import DSL.Variational
 
 
 testV = testGroup "DSL.V" [testSelect, testMergeVError]

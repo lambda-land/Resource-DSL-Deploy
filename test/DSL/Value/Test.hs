@@ -5,7 +5,7 @@ import Test.Tasty.HUnit
 
 import DSL.Boolean
 import DSL.Environment
-import DSL.Resource
+import DSL.Evaluation
 import DSL.Types
 import DSL.Value
 

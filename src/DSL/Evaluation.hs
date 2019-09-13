@@ -1,6 +1,9 @@
 {-# LANGUAGE UndecidableInstances #-}
 
-module DSL.Resource where
+module DSL.Evaluation where
+
+import Data.Data (Data,Typeable)
+import GHC.Generics (Generic)
 
 import Control.Monad.Except
 import Control.Monad.Reader
@@ -12,7 +15,51 @@ import DSL.Boolean
 import DSL.Types
 import DSL.Path
 import DSL.Environment
-import DSL.V
+import DSL.Variational
+
+
+--
+-- * Evaluation Monad
+--
+
+-- | Variable environment.
+type VarEnv = Env Var Value
+
+-- | Resource environment.
+type ResEnv = Env ResID Value
+
+-- | State context for evaluation.
+data StateCtx = SCtx {
+  resEnv :: ResEnv,  -- ^ the resource environment
+  errCtx :: BExpr,   -- ^ variation context of errors that have occurred
+  vError :: VError   -- ^ variational error
+} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+
+-- | Reader context for evaluation.
+data Context = Ctx {
+  prefix      :: ResID,      -- ^ resource ID prefix
+  environment :: VarEnv,     -- ^ variable environment
+  dictionary  :: Dictionary, -- ^ dictionary of profiles and models
+  vCtx        :: BExpr       -- ^ current variational context
+} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+
+-- | Resulting context of a successful computation.
+data SuccessCtx = SuccessCtx {
+  successCtx  :: BExpr,   -- ^ the variants that succeeded
+  configSpace :: Set Var  -- ^ dimensions in the configuration space
+} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+
+-- | Requirements of an evaluation monad.
+type MonadEval m = (MonadReader Context m, MonadState StateCtx m)
+
+-- | A specific monad for running MonadEval computations.
+type EvalM a = StateT StateCtx (Reader Context) a
+
+instance Variational StateCtx where
+  configure c (SCtx r e m) = SCtx (configure c r) e (configure c m)
+  select    c (SCtx r e m) = SCtx (select c r) e (select c m)
+  shrink      (SCtx r e m) = SCtx (shrink r) e (shrink m)
+  dimensions  (SCtx r _ m) = dimensions r <> dimensions m
 
 
 -- | Execute a computation in the given

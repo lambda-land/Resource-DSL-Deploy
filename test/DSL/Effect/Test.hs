@@ -8,7 +8,7 @@ import DSL.Effect
 import DSL.Environment
 import DSL.Expression
 import DSL.Primitive
-import DSL.Resource
+import DSL.Evaluation
 import DSL.Path
 
 -- ** Helper functions

@@ -1,4 +1,4 @@
-module DSL.V where
+module DSL.Variational where
 
 import Data.Set (Set)
 
@@ -32,7 +32,6 @@ class Variational a where
 
 
 -- ** Instances
-
 
 -- Trivial instances
 
@@ -171,12 +170,6 @@ instance Variational Model where
   select    c (Model ps ss) = Model (map (select c) ps) (select c ss)
   shrink      (Model ps ss) = Model (map shrink ps) (shrink ss)
   dimensions  (Model ps ss) = foldMap dimensions ps <> dimensions ss
-
-instance Variational StateCtx where
-  configure c (SCtx r e m) = SCtx (configure c r) e (configure c m)
-  select    c (SCtx r e m) = SCtx (select c r) e (select c m)
-  shrink      (SCtx r e m) = SCtx (shrink r) e (shrink m)
-  dimensions  (SCtx r _ m) = dimensions r <> dimensions m
 
 instance Variational v => Variational (Env k v) where
   configure c = fmap (configure c)

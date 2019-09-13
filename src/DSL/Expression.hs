@@ -5,9 +5,9 @@ import Prelude hiding (LT,GT)
 import Control.Monad (zipWithM)
 
 import DSL.Types
-import DSL.Resource
+import DSL.Evaluation
 import DSL.Value
-import DSL.V
+import DSL.Variational
 import DSL.Primitive
 import DSL.Environment
 import DSL.Pretty ()

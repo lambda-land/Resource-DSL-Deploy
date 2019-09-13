@@ -2,7 +2,7 @@ module DSL.Value where
 
 import DSL.Types
 import DSL.Primitive
-import DSL.Resource
+import DSL.Evaluation
 
 applyPrim1 :: MonadEval m => Op1 -> VM m PVal -> VM m PVal
 applyPrim1 o v = do

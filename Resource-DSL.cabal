@@ -64,6 +64,7 @@ library
     , DSL.Driver
     , DSL.Effect
     , DSL.Environment
+    , DSL.Evaluation
     , DSL.Expression
     , DSL.Model
     , DSL.Parser
@@ -71,12 +72,11 @@ library
     , DSL.Predicate
     , DSL.Pretty
     , DSL.Primitive
-    , DSL.Resource
     , DSL.SAT
     , DSL.Serialize
     , DSL.Sugar
     , DSL.Types
-    , DSL.V
+    , DSL.Variational
     , DSL.VEnv
     , DSL.Value
     , DSL.Example.CrossApp

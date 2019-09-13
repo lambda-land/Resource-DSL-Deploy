@@ -3,7 +3,7 @@ module DSL.Effect where
 
 import DSL.Types
 import DSL.Expression
-import DSL.Resource
+import DSL.Evaluation
 import DSL.VEnv
 
 
