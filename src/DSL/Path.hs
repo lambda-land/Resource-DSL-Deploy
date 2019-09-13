@@ -46,7 +46,7 @@ toResID (ResID pre) orig@(Path k p) = case k of
     Absolute -> ResID <$> norm p
   where
     norm []         = pure []
-    norm ("..":_)   = Left (PathE . CannotNormalize $ orig)
+    norm ("..":_)   = Left (CannotNormalize orig)
     norm ("":p)     = norm p
     norm (".":p)    = norm p
     norm (_:"..":p) = norm p

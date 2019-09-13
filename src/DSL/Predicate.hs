@@ -98,7 +98,7 @@ evalPred _ _ p v = error $ unlines
 --   environments binding all of the variables.
 evalBExpr :: Prim b i => Env Var b -> Env Var i -> BExpr -> b
 evalBExpr _  _  (BLit b)     = fromBool b
-evalBExpr mb _  (BRef v)     = assumeSuccess (envLookup v mb)
+evalBExpr mb _  (BRef v)     = envLookupOrFail v mb
 evalBExpr mb mi (OpB o e)    = opB_B o (evalBExpr mb mi e)
 evalBExpr mb mi (OpBB o l r) = (opBB_B o `on` evalBExpr mb mi) l r
 evalBExpr _  mi (OpIB o l r) = (opNN_B o `on` evalIExpr mi) l r
@@ -107,7 +107,7 @@ evalBExpr _  mi (OpIB o l r) = (opNN_B o `on` evalIExpr mi) l r
 --   given an environment binding all of the variables.
 evalIExpr :: PrimN i => Env Var i -> IExpr -> i
 evalIExpr _ (ILit i)     = fromIntegral i
-evalIExpr m (IRef v)     = assumeSuccess (envLookup v m)
+evalIExpr m (IRef v)     = envLookupOrFail v m
 evalIExpr m (OpI o e)    = opN_N o (evalIExpr m e)
 evalIExpr m (OpII o l r) = (opNN_N o `on` evalIExpr m) l r
 

@@ -24,9 +24,7 @@ import DSL.Parser
 import DSL.Pretty
 
 
---
--- * Default File Paths
---
+-- ** Default file paths
 
 defaultDict, defaultInit, defaultModel, defaultConfig, defaultReqs,
   defaultOutput, defaultError, defaultCtx, defaultBest :: FilePath
@@ -40,21 +38,21 @@ defaultError  = "outbox/error.json"
 defaultCtx    = "outbox/success.json"
 defaultBest   = "outbox/best.txt"
 
+
 -- ** Errors
 
 type ParseIt a = Parse SchemaViolation a
 
 data SchemaViolation
-     = BadCase Text [Text] Text
-     | BadPVal Data.Aeson.Value
-     | BadInt  Data.Aeson.Value
-     | ExprParseError Text Text
-     | BExprParseError Text Text
+   = BadCase Text [Text] Text
+   | BadPVal Data.Aeson.Value
+   | BadInt  Data.Aeson.Value
+   | ExprParseError Text Text
+   | BExprParseError Text Text
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
---
--- * Read/Write JSON
---
+
+-- ** Read/Write JSON
 
 -- | Parse a String containing a JSON value.
 decodeJSON :: String -> ParseIt a -> IO a
@@ -109,7 +107,7 @@ asName :: ParseIt Name
 asName = asText
 
 instance ToJSON Path where
-  toJSON = String . prettyPath
+  toJSON = String . pretty
 
 asPath :: ParseIt Path
 asPath = fromString . unpack <$> asText

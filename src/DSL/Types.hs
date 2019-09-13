@@ -3,13 +3,13 @@
 
 module DSL.Types where
 
-import Data.Data
+import Data.Data (Data,Typeable)
+import GHC.Generics (Generic)
 
-import Prelude hiding (LT, GT)
+import Prelude hiding (LT,GT)
 
-import Control.Monad.Reader
-import Control.Monad.State
-import Control.Monad.Except
+import Control.Monad.Reader (MonadReader,Reader)
+import Control.Monad.State (MonadState,StateT)
 import Data.String (IsString(..))
 import Data.Text (Text,pack,splitOn)
 import Data.Map.Strict (Map)
@@ -33,7 +33,7 @@ type Var = Name
 
 -- | A path is either absolute or relative.
 data PathKind = Absolute | Relative
-  deriving (Eq,Data,Read,Ord,Show)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | A path through a resource environment. Unlike resource IDs, paths may be
 --   relative, may contain "special" path names (such as ".." to refer to the
@@ -41,20 +41,15 @@ data PathKind = Absolute | Relative
 --   resource ID is a simple key in the resource environment, while a path is
 --   an intermediate object that can be manipulated in the language.
 data Path = Path PathKind [Name]
-  deriving (Eq,Data,Read,Ord,Show)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
--- | Error that can occur when converting paths.
-data PathError
-   = CannotNormalize Path
-  deriving (Eq,Data,Read,Show)
+-- | Resource IDs are absolute paths from the root of the resource environment.
+newtype ResID = ResID [Name]
+  deriving (Data,Eq,Generic,Monoid,Ord,Read,Semigroup,Show,Typeable)
 
 instance IsString Path where
   fromString ('/':s) = Path Absolute (splitOn "/" (pack s))
   fromString s       = Path Relative (splitOn "/" (pack s))
-
--- | Resource IDs are absolute paths from the root of the resource environment.
-newtype ResID = ResID [Name]
-  deriving (Eq,Data,Read,Semigroup,Monoid,Ord,Show)
 
 instance IsString ResID where
   fromString ('/':s) = ResID (splitOn "/" (pack s))
@@ -67,18 +62,11 @@ instance IsString ResID where
 
 -- | An environment is a map from keys to values.
 newtype Env k v = Env { envAsMap :: Map k v }
-  deriving (Eq,Show,Data,Read,Functor,Foldable)
+  deriving (Data,Eq,Foldable,Functor,Generic,Ord,Read,Show,Typeable)
 
 -- | Error thrown when a name is not found in the environment.
-data NotFound = forall k. (Eq k, Show k, Typeable k) => NotFound k [k]
-
-instance Eq NotFound where
-  NotFound k ks == NotFound x xs
-    | Just k' <- cast x, Just ks' <- cast xs = k == k' && ks == ks'
-    | otherwise = False
-
-instance Show NotFound where
-  show (NotFound k ks) = "NotFound (" ++ show k ++ ") (" ++ show ks ++ ")"
+data NotFound k = NotFound k
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | A variational environment maps keys to variational optional values.
 type VEnv k v = Env k (VOpt v)
@@ -95,7 +83,7 @@ data PType
    | TInt
    | TFloat
    | TString
-  deriving (Eq,Data,Ord,Read,Show)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Primitive values.
 data PVal
@@ -104,7 +92,7 @@ data PVal
    | I Int
    | F Double
    | S Text
-  deriving (Eq,Data,Ord,Show,Read)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 instance IsString PVal where
   fromString = S . fromString
@@ -115,7 +103,7 @@ data Op1
    | B_B B_B    -- ^ unary boolean operator
    | N_N N_N    -- ^ unary numeric operator
    | F_I F_I    -- ^ unary float-to-integer operator
-  deriving (Eq,Data,Read,Show)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Primitive binary operators organized by type.
 data Op2
@@ -123,45 +111,38 @@ data Op2
    | NN_N NN_N  -- ^ binary numeric operator
    | NN_B NN_B  -- ^ numeric comparison operator
    | SS_B SS_B  -- ^ string comparison operator
-  deriving (Eq,Data,Read,Show)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Primitive ternary operator.
 data Op3 = Cond
-  deriving (Eq,Data,Read,Show)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Boolean negation.
 data B_B = Not
-  deriving (Eq,Data,Read,Show)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Unary numeric operators.
 data N_N = Abs | Neg | Sign
-  deriving (Eq,Data,Read,Show)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Unary float-to-integer operators.
 data F_I = Ceil | Floor | Round
-  deriving (Eq,Data,Read,Show)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Binary boolean operators.
 data BB_B = And | Or | XOr | Imp | Eqv
-  deriving (Eq,Data,Read,Show)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Binary numeric comparison operators.
 data NN_B = LT | LTE | Equ | Neq | GTE | GT
-  deriving (Eq,Data,Read,Show)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Binary numeric arithmetic operators.
 data NN_N = Add | Sub | Mul | Div | Mod
-  deriving (Eq,Data,Read,Show)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 data SS_B = SEqu
-  deriving (Eq,Data,Read,Show)
-
--- | Type error applying primitive operator.
-data PrimTypeError
-   = ErrorOp1 Op1 PVal
-   | ErrorOp2 Op2 PVal PVal
-   | ErrorOp3 Op3 PVal PVal PVal
-  deriving (Eq,Data,Read,Show)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Add division and modulus to the Num type class.
 class Num n => PrimN n where
@@ -273,7 +254,7 @@ data Pred
    = UPred            -- ^ trivial predicate on unit value
    | BPred Var BExpr  -- ^ predicate on boolean value
    | IPred Var BExpr  -- ^ predicate on integer value
-  deriving (Eq,Data,Read,Show)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Boolean expressions with variable references.
 data BExpr
@@ -282,7 +263,7 @@ data BExpr
    | OpB  B_B  BExpr
    | OpBB BB_B BExpr BExpr
    | OpIB NN_B IExpr IExpr
-  deriving (Eq,Data,Read,Show)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Integer expressions with variable references.
 data IExpr
@@ -290,7 +271,7 @@ data IExpr
    | IRef Var
    | OpI  N_N  IExpr
    | OpII NN_N IExpr IExpr
-  deriving (Eq,Data,Read,Show)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- Use SBV's Boolean type class for boolean expressions.
 instance Boolean BExpr where
@@ -339,8 +320,22 @@ instance IsString IExpr where
 --
 
 -- | Variational values implemented as formula choice trees.
-data V a = One a | Chc BExpr (V a) (V a)
-  deriving (Eq,Read,Data,Show,Typeable)
+data V a
+   = One a
+   | Chc BExpr (V a) (V a)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+
+-- | Variational optional values.
+type VOpt a = V (Maybe a)
+
+-- | Variational errors.
+type VError = VOpt Error
+
+-- | Variational primitive type.
+type VType = V PType
+
+-- | Variational optional value.
+type Value = VOpt PVal
 
 instance Functor V where
   fmap f (One v)     = One . f $ v
@@ -357,28 +352,20 @@ instance Monad V where
 
 newtype VM m a = VM { unVM :: (m (VOpt a)) }
 
-type VOpt a = V (Maybe a)
-
-type VError = VOpt Error
-
--- | Variational primitive type.
-type VType = V PType
-
--- | Variational optional value.
-type Value = VOpt PVal
-
 
 --
--- * Expressions
+-- * Functions and expressions
 --
 
 -- | Named and primitively typed parameters.
-data Param = Param Var VType
-  deriving (Show,Data,Read,Eq)
+data Param = Param {
+  paramName :: Var,   -- ^ parameter name
+  paramType :: VType  -- ^ parameter type
+} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Unary functions.
 data Fun = Fun Param (V Expr)
-  deriving (Eq,Data,Read,Show)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Expressions.
 data Expr
@@ -388,39 +375,8 @@ data Expr
    | P1  Op1 (V Expr)                    -- ^ primitive unary function
    | P2  Op2 (V Expr) (V Expr)           -- ^ primitive binary function
    | P3  Op3 (V Expr) (V Expr) (V Expr)  -- ^ conditional expression
-  deriving (Eq,Data,Read,Show)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
-
--- ** Pretty printing
-
-class Pretty a where
-  pretty :: a -> Text
-
-
--- ** Errors
-
-data VEnvErr
-   = NF NotFound
-   | forall a k. (Eq a, Show a, Typeable a, Pretty a, Eq k, Show k, Typeable k)
-     => VNF k BExpr (VOpt a)
-
-instance Eq VEnvErr where
-  NF x == NF y = x == y
-  VNF k b v == VNF k' b' v'
-    | b == b', Just u' <- cast v', Just l' <- cast k' = v == u' && k == l'
-    | otherwise = False
-  _ == _ = False
-
-instance Show VEnvErr where
-  show (NF x) = "NF (" ++ show x ++ ")"
-  show (VNF k b v) = "VNF (" ++ show k ++ ") (" ++ show b ++ ") (" ++ show v ++ ")"
-
--- | Type error caused by passing argument of the wrong type.
-data ExprError
-   = ArgTypeError Param Value PType PVal
-   | VarNotFound VEnvErr
-   | ResNotFound VEnvErr
-  deriving (Eq,Show)
 
 instance Boolean Expr where
   true     = Lit (One (B True))
@@ -489,40 +445,6 @@ instance Prim (V Expr) (V Expr) where
 
 
 --
--- * Effects
---
-
--- ** Type
-
--- | An effect on a particular resource.
-data Effect
-   = Create (V Expr)
-   | Check  Fun
-   | Modify Fun
-   | Delete
-  deriving (Show,Data,Read,Eq)
-
-
--- ** Errors
-
--- | Kinds of errors that can occur when resolving or combining an effect.
-data EffectErrorKind
-   = CheckFailure
-   | CheckTypeError
-   | NoSuchResource
-   | ResourceAlreadyExists
-  deriving (Show,Data,Read,Eq)
-
--- | An error resulting from applying a resource effect.
-data EffectError = EffectError {
-  effectErrorEffect :: Effect,
-  effectErrorKind   :: EffectErrorKind,
-  effectErrorResID  :: ResID,
-  effectErrorValue  :: Maybe Value
-} deriving (Show,Data,Read,Eq)
-
-
---
 -- * Models
 --
 
@@ -531,7 +453,7 @@ type Dictionary = Env Name Model
 
 -- | An application model.
 data Model = Model [Param] Block
-  deriving (Show,Eq,Data,Read)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Statement block.
 type Block = [Stmt]
@@ -543,20 +465,15 @@ data Stmt
    | In Path Block            -- ^ do work in a sub-environment
    | Let Var (V Expr) Block   -- ^ extend the variable environment
    | Load (V Expr) [V Expr]   -- ^ load a sub-model or profile
-  deriving (Eq,Show,Data,Read)
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
--- | Kinds of errors that can occur in statements.
-data StmtErrorKind
-   = IfTypeError    -- ^ non-boolean condition
-   | LoadTypeError  -- ^ not a component ID
-  deriving (Eq,Show,Data,Read)
-
--- | Errors in statements.
-data StmtError = StmtError {
-  stmtErrorStmt  :: Stmt,
-  stmtErrorKind  :: StmtErrorKind,
-  stmtErrorValue :: PVal
-} deriving (Eq,Show,Data,Read)
+-- | An effect on a particular resource.
+data Effect
+   = Create (V Expr)
+   | Check  Fun
+   | Modify Fun
+   | Delete
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 
 --
@@ -574,7 +491,7 @@ data StateCtx = SCtx {
   resEnv :: ResEnv,  -- ^ the resource environment
   errCtx :: BExpr,   -- ^ variation context of errors that have occurred
   vError :: VError   -- ^ variational error
-} deriving (Show,Eq)
+} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Reader context for evaluation.
 data Context = Ctx {
@@ -582,30 +499,56 @@ data Context = Ctx {
   environment :: VarEnv,     -- ^ variable environment
   dictionary  :: Dictionary, -- ^ dictionary of profiles and models
   vCtx        :: BExpr       -- ^ current variational context
-} deriving (Show,Data,Read)
+} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
-type MonadEval m = (MonadError VError m, MonadReader Context m, MonadState StateCtx m)
+-- | Resulting context of a successful computation.
+data SuccessCtx = SuccessCtx {
+  successCtx  :: BExpr,   -- ^ the variants that succeeded
+  configSpace :: Set Var  -- ^ dimensions in the configuration space
+} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+
+-- | Requirements of an evaluation monad.
+type MonadEval m = (MonadReader Context m, MonadState StateCtx m)
 
 -- | A specific monad for running MonadEval computations.
-type EvalM a = ExceptT VError (StateT StateCtx (Reader Context)) a
+type EvalM a = StateT StateCtx (Reader Context) a
 
 
 --
 -- * Errors
 --
 
--- | The kinds of errors that can occur.
+-- | Errors that can occur during evaluation.
 data Error
-   = EnvE  NotFound
-   | PathE PathError
-   | PrimE PrimTypeError
-   | ExprE ExprError
-   | EffE  EffectError
-   | StmtE StmtError
-  deriving (Eq,Show)
+   = ResNotFound ResID
+     -- ^ Resource not found in resource environment.
+   | VarNotFound Var
+     -- ^ Variable not found in variable environment.
+   | CannotNormalize Path
+     -- ^ Relative path cannot be normalized to an absolute path.
+   | ArgTypeError Param Value
+     -- ^ Type error on argument passed when loading a model.
+   | PrimTypeError1 Op1 PVal
+     -- ^ Type error applying a unary primitive operator.
+   | PrimTypeError2 Op2 PVal PVal
+     -- ^ Type error applying a binary primitive operator.
+   | PrimTypeError3 Op3 PVal PVal PVal
+     -- ^ Type error applying a ternary primitive operator.
+   | EffectError EffectErrorKind Effect ResID Value
+     -- ^ Error applying an effect.
+   | StmtError StmtErrorKind Stmt PVal
+     -- ^ Error executing a statement.
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
--- | Context of a successful computation.
-data SuccessCtx = SuccessCtx {
-  successCtx  :: BExpr,   -- ^ the variants that succeeded
-  configSpace :: Set Var  -- ^ dimensions in the configuration space
-} deriving (Eq,Show,Data,Read)
+-- | Kinds of errors that can occur when resolving or combining an effect.
+data EffectErrorKind
+   = CheckFailure         -- ^ The condition of a check effect failed.
+   | CheckTypeError       -- ^ Type error when applying a check effect.
+   | CreateAlreadyExists  -- ^ Tried to create a resource where one already exists.
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+
+-- | Kinds of errors that can occur in statements.
+data StmtErrorKind
+   = IfTypeError    -- ^ non-boolean condition
+   | LoadTypeError  -- ^ not a component ID
+  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
