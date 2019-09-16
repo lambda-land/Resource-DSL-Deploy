@@ -7,13 +7,13 @@ import Prelude hiding (init)
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
+import Data.List ((\\))
 import Data.Monoid ((<>))
+import Data.Set (Set,toList)
+import Data.Text (pack)
 import Options.Applicative
 import System.Environment (getArgs)
 import System.Exit
-import qualified Data.Text as T
-import qualified Data.Set as S
-import Data.SBV (AllSatResult(..))
 
 import DSL.Boolean
 import DSL.Evaluation
@@ -33,6 +33,7 @@ import DSL.Example.SwapDau
 -- * Run the Program
 --
 
+-- | Top level driver.
 runDriver :: IO ()
 runDriver = do
     cmd <- getCommand
@@ -44,112 +45,70 @@ runDriver = do
       Swap opts  -> runSwap opts
       Check opts -> runCheck opts
 
-getBExpr :: S.Set Var -> SelOpts -> Maybe BExpr
-getBExpr _ (Formula s) = case (parseBExprString s) of
-                            Right b -> Just b
-                            Left e -> do
-                              error $ "Could not parse selection:\n" ++ e
-getBExpr _ (OnOff ns fs) =
-  case (ns,fs) of
-    (Just (x:xs), Just (y:ys)) -> Just ((f (x:xs)) &&& (g (y:ys)))
-    (Just (x:xs), _) -> Just $ f (x:xs)
-    (_, Just (y:ys)) -> Just $ g (y:ys)
-    _ -> Nothing
+-- | Compute a selection from the set of all features and the selection options.
+getSelection :: Set Var -> Maybe SelOpts -> BExpr
+getSelection _  Nothing   = true
+getSelection vs (Just os) = case os of
+    Formula s -> case parseBExprString s of
+      Right sel -> sel
+      Left err  -> error ("Could not parse selection: " ++ err)
+    OnOff ons offs -> gen (map pack ons) (map pack offs)
+    Total ons ->
+      let ons' = map pack ons in gen ons' (toList vs \\ ons')
   where
-    f [] = error "impossible"
-    f [x] = BRef (T.pack x)
-    f (x:xs) = BRef (T.pack x) &&& f xs
-    g [] = error "impossible"
-    g [x] = bnot (BRef (T.pack x))
-    g (x:xs) = bnot (BRef (T.pack x)) &&& g xs
-getBExpr vars (Total xs) | null vars = Nothing
-                         | otherwise = let
-                             xs' = fmap T.pack xs
-                             s = S.fromList xs' `S.intersection` vars
-                             xs'' = S.toList s
-                             vars' = S.toList $ vars S.\\ s
-                           in
-                             totalHelper xs'' vars'
+    gen ons offs = foldr (&&&) true $ map BRef ons ++ map (bnot . BRef) offs
 
-totalHelper :: [Var] -> [Var] -> Maybe BExpr
-totalHelper [] [] = Nothing
-totalHelper [] (y:ys) = Just $ foldr (\a b -> (bnot (BRef a)) &&& b) (bnot $ BRef y) ys
-totalHelper [x] ys = Just $ foldr (\a b -> (bnot (BRef a)) &&& b) (BRef x) ys
-totalHelper xs [y] = Just $ foldr (\a b -> BRef a &&& b) (bnot (BRef y)) xs
-totalHelper (x:xs) ys = Just $ foldr (\a b -> (bnot (BRef a)) &&& b)
-                              (foldr (\a b -> BRef a &&& b) (BRef x) xs)
-                               ys
-
-getSel :: Variational a => SelOpts -> a -> (S.Set Var, a)
-getSel opts a = (vars, a')
-  where
-    vars = dimensions a
-    b = getBExpr vars opts
-    a' = case b of
-           Just b' -> case opts of
-             Total _ -> configure b' a
-             _       -> select b' a
-           Nothing -> a
-
+-- | Execute the 'run' command.
 run :: RunOpts -> IO ()
 run opts = do
-    let s x = x >>= (\y -> return $ getSel (selection opts) y)
-    (dictVars, dict) <- s $ readJSON (dictFile opts) asDictionary
-    (initVars, init) <- s $ readJSON (initFile opts) asResEnv
-    (modelVars, model) <- s $ readJSON (modelFile opts) asModel
-    (argsVars, args') <- s $ case configValue opts of
-              Just xs -> decodeJSON xs asConfig
-              Nothing -> readJSON (configFile opts) asConfig
-    let args = map (One . Lit) args'
-    let vars = dictVars <> initVars <> modelVars <> argsVars
-    let b = getBExpr vars (selection opts)
-    sctx <- runEvalM (withDict dict) (withResEnv init) (loadModel model args)
-              `catchEffErr` (opts, 2, "Error executing application model ...", b, vars)
-    writeOutput (outputFile opts) sctx
-    if noReqs opts then do
-      writeError (errorFile opts) sctx
-      writeSuccess (successFile opts) sctx b vars
-    else do
-      (reqsVars,reqs) <- s $ readJSON (reqsFile opts) asModel
-      let (e, sctx') = runEvalM (withDict dict) sctx (loadModel reqs [])
-      writeError (errorFile opts) sctx'
-      let vars' = vars <> reqsVars
-      writeSuccess (successFile opts) sctx' (getBExpr vars' (selection opts)) vars'
-      case e of
-        (Left _) -> putStrLn "Requirements not satisfied ..." >> exitWith (ExitFailure 3)
-        (Right _) -> return ()
-    putStrLn "Success"
+    
+    -- read in all the inputs
+    dict  <- readJSON (dictFile opts) asDictionary
+    init  <- readJSON (initFile opts) asResEnv
+    model <- readJSON (modelFile opts) asModel
+    reqs  <- readJSON (reqsFile opts) asModel
+    args  <- fmap (map (One . Lit)) $ case configValue opts of
+      Just xs -> decodeJSON xs asConfig
+      Nothing -> readJSON (configFile opts) asConfig
+    
+    -- compute the selection and update the inputs
+    let vars = dimensions dict
+            <> dimensions init
+            <> dimensions model
+            <> dimensions reqs
+            <> dimensions args
+    let sel = getSelection vars (selection opts)
+    let (dict', init', model', reqs', args') = case selection opts of
+          Nothing -> (dict, init, model, reqs, args)
+          Just (Total _) ->
+            (configure sel dict, configure sel init, configure sel model,
+             configure sel reqs, configure sel args)
+          _ ->
+            (select sel dict, select sel init, select sel model,
+             select sel reqs, select sel args)
+    
+    -- run the model and check against requirements
+    let Model [] reqsBlock = reqs'
+    let Model xs mainBlock = model'
+    let toRun = Model xs (mainBlock ++ if noReqs opts then [] else reqsBlock)
+    let (_, sctx) = runEvalM (withDict dict') (withResEnv init') (loadModel toRun args')
+    
+    -- write the outputs
+    let passed = bnot (errCtx sctx)
+    writeJSON (outputFile opts) (resEnv sctx)
+    writeJSON (errorFile opts) (vError sctx)
+    writeJSON (successFile opts) (SuccessCtx passed vars)
+    putStrLn "Done. Run 'check' to determine if any configurations were successful."
 
-catchEffErr :: (Either a b, StateCtx) -> (RunOpts, Int, String, Maybe BExpr, S.Set Var) -> IO StateCtx
-catchEffErr (Left _, s) (opts, code,msg,b,vs) = do
-  writeError (errorFile opts) s
-  writeSuccess (successFile opts) s b vs
-  putStrLn (msg)
-  exitWith (ExitFailure code)
-catchEffErr (Right _, s) _ = return s
-
-writeError :: FilePath -> StateCtx -> IO ()
-writeError fp (SCtx _ _ e) = writeJSON fp e
-
-writeSuccess :: FilePath -> StateCtx -> Maybe BExpr -> S.Set Var -> IO ()
-writeSuccess fp (SCtx _ s _) Nothing vs = writeJSON fp (SuccessCtx (bnot s) vs)
-writeSuccess fp (SCtx _ s _) (Just b) vs = writeJSON fp (SuccessCtx (bnot s &&& b) vs)
-
-writeOutput :: FilePath -> StateCtx -> IO ()
-writeOutput fp (SCtx o _ _) = writeJSON fp o
-
-writeBest :: FilePath -> AllSatResult -> IO ()
-writeBest fp r = writeFile fp (show r)
-
+-- | Execute the 'check' command.
 runCheck :: CheckOpts -> IO ()
 runCheck opts = do
-    s <- readJSON (successF opts) asSuccess
-    let b = case getBExpr (configSpace s) (verOpts opts) of
-              Just b -> b &&& (successCtx s)
-              Nothing -> successCtx s
-    r <- satResults (maxRes opts) b
-    writeBest (bestFile opts) r
-    if take 2 (show r) == "No" then do
+    succ <- readJSON (successF opts) asSuccess
+    let sel = getSelection (configSpace succ) (verOpts opts)
+    let passed = sel &&& successCtx succ
+    res <- satResults (maxRes opts) passed
+    writeFile (bestFile opts) (show res)
+    if take 2 (show res) == "No" then do
       putStrLn "No successful configurations found."
       exitWith (ExitFailure 4)
     else
@@ -166,15 +125,16 @@ data Command
      | Swap SwapOpts
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
-data SelOpts = Formula String
-             | OnOff {on :: Maybe [String], off :: Maybe [String]}
-             | Total [String]
+data SelOpts
+   = Formula String
+   | OnOff [String] [String]
+   | Total [String]
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 data RunOpts = RunOpts
      { noReqs      :: Bool
      , configValue :: Maybe String
-     , selection   :: SelOpts
+     , selection   :: Maybe SelOpts
      , dictFile    :: FilePath
      , initFile    :: FilePath
      , modelFile   :: FilePath
@@ -192,7 +152,7 @@ data Example
   deriving (Data,Eq,Generic,Read,Show,Typeable)
 
 data CheckOpts = CheckOpts {
-      verOpts :: SelOpts
+      verOpts  :: Maybe SelOpts
     , successF :: FilePath
     , bestFile :: FilePath
     , maxRes :: Int
@@ -235,31 +195,30 @@ parseExample = subparser
         (progDesc "Cross application dependencies example"))
      )
 
-parseSel :: Parser SelOpts
-parseSel = formula <|> onOff <|> total
+parseSel :: Parser (Maybe SelOpts)
+parseSel = optional (formula <|> onOff <|> total)
   where
     formula = Formula
       <$> strOption
           ( short 'f'
           <> long "formula"
           <> metavar "STRING"
-          <> help "A string representing a boolean expression. Selects variants to be executed." )
+          <> help "A boolean expression indicating the variants to be executed." )
     onOff = OnOff
-      <$> (optional . option auto)
+      <$> option auto
           ( long "on"
-          <> help ("Provide a list of strings representing the names of features" <>
-          " that will be set to True and selected on.") )
-      <*> (optional . option auto)
+          <> metavar "STRING-LIST"
+          <> help "A list of features to be enabled." )
+      <*> option auto
           ( long "off"
-          <> help ("Provide a list of strings representing the names of features" <>
-          " that will be set to False and selected on.") )
+          <> metavar "STRING-LIST"
+          <> help "A list of features to be disabled." )
     total = Total
       <$> option auto
           ( long "total"
           <> short 't'
-          <> help ("Provide a list of strings representing the names of features" <>
-          " that will be set to True and selected on. All other features will be" <>
-          " set to False.") )
+          <> metavar "STRING-LIST"
+          <> help "A list of feature to be enabled, all others will be disabled." )
 
 parseRunOpts :: Parser RunOpts
 parseRunOpts = RunOpts
