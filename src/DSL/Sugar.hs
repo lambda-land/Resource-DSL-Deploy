@@ -145,14 +145,3 @@ exclusive all yes = exclusive' (S.fromList all) (S.fromList yes)
 
 (.==.) :: V Expr -> V Expr -> V Expr
 x .==. y = (One (P2 (SS_B SEqu) x y))
-
-{- TODO TODO TODO
--- | Macro for an integer-case construct. Evaluates the expression, then
---   compares the resulting integer value against each case in turn, executing
---   the first matching block, otherwise executes the final block arugment.
-caseOf :: V Expr -> [(Int,Block)] -> Block -> Stmt
-caseOf expr cases other = Let x expr (foldr ifs other cases)
-  where
-    ifs (i,thn) els = [If (Ref x .== Lit (One (I i))) thn els]
-    x = "$case"
--}
