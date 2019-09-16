@@ -69,10 +69,15 @@ instance Variational a => Variational (V a) where
       | otherwise = Chc d (select c l) (select c r)
 
   shrink (One a) = One a
+  shrink (Chc (BLit True)  l _) = l
+  shrink (Chc (BLit False) _ r) = r
   shrink (Chc d l r)
-      | taut  d   = shrink l
-      | unsat d   = shrink r
-      | otherwise = Chc (shrinkBExpr d) (shrink l) (shrink r)
+      | taut  d   = l'
+      | unsat d   = r'
+      | otherwise = Chc (shrinkBExpr d) l' r'
+    where
+      l' = shrink (select d l)
+      r' = shrink (select d r)
 
   dimensions (One _)     = mempty
   dimensions (Chc d l r) = boolVars d <> dimensions l <> dimensions r
@@ -80,11 +85,23 @@ instance Variational a => Variational (V a) where
 
 -- Congruence instances
 
-instance Variational Param where
-  configure c (Param x t) = Param x (configure c t)
-  select    c (Param x t) = Param x (select c t)
-  shrink      (Param x t) = Param x (shrink t)
-  dimensions  (Param _ t) = dimensions t
+instance Variational a => Variational (Maybe a) where
+  configure c = fmap (configure c)
+  select    c = fmap (select c)
+  shrink      = fmap shrink
+  dimensions  = foldMap dimensions
+
+instance Variational a => Variational [a] where
+  configure c = map (configure c)
+  select    c = map (select c)
+  shrink      = map shrink
+  dimensions  = foldMap dimensions
+
+instance Variational v => Variational (Env k v) where
+  configure c = fmap (configure c)
+  select    c = fmap (select c)
+  shrink      = fmap shrink
+  dimensions  = foldMap dimensions
 
 instance Variational Fun where
   configure c (Fun ps e) = Fun ps (configure c e)
@@ -112,12 +129,6 @@ instance Variational Expr where
   dimensions (P2 _ e1 e2)    = dimensions e1 <> dimensions e2
   dimensions (P3 _ e1 e2 e3) = dimensions e1 <> dimensions e2 <> dimensions e3
   dimensions _ = mempty
-
-instance Variational a => Variational [a] where
-  configure c = map (configure c)
-  select    c = map (select c)
-  shrink      = map shrink
-  dimensions  = foldMap dimensions
 
 instance Variational Effect where
   configure c (Create e) = Create (configure c e)
@@ -166,52 +177,7 @@ instance Variational Stmt where
   dimensions (Load e es)  = dimensions e <> foldMap dimensions es
 
 instance Variational Model where
-  configure c (Model ps ss) = Model (map (configure c) ps) (configure c ss)
-  select    c (Model ps ss) = Model (map (select c) ps) (select c ss)
-  shrink      (Model ps ss) = Model (map shrink ps) (shrink ss)
-  dimensions  (Model ps ss) = foldMap dimensions ps <> dimensions ss
-
-instance Variational v => Variational (Env k v) where
-  configure c = fmap (configure c)
-  select    c = fmap (select c)
-  shrink      = fmap shrink
-  dimensions  = foldMap dimensions
-
-instance Variational a => Variational (Maybe a) where
-  configure c = fmap (configure c)
-  select    c = fmap (select c)
-  shrink      = fmap shrink
-  dimensions  = foldMap dimensions
-
-
---
--- * Other functions
---
-
--- | Merge second variational error into the first.
-mergeVError :: VError -> VError -> VError
--- If there's no error in one of the masks, then just choose the other mask
-mergeVError (One Nothing) m = m
-mergeVError m (One Nothing) = m
--- An error in the original mask dominates the mergee
-mergeVError e@(One (Just _)) _ = e
--- Merge a single error with the leaves of the choice tree
-mergeVError (Chc d l r ) e@(One (Just _)) = Chc d (mergeVError l e) (mergeVError r e)
--- Merge errors in variational contexts
-mergeVError m@(Chc d l r) m'@(Chc d' l' r')
-  -- If the dimensions are equiv, merge both sides with each other
-  | d |=|   d'  = Chc d (mergeVError l l') (mergeVError r r')
-  -- If d |<=| d', merge new mask only into left choice
-  | d |<=|  d' = Chc d (mergeVError l m') r
-  -- If d |!<=| d', merge new mask only into right choice
-  | d |!<=| d' = Chc d l (mergeVError r m')
-  -- If d |=>| d', merge original mask into left choice of new mask
-  | d |=>|  d' = Chc d' (mergeVError m l') r'
-  -- If d |=>!| d', merge original mask into right choice of new mask
-  | d |=>!| d' = Chc d' l' (mergeVError m r')
-  -- Otherwise, merge new mask into both sides of choice
-  | otherwise  = Chc d (mergeVError l m') (mergeVError r m')
-
--- | Turns a variational value into a variational optional value
-toVMaybe :: V a -> V (Maybe a)
-toVMaybe = fmap Just
+  configure c (Model ps ss) = Model ps (configure c ss)
+  select    c (Model ps ss) = Model ps (select c ss)
+  shrink      (Model ps ss) = Model ps (shrink ss)
+  dimensions  (Model _  ss) = dimensions ss

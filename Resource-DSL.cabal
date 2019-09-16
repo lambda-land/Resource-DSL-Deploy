@@ -62,11 +62,8 @@ library
   exposed-modules:
       DSL.Boolean
     , DSL.Driver
-    , DSL.Effect
     , DSL.Environment
     , DSL.Evaluation
-    , DSL.Expression
-    , DSL.Model
     , DSL.Parser
     , DSL.Path
     , DSL.Predicate
@@ -77,8 +74,6 @@ library
     , DSL.Sugar
     , DSL.Types
     , DSL.Variational
-    , DSL.VEnv
-    , DSL.Value
     , DSL.Example.CrossApp
     , DSL.Example.Location
     , DSL.Example.Network

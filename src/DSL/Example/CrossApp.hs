@@ -17,6 +17,7 @@ import Options.Applicative hiding (str)
 
 import DSL.Boolean
 import DSL.Environment
+import DSL.Evaluation
 import DSL.Parser (parseValueText)
 import DSL.Serialize
 import DSL.Sugar
@@ -51,16 +52,16 @@ crossAppResEnvAll = envFromList
 -- ** Application model
 
 appModel = Model
-    [ Param "serverProvider" tString
-    , Param "clientProvider" tString
+    [ Param "serverProvider" TString
+    , Param "clientProvider" TString
     ]
     ( checkSEP ++ checkRules ++
     [ In "/Server/Cipher" [Load (ref "serverProvider") []]
     , In "/Client/Cipher" [Load (ref "clientProvider") []]
-    , check "/Server/Cipher/Algorithm" tString (val .==. res "/Client/Cipher/Algorithm")
-    , check "/Server/Cipher/Mode"      tString (val .==. res "/Client/Cipher/Mode")
-    , check "/Server/Cipher/KeySize"   tString (val .==. res "/Client/Cipher/KeySize")
-    , check "/Server/Cipher/Padding"   tString (val .==. res "/Client/Cipher/Padding")
+    , check "/Server/Cipher/Algorithm" TString (val .==. res "/Client/Cipher/Algorithm")
+    , check "/Server/Cipher/Mode"      TString (val .==. res "/Client/Cipher/Mode")
+    , check "/Server/Cipher/KeySize"   TString (val .==. res "/Client/Cipher/KeySize")
+    , check "/Server/Cipher/Padding"   TString (val .==. res "/Client/Cipher/Padding")
     ])
   where
     checkSEP :: Block

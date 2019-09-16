@@ -17,7 +17,6 @@ import Data.SBV (AllSatResult(..))
 
 import DSL.Boolean
 import DSL.Evaluation
-import DSL.Model
 import DSL.Parser (parseBExprString)
 import DSL.SAT
 import DSL.Serialize

@@ -10,6 +10,7 @@ import qualified Data.Text as T
 
 import DSL.Types
 import DSL.Environment
+import DSL.Evaluation
 import DSL.Serialize
 import DSL.Sugar
 
@@ -22,7 +23,7 @@ import DSL.Sugar
 
 -- | Location-provider application model. The input parameter is the ID of the
 --   location provider to use.
-appModel = Model [Param "provider" tString]
+appModel = Model [Param "provider" TString]
     [ Load (ref "provider") [] ]
 
 

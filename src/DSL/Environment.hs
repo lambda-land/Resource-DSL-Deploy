@@ -10,7 +10,7 @@ import DSL.Types
 
 
 --
--- * Generic Environments
+-- * Generic environments
 --
 
 -- ** Construction
@@ -71,6 +71,10 @@ envHas k = Map.member k . envAsMap
 -- | Extend an environment with a new name binding.
 envExtend :: Ord k => k -> v -> Env k v -> Env k v
 envExtend = envOnMap .: Map.insert
+
+-- | Extend an environment with a list of new name binding.
+envExtends :: Ord k => [(k,v)] -> Env k v -> Env k v
+envExtends = envUnion . envFromList
 
 -- | Delete a binding in an environment.
 envDelete :: Ord k => k -> Env k v -> Env k v

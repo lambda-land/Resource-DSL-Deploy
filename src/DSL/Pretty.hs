@@ -187,6 +187,8 @@ instance Pretty Error where
   pretty (ResNotFound r) = "Resource not found: " <> pretty r
   
   pretty (VarNotFound x) = "Variable not found: " <> x
+
+  pretty (CompNotFound c) = "Component not found in dictionary: " <> c
   
   pretty (CannotNormalize p) = "Cannot normalize path: " <> pretty p
   

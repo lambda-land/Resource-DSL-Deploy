@@ -5,21 +5,23 @@ module DSL.Evaluation where
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
-import Control.Monad.Except
+import Control.Monad.Fail
 import Control.Monad.Reader
 import Control.Monad.State
 import Data.Composition ((.:))
-import Data.Typeable
+import Data.Maybe (fromMaybe)
+import Data.Set (Set)
 
 import DSL.Boolean
 import DSL.Types
-import DSL.Path
 import DSL.Environment
+import DSL.Path
+import DSL.Primitive
 import DSL.Variational
 
 
 --
--- * Evaluation Monad
+-- * Evaluation context
 --
 
 -- | Variable environment.
@@ -28,32 +30,20 @@ type VarEnv = Env Var Value
 -- | Resource environment.
 type ResEnv = Env ResID Value
 
--- | State context for evaluation.
-data StateCtx = SCtx {
-  resEnv :: ResEnv,  -- ^ the resource environment
-  errCtx :: BExpr,   -- ^ variation context of errors that have occurred
-  vError :: VError   -- ^ variational error
-} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
-
 -- | Reader context for evaluation.
 data Context = Ctx {
   prefix      :: ResID,      -- ^ resource ID prefix
   environment :: VarEnv,     -- ^ variable environment
-  dictionary  :: Dictionary, -- ^ dictionary of profiles and models
+  dictionary  :: Dictionary, -- ^ dictionary of models
   vCtx        :: BExpr       -- ^ current variational context
 } deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
--- | Resulting context of a successful computation.
-data SuccessCtx = SuccessCtx {
-  successCtx  :: BExpr,   -- ^ the variants that succeeded
-  configSpace :: Set Var  -- ^ dimensions in the configuration space
+-- | State context for evaluation.
+data StateCtx = SCtx {
+  resEnv :: ResEnv,          -- ^ the resource environment
+  errCtx :: BExpr,           -- ^ variation context of errors that have occurred
+  vError :: VError           -- ^ variational error
 } deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
-
--- | Requirements of an evaluation monad.
-type MonadEval m = (MonadReader Context m, MonadState StateCtx m)
-
--- | A specific monad for running MonadEval computations.
-type EvalM a = StateT StateCtx (Reader Context) a
 
 instance Variational StateCtx where
   configure c (SCtx r e m) = SCtx (configure c r) e (configure c m)
@@ -61,10 +51,11 @@ instance Variational StateCtx where
   shrink      (SCtx r e m) = SCtx (shrink r) e (shrink m)
   dimensions  (SCtx r _ m) = dimensions r <> dimensions m
 
-
--- | Execute a computation in the given
-runEvalM :: Context -> StateCtx -> EvalM a -> (Either VError a, StateCtx)
-runEvalM ctx init mx = runReader (runStateT (runExceptT mx) init) ctx
+-- | Resulting context of a successful computation.
+data SuccessCtx = SuccessCtx {
+  successCtx  :: BExpr,      -- ^ the variants that succeeded
+  configSpace :: Set Var     -- ^ dimensions in the configuration space
+} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Initialize a context with the given dictionary.
 withDict :: Dictionary -> Context
@@ -78,20 +69,94 @@ withResEnv renv = SCtx renv (BLit False) (One Nothing)
 withNoDict :: Context 
 withNoDict = withDict envEmpty
 
--- | Take a value in the plain monadic evaluation context and
---   turn it into a varitional value in the same context.
-toVM :: MonadEval m => m a -> VM m a
-toVM m = VM $ m >>= return . One . Just
+
+--
+-- * Evaluation monad
+--
+
+-- | Requirements of an evaluation monad.
+type MonadEval m = (MonadReader Context m, MonadState StateCtx m)
+
+-- | A monad for running variational computations in an evaluation monad.
+newtype EvalM a = EvalM { unEvalM :: StateT StateCtx (Reader Context) (VOpt a) }
+
+-- | Execute a computation in the given context.
+runEvalM :: Context -> StateCtx -> EvalM a -> (VOpt a, StateCtx)
+runEvalM ctx init (EvalM mx) = runReader (runStateT mx init) ctx
+
+instance Functor EvalM where
+  fmap f (EvalM mx) = EvalM (mx >>= return . fmap (fmap f))
+
+instance Applicative EvalM where
+  pure a = EvalM (pure (One (Just a)))
+  (<*>) = ap
+
+instance Monad EvalM where
+  EvalM mx >>= f = EvalM (mx >>= unEvalM . mapVOpt f)
+
+instance MonadFail EvalM where
+  fail _ = EvalM (return (One Nothing))
+
+instance MonadReader Context EvalM where
+  ask = EvalM (ask >>= return . One . Just)
+  local f (EvalM mx) = EvalM (local f mx)
+
+instance MonadState StateCtx EvalM where
+  get = EvalM (get >>= return . One . Just)
+  put s = EvalM (put s >> return (One (Just ())))
+
+
+-- ** Core operations
+
+-- | Extract the resulting variational value from an evaluation action.
+reflectV :: EvalM a -> EvalM (VOpt a)
+reflectV (EvalM mx) = EvalM (mx >>= return . One . Just)
+
+-- | Map an evaluation over a variational value.
+mapV :: (a -> EvalM b) -> V a -> EvalM b
+mapV f va = EvalM $ do
+    c <- getVCtx
+    go c va
+  where
+    go c (One a)     = inVCtx c (unEvalM (f a))
+    go c (Chc d l r) = do
+      l' <- go (d &&& c) l
+      r' <- go (bnot d &&& c) r
+      return (Chc d l' r')
+
+-- | Map an evaluation over a variational optional value.
+mapVOpt :: (a -> EvalM b) -> VOpt a -> EvalM b
+mapVOpt f va = EvalM $ do
+    c <- getVCtx
+    go c va
+  where
+    go _ (One Nothing)  = return (One Nothing)
+    go c (One (Just a)) = inVCtx c (unEvalM (f a))
+    go c (Chc d l r)    = do
+      l' <- go (d &&& c) l
+      r' <- go (bnot d &&& c) r
+      return (Chc d l' r')
+
+-- | Record an error in the current variation context and return an empty
+--   value.
+returnError :: Error -> EvalM a
+returnError e = EvalM $ do
+    c <- getVCtx
+    updateErrCtx (c |||)
+    updateVError (Chc c (One (Just e)))
+    return (One Nothing)
+
+-- | Consume a value that may have failed, recording an error if so.
+handleError :: Either Error a -> EvalM a
+handleError (Right a) = return a
+handleError (Left e)  = returnError e
+
+
+-- ** Getters, setters, etc.
 
 -- | Get the current resource ID prefix.
 getPrefix :: MonadEval m => m ResID
 getPrefix = asks prefix
-
--- | Convert a path to a resource ID, using the prefix if the path is relative.
-getResID :: MonadEval m => Path -> m ResID
-getResID path = do
-    pre <- getPrefix
-    promoteError (toResID pre path)
 
 -- | Get the current dictionary of profiles and models.
 getDict :: MonadEval m => m Dictionary
@@ -117,21 +182,9 @@ getErrCtx = gets errCtx
 getVCtx :: MonadEval m => m BExpr
 getVCtx = asks vCtx
 
--- | Query the dictionary.
-queryDict :: MonadEval m => (Dictionary -> a) -> m a
-queryDict f = fmap f getDict
-
--- | Query the variable environment.
-queryVarEnv :: MonadEval m => (VarEnv -> a) -> m a
-queryVarEnv f = fmap f getVarEnv
-
--- | Query the current resource environment.
-queryResEnv :: MonadEval m => (ResEnv -> a) -> m a
-queryResEnv f = fmap f getResEnv
-
 -- | Execute a computation in an extended variation context.
 inVCtx :: MonadEval m => BExpr -> m a -> m a
-inVCtx c' = local (\(Ctx p m d c) -> Ctx p m d (c &&& c'))
+inVCtx c' = local (\(Ctx p m d c) -> Ctx p m d (c' &&& c))
 
 -- | Execute a computation with a specific prefix.
 withPrefix :: MonadEval m => ResID -> m a -> m a
@@ -145,6 +198,11 @@ withVarEnv f = local (\(Ctx p m d v) -> Ctx p (f m) d v)
 withNewVar :: MonadEval m => Var -> Value -> m a -> m a
 withNewVar = withVarEnv .: envExtend
 
+-- | Execute a computation with a value environment extended by
+--   a list of var-value pairs.
+withNewVars :: MonadEval m => [(Var,Value)] -> m a -> m a
+withNewVars = withVarEnv . envExtends
+
 -- | Update the resource environment.
 updateResEnv :: MonadEval m => (ResEnv -> ResEnv) -> m ()
 updateResEnv f = modify (\(SCtx r e m) -> SCtx (f r) e m)
@@ -153,10 +211,159 @@ updateResEnv f = modify (\(SCtx r e m) -> SCtx (f r) e m)
 updateErrCtx :: MonadEval m => (BExpr -> BExpr) -> m ()
 updateErrCtx f = modify (\(SCtx r e m) -> SCtx r (f e) m)
 
--- | Update the mask.
+-- | Update the variational error.
 updateVError :: MonadEval m => (VError -> VError) -> m ()
 updateVError f = modify (\(SCtx r e m) -> SCtx r e (f m))
 
+
+-- ** Queries
+
+-- | Convert a path to a resource ID, using the prefix if the path is relative.
+getResID :: Path -> EvalM ResID
+getResID path = do
+    pre <- getPrefix
+    handleError (toResID pre path)
+
+-- | Lookup a variable in the variable environment.
+varLookup :: Var -> EvalM PVal
+varLookup x = do
+    c <- getVCtx
+    m <- getVarEnv
+    case envLookup x m of
+      Nothing -> returnError (VarNotFound x)
+      Just v -> EvalM (return (select c v))
+
+-- | Lookup a component in the dictionary.
+compLookup :: Var -> EvalM Model
+compLookup x = do
+    c <- getVCtx
+    d <- getDict
+    case envLookup x d of
+      Nothing -> returnError (CompNotFound x)
+      Just m -> return (select c m)
+
+-- | Lookup a resource in the resource environment.
+resLookup :: ResID -> EvalM PVal
+resLookup rID = do
+    c <- getVCtx
+    m <- getResEnv
+    case envLookup rID m of
+      Nothing -> returnError (ResNotFound rID)
+      Just v -> EvalM (return (select c v))
+
+
+--
+-- * Language semantics
+--
+
+-- ** Expressions
+
+-- | Evaluate a function applied to the given argument.
+evalFun :: Fun -> Value -> EvalM PVal
+evalFun (Fun p e) v = withNewVar (paramName p) v (evalVExpr e)
+
+-- | Evaluate an expression.
+evalExpr :: Expr -> EvalM PVal
+evalExpr (Ref x) = varLookup x
+evalExpr (Res p) = getResID p >>= resLookup
+evalExpr (Lit v) = EvalM (return (fmap Just v))
+evalExpr (P1 o e1) = do
+    v1 <- evalVExpr e1
+    handleError (primOp1 o v1)
+evalExpr (P2 o e1 e2) = do
+    v1 <- evalVExpr e1
+    v2 <- evalVExpr e2
+    handleError (primOp2 o v1 v2)
+evalExpr (P3 o e1 e2 e3) = do
+    v1 <- evalVExpr e1
+    v2 <- evalVExpr e2
+    v3 <- evalVExpr e3
+    handleError (primOp3 o v1 v2 v3)
+
+-- | Evaluate a variational expression.
+evalVExpr :: V Expr -> EvalM PVal
+evalVExpr = mapV evalExpr
+
+
+-- ** Models
+
+-- | Load a model into the current environment, prefixed by the given path.
+loadModel :: Model -> [V Expr] -> EvalM ()
+loadModel (Model ps block) args = do
+    vs <- mapM (reflectV . evalVExpr) args
+    withNewVars (zip (map paramName ps) vs) (execBlock block)
+
+-- | Load a component by ID.
+loadComp :: Name -> [V Expr] -> EvalM ()
+loadComp cid args = do
+    model <- compLookup cid
+    loadModel model args
+
+-- | Execute a block of statements.
+execBlock :: Block -> EvalM ()
+execBlock = mapM_ execStmt
+
+-- | Execute a statement.
+execStmt :: Stmt -> EvalM ()
+  -- apply an effect
+execStmt (Do path eff) = do
+    rID <- getResID path
+    execEffect rID eff
+  -- conditional statement
+execStmt stmt@(If cond tru fls) = do
+    val <- evalVExpr cond
+    case val of
+      B True  -> execBlock tru
+      B False -> execBlock fls
+      _ -> returnError (StmtError IfTypeError stmt val)
+  -- do work in sub-environment
+execStmt (In path body) = do
+    rID <- getResID path
+    withPrefix rID (execBlock body)
+  -- extend the variable environment
+execStmt (Let var expr body) = do
+    val <- reflectV (evalVExpr expr)
+    withNewVar var val (execBlock body)
+  -- load a sub-module or profile
+execStmt stmt@(Load comp args) = do
+    res <- evalVExpr comp
+    case res of
+      S cid -> loadComp cid args
+      _ -> returnError (StmtError LoadTypeError stmt res)
+
+-- | Update a resource value in the current context.
+updateRes :: ResID -> Value -> EvalM ()
+updateRes rID new = do
+    ctx <- getVCtx
+    env <- getResEnv
+    let old = fromMaybe (One Nothing) (envLookup rID env)
+    updateResEnv (envExtend rID (shrink (Chc ctx new old)))
+
+-- | Execute the effect on the given resource environment.
+execEffect :: ResID -> Effect -> EvalM ()
+  -- create
+execEffect rID (Create e) = do
+    val <- reflectV (evalVExpr e)
+    updateRes rID val
+  -- check
+execEffect rID eff@(Check f) = do
+    val <- reflectV (resLookup rID)
+    res <- evalFun f val
+    case res of
+      B True  -> return ()
+      B False -> returnError (EffectError CheckFailure eff rID val)
+      _ -> returnError (EffectError CheckTypeError eff rID val)
+  -- modify
+execEffect rID (Modify f) = do
+    val <- reflectV (resLookup rID)
+    res <- reflectV (evalFun f val)
+    updateRes rID res
+  -- delete
+execEffect rID Delete = updateRes rID (One Nothing) 
+  -- TODO: actually delete if there are no variants left?
+
+
+{-
 vHandleUnit' :: MonadEval m => BExpr -> m () -> m () -> m ()
 vHandleUnit' d l r = do
   let r' = inVCtx (bnot d) r
@@ -208,56 +415,4 @@ envLookupV f g k env = do
       let v' = select c v
       lookupHelper g' v'
     _ -> error "The impossible happened."
-
-
-
--- | Look up a resource in a variational context, returning a
---   variational value. Note that it does not throw errors for
---   nonexistent resources, so error handling should be handled
---   separately.
-resLookup :: MonadEval m => ResID -> m Value
-resLookup rID = do
-  re <- getResEnv
-  case envLookup' rID re of
-    Nothing -> return (One Nothing)
-    Just v -> do
-      c <- getVCtx
-      return $ select c v -- select on the result for the current variational context
-
-combineVErrors :: BExpr -> Error -> VError -> VError
-combineVErrors (BLit True)  e m = mergeVError m (One (Just e))
-combineVErrors (BLit False) _ m = mergeVError m (One Nothing)
-combineVErrors b            e m = mergeVError m (Chc b (One (Just e)) (One Nothing))
-
--- | Throw an error in the current variation context.
-vThrowError :: MonadEval m => Error -> m a
-vThrowError e = do
-    c <- getVCtx
-    updateErrCtx (||| c)
-    updateVError (combineVErrors c e)
-    throwError (One (Just e))
-
-promoteError :: MonadEval m => Either Error a -> m a
-promoteError (Right a) = return a
-promoteError (Left e) = vThrowError e
-
-vBind :: MonadEval m => m (V (Maybe a)) -> (a -> m (V (Maybe b))) -> m (V (Maybe b))
-vBind v f = do
-  v' <- v
-  -- c <- getVCtx
-  -- let v'' = select c v' TODO: should we have this?
-  case v' of
-    (One Nothing) -> return (One Nothing)
-    (One (Just a)) -> f a
-    (Chc d l r) -> vHandle d (\v -> vBind (return v) f) l r
-
-instance (MonadEval m) => Functor (VM m) where
-  fmap = liftM
-
-instance (MonadEval m) => Applicative (VM m) where
-  pure = return
-  (<*>) = ap
-
-instance (MonadEval m) => Monad (VM m) where
-  return = VM . return . One . Just
-  v >>= f = VM $ vBind (unVM v) (unVM . f)
+-}

@@ -65,9 +65,6 @@ newtype Env k v = Env { envAsMap :: Map k v }
 data NotFound k = NotFound k
   deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
--- | A variational environment maps keys to variational optional values.
-type VEnv k v = Env k (VOpt v)
-
 
 --
 -- * Primitives
@@ -328,14 +325,11 @@ type VOpt a = V (Maybe a)
 -- | Variational errors.
 type VError = VOpt Error
 
--- | Variational primitive type.
-type VType = V PType
-
 -- | Variational optional value.
 type Value = VOpt PVal
 
 instance Functor V where
-  fmap f (One v)     = One . f $ v
+  fmap f (One v)     = One (f v)
   fmap f (Chc d l r) = Chc d (fmap f l) (fmap f r)
 
 instance Applicative V where
@@ -347,8 +341,6 @@ instance Monad V where
   One v     >>= f = f v
   Chc d l r >>= f = Chc d (l >>= f) (r >>= f)
 
-newtype VM m a = VM { unVM :: (m (VOpt a)) }
-
 
 --
 -- * Functions and expressions
@@ -357,7 +349,7 @@ newtype VM m a = VM { unVM :: (m (VOpt a)) }
 -- | Named and primitively typed parameters.
 data Param = Param {
   paramName :: Var,   -- ^ parameter name
-  paramType :: VType  -- ^ parameter type
+  paramType :: PType  -- ^ parameter type
 } deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Unary functions.
@@ -483,6 +475,8 @@ data Error
      -- ^ Resource not found in resource environment.
    | VarNotFound Var
      -- ^ Variable not found in variable environment.
+   | CompNotFound Name
+     -- ^ Component not found in dictionary.
    | CannotNormalize Path
      -- ^ Relative path cannot be normalized to an absolute path.
    | ArgTypeError Param Value

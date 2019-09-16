@@ -191,7 +191,7 @@ instance ToJSON Param where
     , "type" .= toJSON ptype ]
 
 asParam :: ParseIt Param
-asParam = Param <$> key "name" asName <*> key "type" (asV asPType)
+asParam = Param <$> key "name" asName <*> key "type" asPType
 
 instance ToJSON Expr where
   toJSON = String . pretty

@@ -128,6 +128,7 @@ shrinkBExpr :: BExpr -> BExpr
 shrinkBExpr (OpB Not e) = case shrinkBExpr e of
     BLit True  -> BLit False
     BLit False -> BLit True
+    OpB Not e' -> e'
     e' -> OpB Not e'
 shrinkBExpr (OpBB And l r) = case (shrinkBExpr l, shrinkBExpr r) of
     (BLit False, _) -> BLit False
