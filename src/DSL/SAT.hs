@@ -40,36 +40,13 @@ taut = unsat . bnot
 equiv :: SAT b => b -> b -> Bool
 equiv a b = taut (a <=> b)
 
--- | Operator for equiv
-(|=|) :: SAT b => b -> b -> Bool
-(|=|) = equiv
-
-(|!=|) :: SAT b => b -> b -> Bool
-a |!=| b = (bnot a) |=| b
-
 -- | Does the first predicate imply the second?
 implies :: SAT b => b -> b -> Bool
 implies a b = taut (a ==> b)
 
--- | Operator for implies
-(|=>|) :: SAT b => b -> b -> Bool
-(|=>|) = implies
-
 -- | Does the first predicate imply that the second is false?
 nimplies :: SAT b => b -> b -> Bool
 nimplies a b = taut (a ==> bnot b)
-
--- | Operator for nimplies
-(|=>!|) :: SAT b => b -> b -> Bool
-(|=>!|) = nimplies
-
--- | Implication with operators flipped
-(|<=|) :: SAT b => b -> b -> Bool
-a |<=| b = b |=>| a
-
--- | Nimplies with the operators flipped
-(|!<=|) :: SAT b => b -> b -> Bool
-a |!<=| b = b |=>!| a
 
 
 -- Instances

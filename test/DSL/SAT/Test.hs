@@ -25,37 +25,38 @@ testUnsat = testGroup "unsat"
 testEquiv = testGroup "equiv"
   [
     testCase "A = A" $
-      BRef "A" |=| BRef "A" @?= True,
+      equiv (BRef "A") (BRef "A") @?= True,
     testCase "A != B" $
-      BRef "A" |=| BRef "B" @?= False,
+      equiv (BRef "A") (BRef "B") @?= False,
     testCase "!(A | B) = !A & !B" $
-      bnot (BRef "A" ||| BRef "B") |=| ((bnot (BRef "A")) &&& (bnot (BRef "B"))) @?= True
+      equiv (bnot (BRef "A" ||| BRef "B")) 
+            ((bnot (BRef "A")) &&& (bnot (BRef "B"))) @?= True
   ]
 
 testImplies = testGroup "implies"
   [
     testCase "A => A" $
-      BRef "A" |=>| BRef "A" @?= True,
+      implies (BRef "A") (BRef "A") @?= True,
     testCase "A !=> B" $
-      BRef "A" |=>| BRef "B" @?= False,
+      implies (BRef "A") (BRef "B") @?= False,
     testCase "A & B => A" $
-      (BRef "A" &&& BRef "B") |=>| BRef "A" @?= True,
+      implies (BRef "A" &&& BRef "B") (BRef "A") @?= True,
     testCase "A !=> A & B" $
-      BRef "A" |=>| (BRef "A" &&& BRef "B") @?= False,
+      implies (BRef "A") (BRef "A" &&& BRef "B") @?= False,
     testCase "A !=> A | B" $
-      BRef "A" |=>| (BRef "A" ||| BRef "B") @?= True
+      implies (BRef "A") (BRef "A" ||| BRef "B") @?= True
   ]
 
 testNimplies = testGroup "nimplies"
   [
     testCase "!A =>! A" $
-      bnot (BRef "A") |=>!| BRef "A" @?= True,
+      nimplies (bnot (BRef "A")) (BRef "A") @?= True,
     testCase "!A !=>! A" $
-      bnot (BRef "A") |=>!| bnot (BRef "A") @?= False,
+      nimplies (bnot (BRef "A")) (bnot (BRef "A")) @?= False,
     testCase "!A !=>! B" $
-      bnot (BRef "A") |=>!| BRef "B" @?= False,
+      nimplies (bnot (BRef "A")) (BRef "B") @?= False,
     testCase "!A =>! A & B" $
-      bnot (BRef "A") |=>!| (BRef "A" &&& BRef "B") @?= True,
+      nimplies (bnot (BRef "A")) (BRef "A" &&& BRef "B") @?= True,
     testCase "!(A & B) !=>! A" $
-      bnot (BRef "A" &&& BRef "B") |=>!| BRef "A" @?= False
+      nimplies (bnot (BRef "A" &&& BRef "B")) (BRef "A") @?= False
   ]

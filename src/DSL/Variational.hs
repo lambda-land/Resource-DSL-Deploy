@@ -64,9 +64,9 @@ instance Variational a => Variational (V a) where
 
   select c (One a) = One (select c a)
   select c (Chc d l r)
-      | c |=>|  d = select c l
-      | c |=>!| d = select c r
-      | otherwise = Chc d (select c l) (select c r)
+      | implies  c d = select c l
+      | nimplies c d = select c r
+      | otherwise    = Chc d (select c l) (select c r)
 
   shrink (One a) = One a
   shrink (Chc (BLit True)  l _) = l
