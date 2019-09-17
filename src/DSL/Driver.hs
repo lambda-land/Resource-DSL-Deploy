@@ -92,7 +92,7 @@ run opts = do
     let Model [] reqsBlock = reqs'
     let Model xs mainBlock = model'
     let toRun = Model xs (mainBlock ++ if noReqs opts then [] else reqsBlock)
-    let (_, sctx) = runEvalM (withDict dict') (withResEnv init') (loadModel toRun args')
+    (_, sctx) <- runEvalM (withDict dict') (withResEnv init') (loadModel toRun args')
     
     -- write the outputs
     let passed = bnot (errCtx sctx)

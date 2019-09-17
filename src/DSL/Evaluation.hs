@@ -12,6 +12,8 @@ import Control.Monad.State
 import Data.Composition ((.:))
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
+import Data.SBV (runSMT)
+import Data.SBV.Control (Query,query)
 
 import DSL.Boolean
 import DSL.Types
@@ -82,11 +84,13 @@ withNoDict = withDict envEmpty
 type MonadEval m = (MonadReader Context m, MonadState StateCtx m)
 
 -- | A monad for running variational computations in an evaluation monad.
-newtype EvalM a = EvalM { unEvalM :: StateT StateCtx (Reader Context) (VOpt a) }
+newtype EvalM a = EvalM {
+  unEvalM :: StateT StateCtx (ReaderT Context Query) (VOpt a)
+}
 
 -- | Execute a computation in the given context.
-runEvalM :: Context -> StateCtx -> EvalM a -> (VOpt a, StateCtx)
-runEvalM ctx init (EvalM mx) = runReader (runStateT mx init) ctx
+runEvalM :: Context -> StateCtx -> EvalM a -> IO (VOpt a, StateCtx)
+runEvalM ctx init (EvalM mx) = runSMT (query (runReaderT (runStateT mx init) ctx))
 
 instance Functor EvalM where
   fmap f (EvalM mx) = EvalM (mx >>= return . fmap (fmap f))

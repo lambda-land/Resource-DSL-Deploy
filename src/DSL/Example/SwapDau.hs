@@ -664,7 +664,8 @@ findReplacement mx rules inv req = do
     -- writeJSON "outbox/swap-model-debug.json" (appModel rules (provisions (invs !! 1)) daus)
     -- putStrLn $ "To replace: " ++ show daus
     -- putStrLn $ "Inventory: " ++ show inv
-    case loop invs of
+    result <- loop invs
+    case result of
       Nothing -> return Nothing
       Just (i, renv, ctx) -> do 
         r <- satResult ctx
@@ -678,11 +679,13 @@ findReplacement mx rules inv req = do
     ports = buildPortMap daus
     test i = runEvalM withNoDict (withResEnv (initEnv i))
                (loadModel (appModel rules (provisions i) daus) [])
-    loop []     = Nothing
-    loop (i:is) =
-      let (_, SCtx renv _ ctx _) = test i
-          pass = bnot ctx
-      in if sat pass then Just (i, renv, bnot ctx) else loop is
+    loop []     = return Nothing
+    loop (i:is) = do
+      (_, SCtx renv _ ctx _) <- test i
+      let pass = bnot ctx
+      if sat pass
+        then return (Just (i, renv, bnot ctx))
+        else loop is
 
 
 --
