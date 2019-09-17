@@ -28,7 +28,10 @@ class Variational a where
   shrink :: a -> a
 
   -- | Get all boolean variables within choice conditions.
-  dimensions :: a -> Set Var
+  boolDims :: a -> Set Var
+
+  -- | Get all integer variables within choice conditions.
+  intDims :: a -> Set Var
 
 
 -- ** Instances
@@ -39,19 +42,22 @@ instance Variational PVal where
   configure _ = id
   select    _ = id
   shrink      = id
-  dimensions  = mempty
+  boolDims    = mempty
+  intDims     = mempty
 
 instance Variational PType where
   configure _ = id
   select    _ = id
   shrink      = id
-  dimensions  = mempty
+  boolDims    = mempty
+  intDims     = mempty
 
 instance Variational Error where
   configure _ = id
   select    _ = id
   shrink      = id
-  dimensions  = mempty
+  boolDims    = mempty
+  intDims     = mempty
 
 
 -- Reduction instances
@@ -80,8 +86,11 @@ instance Variational a => Variational (V a) where
       l' = shrink (select d l)
       r' = shrink (select (bnot d) r)
 
-  dimensions (One _)     = mempty
-  dimensions (Chc d l r) = boolVars d <> dimensions l <> dimensions r
+  boolDims (One _)     = mempty
+  boolDims (Chc d l r) = boolVars d <> boolDims l <> boolDims r
+
+  intDims (One _)     = mempty
+  intDims (Chc d l r) = intVars d <> intDims l <> intDims r
 
 
 -- Congruence instances
@@ -90,25 +99,29 @@ instance Variational a => Variational (Maybe a) where
   configure c = fmap (configure c)
   select    c = fmap (select c)
   shrink      = fmap shrink
-  dimensions  = foldMap dimensions
+  boolDims    = foldMap boolDims
+  intDims     = foldMap intDims
 
 instance Variational a => Variational [a] where
   configure c = map (configure c)
   select    c = map (select c)
   shrink      = map shrink
-  dimensions  = foldMap dimensions
+  boolDims    = foldMap boolDims
+  intDims     = foldMap intDims
 
 instance Variational v => Variational (Env k v) where
   configure c = fmap (configure c)
   select    c = fmap (select c)
   shrink      = fmap shrink
-  dimensions  = foldMap dimensions
+  boolDims    = foldMap boolDims
+  intDims     = foldMap intDims
 
 instance Variational Fun where
   configure c (Fun ps e) = Fun ps (configure c e)
   select    c (Fun ps e) = Fun ps (select c e)
   shrink      (Fun ps e) = Fun ps (shrink e)
-  dimensions  (Fun _  e) = dimensions e
+  boolDims    (Fun _  e) = boolDims e
+  intDims     (Fun _  e) = intDims e
 
 instance Variational Expr where
   configure c (P1 o e)        = P1 o (configure c e)
@@ -126,10 +139,15 @@ instance Variational Expr where
   shrink (P3 o e1 e2 e3) = P3 o (shrink e1) (shrink e2) (shrink e3)
   shrink e = e
 
-  dimensions (P1 _ e)        = dimensions e
-  dimensions (P2 _ e1 e2)    = dimensions e1 <> dimensions e2
-  dimensions (P3 _ e1 e2 e3) = dimensions e1 <> dimensions e2 <> dimensions e3
-  dimensions _ = mempty
+  boolDims (P1 _ e)        = boolDims e
+  boolDims (P2 _ e1 e2)    = boolDims e1 <> boolDims e2
+  boolDims (P3 _ e1 e2 e3) = boolDims e1 <> boolDims e2 <> boolDims e3
+  boolDims _ = mempty
+
+  intDims (P1 _ e)        = intDims e
+  intDims (P2 _ e1 e2)    = intDims e1 <> intDims e2
+  intDims (P3 _ e1 e2 e3) = intDims e1 <> intDims e2 <> intDims e3
+  intDims _ = mempty
 
 instance Variational Effect where
   configure c (Create e) = Create (configure c e)
@@ -147,10 +165,15 @@ instance Variational Effect where
   shrink (Modify f) = Modify (shrink f)
   shrink Delete     = Delete
 
-  dimensions (Create e) = dimensions e
-  dimensions (Check  f) = dimensions f
-  dimensions (Modify f) = dimensions f
-  dimensions Delete     = mempty
+  boolDims (Create e) = boolDims e
+  boolDims (Check  f) = boolDims f
+  boolDims (Modify f) = boolDims f
+  boolDims Delete     = mempty
+
+  intDims (Create e) = intDims e
+  intDims (Check  f) = intDims f
+  intDims (Modify f) = intDims f
+  intDims Delete     = mempty
 
 instance Variational Stmt where
   configure c (Do p e)     = Do p (configure c e)
@@ -171,14 +194,21 @@ instance Variational Stmt where
   shrink (Let v e ss) = Let v (shrink e) (shrink ss)
   shrink (Load e es)  = Load (shrink e) (map (shrink) es)
 
-  dimensions (Do _ e)     = dimensions e
-  dimensions (If b t e)   = dimensions b <> dimensions t <> dimensions e
-  dimensions (In _ ss)    = dimensions ss
-  dimensions (Let _ e ss) = dimensions e <> dimensions ss
-  dimensions (Load e es)  = dimensions e <> foldMap dimensions es
+  boolDims (Do _ e)     = boolDims e
+  boolDims (If b t e)   = boolDims b <> boolDims t <> boolDims e
+  boolDims (In _ ss)    = boolDims ss
+  boolDims (Let _ e ss) = boolDims e <> boolDims ss
+  boolDims (Load e es)  = boolDims e <> foldMap boolDims es
+
+  intDims (Do _ e)     = intDims e
+  intDims (If b t e)   = intDims b <> intDims t <> intDims e
+  intDims (In _ ss)    = intDims ss
+  intDims (Let _ e ss) = intDims e <> intDims ss
+  intDims (Load e es)  = intDims e <> foldMap intDims es
 
 instance Variational Model where
   configure c (Model ps ss) = Model ps (configure c ss)
   select    c (Model ps ss) = Model ps (select c ss)
   shrink      (Model ps ss) = Model ps (shrink ss)
-  dimensions  (Model _  ss) = dimensions ss
+  boolDims    (Model _  ss) = boolDims ss
+  intDims     (Model _  ss) = intDims ss

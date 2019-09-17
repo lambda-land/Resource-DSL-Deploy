@@ -72,11 +72,12 @@ run opts = do
       Nothing -> readJSON (configFile opts) asConfig
     
     -- compute the selection and update the inputs
-    let vars = dimensions dict
-            <> dimensions init
-            <> dimensions model
-            <> dimensions reqs
-            <> dimensions args
+    -- TODO: deal with integer dimensions
+    let vars = boolDims dict
+            <> boolDims init
+            <> boolDims model
+            <> boolDims reqs
+            <> boolDims args
     let sel = getSelection vars (selection opts)
     let (dict', init', model', reqs', args') = case selection opts of
           Nothing -> (dict, init, model, reqs, args)
