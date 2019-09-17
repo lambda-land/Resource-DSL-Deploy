@@ -62,23 +62,18 @@ library
   exposed-modules:
       DSL.Boolean
     , DSL.Driver
-    , DSL.Effect
     , DSL.Environment
-    , DSL.Expression
-    , DSL.Model
+    , DSL.Evaluation
     , DSL.Parser
     , DSL.Path
     , DSL.Predicate
     , DSL.Pretty
     , DSL.Primitive
-    , DSL.Resource
     , DSL.SAT
     , DSL.Serialize
     , DSL.Sugar
     , DSL.Types
-    , DSL.V
-    , DSL.VEnv
-    , DSL.Value
+    , DSL.Variational
     , DSL.Example.CrossApp
     , DSL.Example.Location
     , DSL.Example.Network
@@ -115,9 +110,9 @@ test-suite test
     , tasty-hunit
     , tasty-th
   other-modules:
-      DSL.Example.SwapDau.Test
+      DSL.Evaluation.Test
+    , DSL.Example.SwapDau.Test
     , DSL.Parser.Test
     , DSL.Primitive.Test
     , DSL.SAT.Test
-    , DSL.V.Test
-    , DSL.Value.Test
+    , DSL.Variational.Test

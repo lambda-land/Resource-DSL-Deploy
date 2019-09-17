@@ -1,23 +1,24 @@
 module Main where
 
 import Test.Tasty
-import DSL.SAT.Test
-import DSL.V.Test
-import DSL.Primitive.Test
-import DSL.Value.Test
+
+import DSL.Evaluation.Test
+import DSL.Example.SwapDau.Test
 --import DSL.Expression.Test
 import DSL.Parser.Test
-import DSL.Example.SwapDau.Test
+import DSL.Primitive.Test
+import DSL.SAT.Test
+import DSL.Variational.Test
 
 main :: IO ()
 main = defaultMain tests
 
-tests = testGroup "Tests" [
-    testSAT
+tests = testGroup "Tests"
+    [ testSAT
     , testV
     , testPrim
-    , testValue
+    , testEval
     --, testExpr
     , testParser
     , testSwap
-  ]
+    ]

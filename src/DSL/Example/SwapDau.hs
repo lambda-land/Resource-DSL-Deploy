@@ -27,19 +27,21 @@ import qualified Data.Set as Set
 
 import DSL.Boolean
 import DSL.Environment
-import DSL.Model
+import DSL.Evaluation
 import DSL.Parser (parseExprText)
 import DSL.Path
+import DSL.Predicate
+import DSL.Pretty
 import DSL.Primitive
-import DSL.Resource
 import DSL.SAT
 import DSL.Serialize
 import DSL.Sugar
 import DSL.Types
+import DSL.Variational
 
 -- For debugging...
 -- import Debug.Trace (traceShow)
--- import DSL.V
+-- import DSL.Variational
 
 
 --
@@ -340,9 +342,9 @@ providePortAttrs rules@(MkRules rs) dimGen as =
   where
     (attrs,eqns) = foldr split ([],[]) (portAttrsToList as)
     split (n, Exactly v) (as,es)
-      | Right (Equation e) <- envLookup (n,v) rs = (as, (n,e):es)
+      | Just (Equation e) <- envLookup (n,v) rs = (as, (n,e):es)
     split (n, OneOf [v]) (as,es)
-      | Right (Equation e) <- envLookup (n,v) rs = (as, (n,e):es)
+      | Just (Equation e) <- envLookup (n,v) rs = (as, (n,e):es)
     split (n, c) (as,es) = ((n,c):as, es)
 
     providePortAttr dim att c =
@@ -391,9 +393,9 @@ requirePortGroup rules prov reqDauID reqGrpIx reqGrp =
             [ providePortGroup rules provDauID provGrpIx reqDauID reqGrpIx provGrp
             , checkGroup rules dim portCount reqGrp
             ]
-    ) ++ [check "/PortsToMatch" tInt (val .== 0)]
+    ) ++ [check "/PortsToMatch" TInt (val .== 0)]
   where
-    relevant = fromMaybe [] (envLookup' (groupFunc reqGrp) prov)
+    relevant = fromMaybe [] (envLookup (groupFunc reqGrp) prov)
         
 -- | Check a required port group against the port group in the current context.
 checkGroup :: Rules -> Var -> Path -> PortGroup Constraint -> Stmt
@@ -423,12 +425,12 @@ requirePortAttrs rules@(MkRules rs) as = do
     return $ case c of
       Exactly v ->
         let t = primType v
-        in check path (One t) (oneOf t (compatible n v))
+        in check path t (oneOf t (compatible n v))
       OneOf vs ->
         let t = primType (head vs)
-        in check path (One t) (oneOf t (concatMap (compatible n) vs))
+        in check path t (oneOf t (concatMap (compatible n) vs))
       Range lo hi ->
-        check path (One TInt) (val .>= int lo &&& val .<= int hi)
+        check path TInt (val .>= int lo &&& val .<= int hi)
       Sync [as] ->
         In path (requirePortAttrs rules as)
       Sync _ ->
@@ -441,7 +443,7 @@ requirePortAttrs rules@(MkRules rs) as = do
       TFloat  -> One (P2 (NN_B Equ) a b)
       TString -> One (P2 (SS_B SEqu) a b)
     compatible n v = case envLookup (n,v) rs of
-      Right (Compatible vs) -> vs
+      Just (Compatible vs) -> vs
       _ -> [v]
     oneOf t vs = foldr1 (|||) [eq t val (lit v) | v <- nub vs]
     
@@ -543,16 +545,11 @@ buildReplaceMap = foldr processDim Map.empty
 
 -- | Build a configuration from the output of the SAT solver.
 buildConfig :: SatResult -> BExpr
-buildConfig = foldr processDim true
-    . Map.assocs . getModelDictionary
+buildConfig = shrinkBExpr . foldr processDim true . Map.assocs . getModelDictionary
   where
-    processDim (dim,v) cfg
-        | k == "Use" = cfg
-        | k == "Cfg" = (if v == trueCV then ref else bnot ref) &&& cfg
-        | otherwise  = error ("buildConfig: Unrecognized dimension: " ++ dim)
-      where
-        ref = BRef (fromString dim)
-        (k:_) = words dim
+    processDim (dim,v) cfg =
+      let ref = BRef (fromString dim)
+      in (if v == trueCV then ref else bnot ref) &&& cfg
 
 -- | Create a response.
 buildResponse
@@ -649,19 +646,14 @@ configPortAttrs renv cfg invDauID invGrpIx reqDauID reqGrpIx (MkPortAttrs (Env m
           MkPortAttrs (Env m) = as !! ix
       in Node (MkPortAttrs (Env (Map.mapWithKey (config (path p a)) m)))
     config p a _ = case envLookup (path p a) renv of
-      Right v -> case fullConfig cfg v of
-        Just pv -> Leaf pv
-        Nothing -> error $ "Misconfigured attribute: " ++ show (path p a)
-                     ++ "\n  started with: " ++ show v
-                     ++ "\n  configured with: " ++ show cfg
-      Left err -> error (show err)
-
--- | Fully configure a value.
-fullConfig :: BExpr -> Value -> Maybe PVal
-fullConfig _   (One v) = v
-fullConfig cfg (Chc c l r)
-    | sat (c &&& cfg) = fullConfig cfg l
-    | otherwise       = fullConfig cfg r
+      Just v -> case configure cfg v of
+        One (Just pv) -> Leaf pv
+        One Nothing ->
+          error $ "Misconfigured attribute: " ++ prettyString (path p a)
+            ++ "\n  started with: " ++ prettyString v
+            ++ "\n  configured with: " ++ prettyString cfg
+        _ -> error $ "Internal error: choice after configuration: " ++ prettyString v
+      Nothing -> error ("Missing attribute: " ++ prettyString (path p a))
 
 
 -- ** Main driver
@@ -687,10 +679,10 @@ findReplacement mx rules inv req = do
     test i = runEvalM withNoDict (withResEnv (initEnv i))
                (loadModel (appModel rules (provisions i) daus) [])
     loop []     = Nothing
-    loop (i:is) = case test i of
-        -- (Left _, s) -> traceShow (shrink s) (loop is)
-        (Left _, _) -> loop is
-        (Right _, SCtx renv ctx _) -> Just (i, renv, bnot ctx)
+    loop (i:is) =
+      let (_, SCtx renv _ ctx _) = test i
+          pass = bnot ctx
+      in if sat pass then Just (i, renv, bnot ctx) else loop is
 
 
 --

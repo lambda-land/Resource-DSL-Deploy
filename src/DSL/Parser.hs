@@ -14,7 +14,7 @@ import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
 import DSL.Types
-import DSL.Pretty ()
+import DSL.Pretty
 import DSL.Primitive
 
 type Parser = Parsec Void Text
@@ -250,7 +250,7 @@ path = char '@' >> absolute <|> relative <?> "resource path"
     steps = sepBy step (char '/')
     step = verbatim ".." <|> verbatim "." <|> (pack <$> many (char '_' <|> alphaNumChar))
 
-keyword :: (Pretty a) => a -> Parser ()
+keyword :: Pretty a => a -> Parser ()
 keyword = rword . pretty
 
 eterm :: Parser Expr

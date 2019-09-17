@@ -1,26 +1,17 @@
 module DSL.Environment where
 
 import Data.Composition ((.:))
-
-import Data.Typeable
 import Data.List (union)
-
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Data.Maybe (fromMaybe)
 
 import DSL.Types
 
 
 --
--- * Generic Environments
+-- * Generic environments
 --
-
--- | Assume an operation succeeds, failing dynamically otherwise.
-assumeSuccess :: Show e => Either e v -> v
-assumeSuccess (Right a)  = a
-assumeSuccess (Left err) = error msg
-  where msg = "assumeSuccess: bad assumption: " ++ show err
-
 
 -- ** Construction
 
@@ -81,6 +72,10 @@ envHas k = Map.member k . envAsMap
 envExtend :: Ord k => k -> v -> Env k v -> Env k v
 envExtend = envOnMap .: Map.insert
 
+-- | Extend an environment with a list of new name binding.
+envExtends :: Ord k => [(k,v)] -> Env k v -> Env k v
+envExtends = envUnion . envFromList
+
 -- | Delete a binding in an environment.
 envDelete :: Ord k => k -> Env k v -> Env k v
 envDelete = envOnMap . Map.delete
@@ -93,14 +88,15 @@ envUnion (Env l) (Env r) = Env (Map.union l r)
 envUnionWith :: Ord k => (v -> v -> v) -> Env k v -> Env k v -> Env k v
 envUnionWith f (Env l) (Env r) = Env (Map.unionWith f l r)
 
--- | Lookup a binding in an environment, returning an error if it does not exist.
-envLookup :: (Ord k, Show k, Typeable k) => k -> Env k v -> Either Error v
-envLookup k (Env m) = (maybe notFound Right . Map.lookup k) m
-  where notFound = Left (EnvE $ NotFound k (Map.keys m))
+-- | Lookup a binding in an environment.
+envLookup :: Ord k => k -> Env k v -> Maybe v
+envLookup k (Env m) = Map.lookup k m
 
--- | Lookup a binding in an environment, returning an optional value.
-envLookup' :: (Ord k) => k -> Env k v -> Maybe v
-envLookup' k (Env m) = Map.lookup k m
+-- | Lookup a binding in an environment, failing with a runtim error if it
+--   doesn't exist.
+envLookupOrFail :: (Show k, Ord k) => k -> Env k v -> v
+envLookupOrFail k = fromMaybe err . envLookup k
+  where err = error ("Lookup failed: " ++ show k)
 
 -- | Apply a result-less monadic action to all key-value pairs.
 envMapM_ :: Monad m => (k -> v -> m ()) -> Env k v -> m ()

@@ -9,7 +9,7 @@ import Options.Applicative hiding (str)
 import DSL.Boolean
 import DSL.Types
 import DSL.Environment
-import DSL.Expression
+import DSL.Evaluation
 import DSL.Serialize
 import DSL.Sugar
 
@@ -22,23 +22,23 @@ import DSL.Sugar
 
 imageParams :: [Param]
 imageParams =
-    [ Param "imageRate" tInt
-    , Param "resX"      tInt
-    , Param "resY"      tInt
-    , Param "color"     tBool
-    , Param "scale"     tFloat
-    , Param "compress"  tBool
+    [ Param "imageRate" TInt
+    , Param "resX"      TInt
+    , Param "resY"      TInt
+    , Param "color"     TBool
+    , Param "scale"     TFloat
+    , Param "compress"  TBool
     ]
 
 saParams :: [Param]
 saParams =
-    [ Param "pliRate"   tInt  -- position location information
+    [ Param "pliRate"   TInt  -- position location information
     -- , Param "logging" TBool
     ]
 
 -- | Application model.
 appModel :: Model
-appModel = Model (Param "clients" tInt : imageParams ++ saParams)
+appModel = Model (Param "clients" TInt : imageParams ++ saParams)
     [ Load (str "image-producer") [imageRate, resX, resY, color, scale, compress]
     , Load (str "situational-awareness-producer") [pliRate]
     , modify "/Network/Bandwidth" TFloat
@@ -80,7 +80,7 @@ imageProducer = Model imageParams
 
 -- | Image scaling DFU.
 imageScale :: Model
-imageScale = Model [Param "scale" tFloat]
+imageScale = Model [Param "scale" TFloat]
     [ modify "Image/Size" TFloat (val * scale) ]
     -- [ In "Image"
     --   [ modify "ResX" TInt (val ./ scale)
@@ -147,7 +147,7 @@ networkEnv kbs = envSingle "/Network/Bandwidth" (One . Just $ (F kbs))
 
 -- | The only mission requirement is that we don't run out of bandwidth.
 networkReqs :: Model
-networkReqs = Model [] [check "/Network/Bandwidth" tFloat (val .>= 0)]
+networkReqs = Model [] [check "/Network/Bandwidth" TFloat (val .>= 0)]
 
 
 --

@@ -40,17 +40,6 @@ splitN (d:ds) (b:bs) = [split d b (splitN ds bs)]
 splitN _ _ = error "splitN: illegal arguments"
 
 
--- ** Types
-
--- | Non-variational primitive types.
-tUnit, tBool, tInt, tFloat, tString :: V PType
-tUnit   = One TUnit
-tInt    = One TInt
-tBool   = One TBool
-tFloat  = One TFloat
-tString = One TString
-
-
 -- ** Expressions
 
 -- | Non-variational literals.
@@ -85,6 +74,12 @@ pCeil = P1 (F_I Ceil)
 pRound :: V Expr -> Expr
 pRound = P1 (F_I Round)
 
+-- | Conditional expressions.
+(??) :: V Expr -> (V Expr, V Expr) -> Expr
+c ?? (t,e) = P3 Cond c t e
+
+infix 1 ??
+
 
 -- ** Statements
 
@@ -93,15 +88,12 @@ create :: Path -> V Expr -> Stmt
 create p e = Do p (Create e)
 
 -- | Check a resource.
-check :: Path -> VType -> V Expr -> Stmt
+check :: Path -> PType -> V Expr -> Stmt
 check p t e = Do p (Check (Fun (Param "$val" t) e))
 
 -- | Modify a resource.
-modify' :: Path -> VType -> V Expr -> Stmt
-modify' p t e = Do p (Modify (Fun (Param "$val" t) e))
-
 modify :: Path -> PType -> V Expr -> Stmt
-modify p t e = modify' p (One t) e
+modify p t e = Do p (Modify (Fun (Param "$val" t) e))
 
 -- | Reference the current value of a resource.
 --   For use with the 'check' and 'modify' smart constructors.
@@ -110,7 +102,7 @@ val = One (Ref "$val")
 
 -- | Check whether a unit-valued resource is present.
 checkUnit :: Path -> Stmt
-checkUnit p = Do p (Check (Fun (Param "$val" (One TUnit)) true))
+checkUnit p = Do p (Check (Fun (Param "$val" TUnit) true))
 
 -- | Create a unit-valued resource.
 createUnit :: Path -> Stmt
@@ -153,14 +145,3 @@ exclusive all yes = exclusive' (S.fromList all) (S.fromList yes)
 
 (.==.) :: V Expr -> V Expr -> V Expr
 x .==. y = (One (P2 (SS_B SEqu) x y))
-
-{- TODO TODO TODO
--- | Macro for an integer-case construct. Evaluates the expression, then
---   compares the resulting integer value against each case in turn, executing
---   the first matching block, otherwise executes the final block arugment.
-caseOf :: V Expr -> [(Int,Block)] -> Block -> Stmt
-caseOf expr cases other = Let x expr (foldr ifs other cases)
-  where
-    ifs (i,thn) els = [If (Ref x .== Lit (One (I i))) thn els]
-    x = "$case"
--}

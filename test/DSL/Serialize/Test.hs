@@ -14,7 +14,7 @@ import DSL.Path
 import DSL.Environment
 import DSL.Effect
 import DSL.Profile
-import DSL.Resource
+import DSL.Evaluation
 import DSL.Model
 
 -- ** Helper functions
