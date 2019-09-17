@@ -8,12 +8,17 @@ import GHC.Generics (Generic)
 
 import Prelude hiding (LT,GT)
 
+import Control.Monad.Reader (MonadReader,ReaderT)
+import Control.Monad.State (MonadState,StateT)
+import Data.Fixed (mod')
+import Data.Map.Strict (Map)
+import Data.Set (Set)
 import Data.String (IsString(..))
 import Data.Text (Text,pack,splitOn)
-import Data.Map.Strict (Map)
-import Data.SBV (SBool,SInteger,SInt8,SInt16,SInt32,SInt64)
+
 import qualified Data.SBV as SBV
-import Data.Fixed (mod')
+import Data.SBV (SBool,SInteger,SInt8,SInt16,SInt32,SInt64)
+import Data.SBV.Control (Query)
 
 import DSL.Boolean
 
@@ -505,3 +510,49 @@ data StmtErrorKind
    = IfTypeError    -- ^ non-boolean condition
    | LoadTypeError  -- ^ not a component ID
   deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+
+
+--
+-- * Evaluation
+--
+
+-- ** Evaluation context
+
+-- | Variable environment.
+type VarEnv = Env Var Value
+
+-- | Resource environment.
+type ResEnv = Env ResID Value
+
+-- | Reader context for evaluation.
+data Context = Ctx {
+  prefix      :: ResID,      -- ^ resource ID prefix
+  environment :: VarEnv,     -- ^ variable environment
+  dictionary  :: Dictionary, -- ^ dictionary of models
+  vCtx        :: BExpr       -- ^ current variational context
+} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+
+-- | State context for evaluation.
+data StateCtx = SCtx {
+  resEnv :: ResEnv,          -- ^ the resource environment
+  abort  :: Bool,            -- ^ whether to abort this branch of the execution
+  errCtx :: BExpr,           -- ^ variation context of errors that have occurred
+  vError :: VError           -- ^ variational error
+} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+
+-- | Resulting context of a successful computation.
+data SuccessCtx = SuccessCtx {
+  successCtx  :: BExpr,      -- ^ the variants that succeeded
+  configSpace :: Set Var     -- ^ dimensions in the configuration space
+} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+
+
+-- ** Evaluation monad
+
+-- | Requirements of an evaluation monad.
+type MonadEval m = (MonadReader Context m, MonadState StateCtx m)
+
+-- | A monad for running variational computations in an evaluation monad.
+newtype EvalM a = EvalM {
+  unEvalM :: StateT StateCtx (ReaderT Context Query) (VOpt a)
+}

@@ -212,3 +212,10 @@ instance Variational Model where
   shrink      (Model ps ss) = Model ps (shrink ss)
   boolDims    (Model _  ss) = boolDims ss
   intDims     (Model _  ss) = intDims ss
+
+instance Variational StateCtx where
+  configure c (SCtx r a e m) = SCtx (configure c r) a e (configure c m)
+  select    c (SCtx r a e m) = SCtx (select c r) a e (select c m)
+  shrink      (SCtx r a e m) = SCtx (shrink r) a e (shrink m)
+  boolDims    (SCtx r _ _ m) = boolDims r <> boolDims m
+  intDims     (SCtx r _ _ m) = intDims r <> intDims m

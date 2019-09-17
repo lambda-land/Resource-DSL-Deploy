@@ -2,9 +2,6 @@
 
 module DSL.Evaluation where
 
-import Data.Data (Data,Typeable)
-import GHC.Generics (Generic)
-
 import Control.Applicative (Alternative(..))
 import Control.Monad.Fail
 import Control.Monad.Reader
@@ -25,43 +22,8 @@ import DSL.Variational
 
 
 --
--- * Evaluation context
+-- * Evaluation contexts
 --
-
--- | Variable environment.
-type VarEnv = Env Var Value
-
--- | Resource environment.
-type ResEnv = Env ResID Value
-
--- | Reader context for evaluation.
-data Context = Ctx {
-  prefix      :: ResID,      -- ^ resource ID prefix
-  environment :: VarEnv,     -- ^ variable environment
-  dictionary  :: Dictionary, -- ^ dictionary of models
-  vCtx        :: BExpr       -- ^ current variational context
-} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
-
--- | State context for evaluation.
-data StateCtx = SCtx {
-  resEnv :: ResEnv,          -- ^ the resource environment
-  abort  :: Bool,            -- ^ whether to abort this branch of the execution
-  errCtx :: BExpr,           -- ^ variation context of errors that have occurred
-  vError :: VError           -- ^ variational error
-} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
-
-instance Variational StateCtx where
-  configure c (SCtx r a e m) = SCtx (configure c r) a e (configure c m)
-  select    c (SCtx r a e m) = SCtx (select c r) a e (select c m)
-  shrink      (SCtx r a e m) = SCtx (shrink r) a e (shrink m)
-  boolDims    (SCtx r _ _ m) = boolDims r <> boolDims m
-  intDims     (SCtx r _ _ m) = intDims r <> intDims m
-
--- | Resulting context of a successful computation.
-data SuccessCtx = SuccessCtx {
-  successCtx  :: BExpr,      -- ^ the variants that succeeded
-  configSpace :: Set Var     -- ^ dimensions in the configuration space
-} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Initialize a context with the given dictionary.
 withDict :: Dictionary -> Context
@@ -79,14 +41,6 @@ withNoDict = withDict envEmpty
 --
 -- * Evaluation monad
 --
-
--- | Requirements of an evaluation monad.
-type MonadEval m = (MonadReader Context m, MonadState StateCtx m)
-
--- | A monad for running variational computations in an evaluation monad.
-newtype EvalM a = EvalM {
-  unEvalM :: StateT StateCtx (ReaderT Context Query) (VOpt a)
-}
 
 -- | Execute a computation in the given context.
 runEvalM :: Context -> StateCtx -> EvalM a -> IO (VOpt a, StateCtx)
