@@ -35,6 +35,7 @@ import DSL.SAT
 import DSL.Serialize
 import DSL.Sugar
 import DSL.Types
+import DSL.Variational
 
 -- For debugging...
 -- import Debug.Trace (traceShow)
@@ -542,16 +543,11 @@ buildReplaceMap = foldr processDim Map.empty
 
 -- | Build a configuration from the output of the SAT solver.
 buildConfig :: SatResult -> BExpr
-buildConfig = foldr processDim true
-    . Map.assocs . getModelDictionary
+buildConfig = shrinkBExpr . foldr processDim true . Map.assocs . getModelDictionary
   where
-    processDim (dim,v) cfg
-        | k == "Use" = cfg
-        | k == "Cfg" = (if v == trueCV then ref else bnot ref) &&& cfg
-        | otherwise  = error ("buildConfig: Unrecognized dimension: " ++ dim)
-      where
-        ref = BRef (fromString dim)
-        (k:_) = words dim
+    processDim (dim,v) cfg =
+      let ref = BRef (fromString dim)
+      in (if v == trueCV then ref else bnot ref) &&& cfg
 
 -- | Create a response.
 buildResponse
@@ -648,19 +644,14 @@ configPortAttrs renv cfg invDauID invGrpIx reqDauID reqGrpIx (MkPortAttrs (Env m
           MkPortAttrs (Env m) = as !! ix
       in Node (MkPortAttrs (Env (Map.mapWithKey (config (path p a)) m)))
     config p a _ = case envLookup (path p a) renv of
-      Just v -> case fullConfig cfg v of
-        Just pv -> Leaf pv
-        Nothing -> error $ "Misconfigured attribute: " ++ show (path p a)
-                     ++ "\n  started with: " ++ show v
-                     ++ "\n  configured with: " ++ show cfg
-      Nothing -> error ("Missing attribute: " ++ show (path p a))
-
--- | Fully configure a value.
-fullConfig :: BExpr -> Value -> Maybe PVal
-fullConfig _   (One v) = v
-fullConfig cfg (Chc c l r)
-    | sat (c &&& cfg) = fullConfig cfg l
-    | otherwise       = fullConfig cfg r
+      Just v -> case configure cfg v of
+        One (Just pv) -> Leaf pv
+        One Nothing ->
+          error $ "Misconfigured attribute: " ++ prettyString (path p a)
+            ++ "\n  started with: " ++ prettyString v
+            ++ "\n  configured with: " ++ prettyString cfg
+        _ -> error $ "Internal error: choice after configuration: " ++ prettyString v
+      Nothing -> error ("Missing attribute: " ++ prettyString (path p a))
 
 
 -- ** Main driver

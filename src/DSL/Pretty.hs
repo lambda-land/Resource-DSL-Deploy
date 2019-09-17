@@ -18,6 +18,9 @@ class Pretty a => PrettyTerm a where
 prettyParens :: Text -> Text
 prettyParens t = concat ["(", t, ")"]
 
+prettyString :: Pretty a => a -> String
+prettyString = unpack . pretty
+
 
 -- ** Paths
 
