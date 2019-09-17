@@ -27,10 +27,12 @@ import qualified Data.Set as Set
 
 import DSL.Boolean
 import DSL.Environment
+import DSL.Evaluation
 import DSL.Parser (parseExprText)
 import DSL.Path
+import DSL.Predicate
+import DSL.Pretty
 import DSL.Primitive
-import DSL.Evaluation
 import DSL.SAT
 import DSL.Serialize
 import DSL.Sugar
@@ -678,7 +680,7 @@ findReplacement mx rules inv req = do
                (loadModel (appModel rules (provisions i) daus) [])
     loop []     = Nothing
     loop (i:is) =
-      let (_, SCtx renv ctx _) = test i
+      let (_, SCtx renv _ ctx _) = test i
           pass = bnot ctx
       in if sat pass then Just (i, renv, bnot ctx) else loop is
 

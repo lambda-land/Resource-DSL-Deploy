@@ -5,6 +5,7 @@ module DSL.Evaluation where
 import Data.Data (Data,Typeable)
 import GHC.Generics (Generic)
 
+import Control.Applicative (Alternative(..))
 import Control.Monad.Fail
 import Control.Monad.Reader
 import Control.Monad.State
@@ -16,6 +17,7 @@ import DSL.Boolean
 import DSL.Types
 import DSL.Environment
 import DSL.Path
+import DSL.Predicate
 import DSL.Primitive
 import DSL.Variational
 
@@ -41,15 +43,16 @@ data Context = Ctx {
 -- | State context for evaluation.
 data StateCtx = SCtx {
   resEnv :: ResEnv,          -- ^ the resource environment
+  abort  :: Bool,            -- ^ whether to abort this branch of the execution
   errCtx :: BExpr,           -- ^ variation context of errors that have occurred
   vError :: VError           -- ^ variational error
 } deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
 
 instance Variational StateCtx where
-  configure c (SCtx r e m) = SCtx (configure c r) e (configure c m)
-  select    c (SCtx r e m) = SCtx (select c r) e (select c m)
-  shrink      (SCtx r e m) = SCtx (shrink r) e (shrink m)
-  dimensions  (SCtx r _ m) = dimensions r <> dimensions m
+  configure c (SCtx r a e m) = SCtx (configure c r) a e (configure c m)
+  select    c (SCtx r a e m) = SCtx (select c r) a e (select c m)
+  shrink      (SCtx r a e m) = SCtx (shrink r) a e (shrink m)
+  dimensions  (SCtx r _ _ m) = dimensions r <> dimensions m
 
 -- | Resulting context of a successful computation.
 data SuccessCtx = SuccessCtx {
@@ -63,7 +66,7 @@ withDict dict = Ctx (ResID []) envEmpty dict (BLit True)
 
 -- | Initialize a state context with the given resource environment.
 withResEnv :: ResEnv -> StateCtx
-withResEnv renv = SCtx renv (BLit False) (One Nothing)
+withResEnv renv = SCtx renv False (BLit False) (One Nothing)
 
 -- | An initial context with no dictionary.
 withNoDict :: Context 
@@ -94,6 +97,16 @@ instance Applicative EvalM where
 instance Monad EvalM where
   EvalM mx >>= f = EvalM (mx >>= unEvalM . mapVOpt f)
 
+instance Alternative EvalM where
+  empty = EvalM (pure (One Nothing))
+  l <|> r = EvalM $ do
+    l' <- unEvalM l
+    case l' of
+      One Nothing -> unEvalM r
+      _ -> pure l'
+
+instance MonadPlus EvalM
+
 instance MonadFail EvalM where
   fail _ = EvalM (return (One Nothing))
 
@@ -115,33 +128,50 @@ reflectV (EvalM mx) = EvalM (mx >>= return . One . Just)
 -- | Map an evaluation over a variational value.
 mapV :: (a -> EvalM b) -> V a -> EvalM b
 mapV f va = EvalM $ do
-    c <- getVCtx
-    go c va
+    b <- getAbort
+    if b then return (One Nothing)
+    else getVCtx >>= \c -> go c va
   where
     go c (One a)     = inVCtx c (unEvalM (f a))
     go c (Chc d l r) = do
       l' <- go (d &&& c) l
+      lb <- getAbort
+      setAbort False
       r' <- go (bnot d &&& c) r
-      return (Chc d l' r')
+      rb <- getAbort
+      if lb && rb then return (One Nothing)
+      else setAbort False >> return (Chc d l' r')
 
 -- | Map an evaluation over a variational optional value.
 mapVOpt :: (a -> EvalM b) -> VOpt a -> EvalM b
 mapVOpt f va = EvalM $ do
-    c <- getVCtx
-    go c va
+    b <- getAbort
+    if b then return (One Nothing)
+    else getVCtx >>= \c -> go c va
   where
     go _ (One Nothing)  = return (One Nothing)
     go c (One (Just a)) = inVCtx c (unEvalM (f a))
     go c (Chc d l r)    = do
       l' <- go (d &&& c) l
+      lb <- getAbort
+      setAbort False
       r' <- go (bnot d &&& c) r
-      return (Chc d l' r')
+      rb <- getAbort
+      if lb && rb then return (One Nothing)
+      else setAbort False >> return (Chc d l' r')
+
+-- | Execute a computation if we have not aborted this branch.
+checkAbort :: EvalM a -> EvalM a
+checkAbort mx = EvalM $ do
+    b <- getAbort
+    if b then return (One Nothing) else unEvalM mx
 
 -- | Record an error in the current variation context and return an empty
 --   value.
 returnError :: Error -> EvalM a
 returnError e = EvalM $ do
     c <- getVCtx
+    setAbort True
     updateErrCtx (c |||)
     updateVError (Chc c (One (Just e)))
     return (One Nothing)
@@ -152,39 +182,42 @@ handleError (Right a) = return a
 handleError (Left e)  = returnError e
 
 
--- ** Getters, setters, etc.
+-- ** Getters
 
 -- | Get the current resource ID prefix.
 getPrefix :: MonadEval m => m ResID
 getPrefix = asks prefix
 
--- | Get the current dictionary of profiles and models.
-getDict :: MonadEval m => m Dictionary
-getDict = asks dictionary
-
 -- | Get the current variable environment.
 getVarEnv :: MonadEval m => m VarEnv
 getVarEnv = asks environment
 
--- | Get the current resource environment.
-getResEnv :: MonadEval m => m ResEnv
-getResEnv = gets resEnv
-
--- | Get the current mask.
-getVError :: MonadEval m => m VError
-getVError = gets vError
-
--- | Get the current error context.
-getErrCtx :: MonadEval m => m BExpr
-getErrCtx = gets errCtx
+-- | Get the current dictionary of profiles and models.
+getDict :: MonadEval m => m Dictionary
+getDict = asks dictionary
 
 -- | Get the current variational context.
 getVCtx :: MonadEval m => m BExpr
 getVCtx = asks vCtx
 
--- | Execute a computation in an extended variation context.
-inVCtx :: MonadEval m => BExpr -> m a -> m a
-inVCtx c' = local (\(Ctx p m d c) -> Ctx p m d (c' &&& c))
+-- | Get the current resource environment.
+getResEnv :: MonadEval m => m ResEnv
+getResEnv = gets resEnv
+
+-- | Get the current abort flag value.
+getAbort :: MonadEval m => m Bool
+getAbort = gets abort
+
+-- | Get the current error context.
+getErrCtx :: MonadEval m => m BExpr
+getErrCtx = gets errCtx
+
+-- | Get the current variational error.
+getVError :: MonadEval m => m VError
+getVError = gets vError
+
+
+-- ** Setters
 
 -- | Execute a computation with a specific prefix.
 withPrefix :: MonadEval m => ResID -> m a -> m a
@@ -203,17 +236,25 @@ withNewVar = withVarEnv .: envExtend
 withNewVars :: MonadEval m => [(Var,Value)] -> m a -> m a
 withNewVars = withVarEnv . envExtends
 
+-- | Execute a computation in an extended variation context.
+inVCtx :: MonadEval m => BExpr -> m a -> m a
+inVCtx c' = local (\(Ctx p m d c) -> Ctx p m d (shrinkBExpr (c' &&& c)))
+
 -- | Update the resource environment.
 updateResEnv :: MonadEval m => (ResEnv -> ResEnv) -> m ()
-updateResEnv f = modify (\(SCtx r e m) -> SCtx (f r) e m)
+updateResEnv f = modify (\(SCtx r a e m) -> SCtx (f r) a e m)
+
+-- | Set the abort flag.
+setAbort :: MonadEval m => Bool -> m ()
+setAbort a = modify (\(SCtx r _ e m) -> SCtx r a e m)
 
 -- | Update the error context.
 updateErrCtx :: MonadEval m => (BExpr -> BExpr) -> m ()
-updateErrCtx f = modify (\(SCtx r e m) -> SCtx r (f e) m)
+updateErrCtx f = modify (\(SCtx r a e m) -> SCtx r a (f e) m)
 
 -- | Update the variational error.
 updateVError :: MonadEval m => (VError -> VError) -> m ()
-updateVError f = modify (\(SCtx r e m) -> SCtx r e (f m))
+updateVError f = modify (\(SCtx r a e m) -> SCtx r a e (f m))
 
 
 -- ** Queries
@@ -301,7 +342,7 @@ loadComp cid args = do
 
 -- | Execute a block of statements.
 execBlock :: Block -> EvalM ()
-execBlock = mapM_ execStmt
+execBlock ss = checkAbort (mapM_ (checkAbort . execStmt) ss)
 
 -- | Execute a statement.
 execStmt :: Stmt -> EvalM ()
