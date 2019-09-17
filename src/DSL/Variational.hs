@@ -77,7 +77,7 @@ instance Variational a => Variational (V a) where
       | otherwise = Chc (shrinkBExpr d) l' r'
     where
       l' = shrink (select d l)
-      r' = shrink (select d r)
+      r' = shrink (select (bnot d) r)
 
   dimensions (One _)     = mempty
   dimensions (Chc d l r) = boolVars d <> dimensions l <> dimensions r
