@@ -135,11 +135,13 @@ shrinkBExpr (OpBB And l r) = case (shrinkBExpr l, shrinkBExpr r) of
     (_, BLit False) -> BLit False
     (BLit True, r') -> r'
     (l', BLit True) -> l'
-    (l', r') -> OpBB And l' r'
+    (l', r') | l' == r'  -> l'
+             | otherwise -> OpBB And l' r'
 shrinkBExpr (OpBB Or l r) = case (shrinkBExpr l, shrinkBExpr r) of
     (BLit True, _) -> BLit True
     (_, BLit True) -> BLit True
     (BLit False, r') -> r'
     (l', BLit False) -> l'
-    (l', r') -> OpBB Or l' r'
+    (l', r') | l' == r'  -> l'
+             | otherwise -> OpBB Or l' r'
 shrinkBExpr e = e

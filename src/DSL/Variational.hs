@@ -71,6 +71,7 @@ instance Variational a => Variational (V a) where
   shrink (One a) = One a
   shrink (Chc (BLit True)  l _) = l
   shrink (Chc (BLit False) _ r) = r
+  shrink (Chc (OpB Not d) l r)  = shrink (Chc d r l)
   shrink (Chc d l r)
       | taut  d   = l'
       | unsat d   = r'
