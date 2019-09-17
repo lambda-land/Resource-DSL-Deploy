@@ -39,42 +39,6 @@ intVars (OpIB _ l r) = intVars' l `Set.union` intVars' r
     intVars' (OpI _ e)    = intVars' e
     intVars' (OpII _ l r) = intVars' l `Set.union` intVars' r
 
--- | Rename a variable in a expression.
-renameVar :: Var -> Var -> BExpr -> BExpr
-renameVar _   _   p@(BLit _)   = p
-renameVar old new p@(BRef v)   = if v == old then BRef new else p
-renameVar old new (OpB o e)    = OpB o (renameVar old new e)
-renameVar old new (OpBB o l r) = OpBB o (renameVar old new l) (renameVar old new r)
-renameVar old new (OpIB o l r) = OpIB o (renameVar' l) (renameVar' r)
-  where
-    renameVar' p@(ILit _)   = p
-    renameVar' p@(IRef v)   = if v == old then IRef new else p
-    renameVar' (OpI o e)    = OpI o (renameVar' e)
-    renameVar' (OpII o l r) = OpII o (renameVar' l) (renameVar' r)
-
-
--- ** Substitution
-
--- | Substitute a boolean variable in a boolean expression.
-substB :: Var -> Bool -> BExpr -> BExpr
-substB v b e@(BRef w)   = if w == v then BLit b else e
-substB v b (OpB o e)    = OpB o (substB v b e)
-substB v b (OpBB o l r) = OpBB o (substB v b l) (substB v b r)
-substB _ _ e            = e
-
--- | Substitute an integer variable in a boolean expression.
-substI :: Var -> Int -> BExpr -> BExpr
-substI _ _ e@(BLit _)   = e
-substI _ _ e@(BRef _)   = e
-substI v i (OpB o e)    = OpB o (substI v i e)
-substI v i (OpBB o l r) = OpBB o (substI v i l) (substI v i r)
-substI v i (OpIB o l r) = OpIB o (substI' l) (substI' r)
-  where
-    substI' e@(ILit _)   = e
-    substI' e@(IRef w)   = if w == v then ILit i else e
-    substI' (OpI o e)    = OpI o (substI' e)
-    substI' (OpII o l r) = OpII o (substI' l) (substI' r)
-
 
 -- ** Evaluation to plain and symbolic values
 
