@@ -10,7 +10,6 @@ import qualified Data.Text as T
 
 import DSL.Types
 import DSL.Environment
-import DSL.Evaluation
 import DSL.Serialize
 import DSL.Sugar
 

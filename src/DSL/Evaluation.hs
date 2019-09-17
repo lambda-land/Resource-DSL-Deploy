@@ -8,9 +8,8 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Data.Composition ((.:))
 import Data.Maybe (fromMaybe)
-import Data.Set (Set)
 import Data.SBV (runSMT)
-import Data.SBV.Control (Query,query)
+import Data.SBV.Control (query)
 
 import DSL.Boolean
 import DSL.Types
