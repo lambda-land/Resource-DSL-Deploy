@@ -248,13 +248,6 @@ instance Prim SBool SInt64 where
 -- * Predicates
 --
 
--- | Unary boolean predicates.
-data Pred
-   = UPred            -- ^ trivial predicate on unit value
-   | BPred Var BExpr  -- ^ predicate on boolean value
-   | IPred Var BExpr  -- ^ predicate on integer value
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
-
 -- | Boolean expressions with variable references.
 data BExpr
    = BLit Bool
