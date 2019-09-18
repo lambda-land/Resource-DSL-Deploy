@@ -1,5 +1,7 @@
 module DSL.Evaluation.Test where
 
+import Data.Set (empty,fromList)
+
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -13,7 +15,7 @@ import DSL.Types
 
 testEval = testGroup "DSL.Evaluation" [testEvalOp1,testIf]
 
-runEmpty = runEvalM withNoDict (withResEnv envEmpty)
+runEmpty ds = runEvalWith envEmpty envEmpty (fromList ds) empty
 
 pbool :: Bool -> VOpt PVal
 pbool = One . Just . B
@@ -37,7 +39,7 @@ testEvalOp1 = testGroup "evalExpr Op1"
     ]
   where
     runOp1 o e = do
-      (res, SCtx _ _ err _) <- runEmpty (evalExpr (P1 o e))
+      (res, SCtx _ _ err _) <- runEmpty ["A"] (evalExpr (P1 o e))
       return (res, shrinkBExpr err)
 
 
@@ -48,5 +50,5 @@ testIf = testGroup "execStmt If"
     ]
   where
     runStmt s = do
-      (_, SCtx renv _ _ _) <- runEmpty (execStmt s)
+      (_, SCtx renv _ _ _) <- runEmpty ["A"] (execStmt s)
       return renv

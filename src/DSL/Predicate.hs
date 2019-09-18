@@ -3,10 +3,10 @@ module DSL.Predicate where
 import Prelude hiding (LT,GT)
 
 import Data.Function (on)
+import Data.SBV.Trans (MonadSymbolic,Symbolic,SBool,SInt32,sBool,sInt32)
 import Data.Set (Set)
 import qualified Data.Set as Set
-
-import Data.SBV (SBool,SInt32,Symbolic)
+import Data.Text (unpack)
 
 import DSL.Boolean
 import DSL.Types
@@ -43,7 +43,7 @@ intVars (OpIB _ l r) = intVars' l `Set.union` intVars' r
 -- ** Evaluation to plain and symbolic values
 
 -- | Construct an environment with fresh symbolic values for each variable.
-symEnv :: (Name -> Symbolic b) -> Set Name -> Symbolic (Env Var b)
+symEnv :: MonadSymbolic m => (Name -> m b) -> Set Name -> m (Env Var b)
 symEnv f s = fmap (envFromList . zip vs) (mapM f vs)
   where vs = Set.toList s
 
@@ -72,6 +72,13 @@ toBool = evalBExpr
 -- | Evaluate a boolean expression to a symbolic boolean.
 toSBool :: Env Var SBool -> Env Var SInt32 -> BExpr -> SBool
 toSBool = evalBExpr
+
+-- | Convert a boolean expression to a symbolic boolean with fresh variables.
+toSBoolFresh :: BExpr -> Symbolic SBool
+toSBoolFresh e = do
+    mb <- symEnv (sBool . unpack) (boolVars e)
+    mi <- symEnv (sInt32 . unpack) (intVars e)
+    return (toSBool mb mi e)
 
 
 -- ** Minimization

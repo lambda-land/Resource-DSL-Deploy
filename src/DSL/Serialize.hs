@@ -20,6 +20,7 @@ import qualified Data.Set as S
 
 import DSL.Types
 import DSL.Environment
+import DSL.Evaluation
 import DSL.Parser
 import DSL.Pretty
 

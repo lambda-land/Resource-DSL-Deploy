@@ -9,9 +9,9 @@ import GHC.Generics (Generic)
 
 import Data.List ((\\))
 import Data.Monoid ((<>))
-import Data.Set (Set,toList)
+import Data.Set (Set,empty,toList)
 import Data.Text (pack)
-import Options.Applicative
+import Options.Applicative hiding (empty)
 import System.Environment (getArgs)
 import System.Exit
 
@@ -73,12 +73,12 @@ run opts = do
     
     -- compute the selection and update the inputs
     -- TODO: deal with integer dimensions
-    let vars = boolDims dict
+    let dims = boolDims dict
             <> boolDims init
             <> boolDims model
             <> boolDims reqs
             <> boolDims args
-    let sel = getSelection vars (selection opts)
+    let sel = getSelection dims (selection opts)
     let (dict', init', model', reqs', args') = case selection opts of
           Nothing -> (dict, init, model, reqs, args)
           Just (Total _) ->
@@ -92,13 +92,13 @@ run opts = do
     let Model [] reqsBlock = reqs'
     let Model xs mainBlock = model'
     let toRun = Model xs (mainBlock ++ if noReqs opts then [] else reqsBlock)
-    (_, sctx) <- runEvalM (withDict dict') (withResEnv init') (loadModel toRun args')
+    (_, sctx) <- runEvalWith dict' init' dims empty (loadModel toRun args')
     
     -- write the outputs
     let passed = bnot (errCtx sctx)
     writeJSON (outputFile opts) (resEnv sctx)
     writeJSON (errorFile opts) (vError sctx)
-    writeJSON (successFile opts) (SuccessCtx passed vars)
+    writeJSON (successFile opts) (SuccessCtx passed dims)
     putStrLn "Done. Run 'check' to determine if any configurations were successful."
 
 -- | Execute the 'check' command.

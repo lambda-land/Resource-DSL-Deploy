@@ -3,6 +3,7 @@ module DSL.Variational where
 import Data.Set (Set)
 
 import DSL.Boolean
+import DSL.Evaluation
 import DSL.Predicate
 import DSL.SAT
 import DSL.Types
@@ -12,10 +13,12 @@ import DSL.Types
 -- * Variational type class
 --
 
--- | A type class capturing all kinds of terms that may contain variation.
+-- | Captures all kinds of objects that may contain variation. Note that the
+--   'configure' and 'select' operations are quite expensive since the current
+--   instances use the inefficient SAT interface in DSL.SAT.
 class Variational a where
   
-  -- | Fully configure a term according to the given partial configuration.
+  -- | Fully configure an object according to the given partial configuration.
   --   The first alternative is chosen if it is consistent with the partial
   --   configuration, otherwise the second is chosen.
   configure :: BExpr -> a -> a
@@ -23,9 +26,6 @@ class Variational a where
   -- | Eliminate all choices in a term that are determined by a partial
   --   configuration expressed as a boolean expression.
   select :: BExpr -> a -> a
-
-  -- | Shrink the size of a term by applying some basic equational laws.
-  shrink :: a -> a
 
   -- | Get all boolean variables within choice conditions.
   boolDims :: a -> Set Var
@@ -41,21 +41,18 @@ class Variational a where
 instance Variational PVal where
   configure _ = id
   select    _ = id
-  shrink      = id
   boolDims    = mempty
   intDims     = mempty
 
 instance Variational PType where
   configure _ = id
   select    _ = id
-  shrink      = id
   boolDims    = mempty
   intDims     = mempty
 
 instance Variational Error where
   configure _ = id
   select    _ = id
-  shrink      = id
   boolDims    = mempty
   intDims     = mempty
 
@@ -74,18 +71,6 @@ instance Variational a => Variational (V a) where
       | nimplies c d = select c r
       | otherwise    = Chc d (select c l) (select c r)
 
-  shrink (One a) = One a
-  shrink (Chc (BLit True)  l _) = l
-  shrink (Chc (BLit False) _ r) = r
-  shrink (Chc (OpB Not d) l r)  = shrink (Chc d r l)
-  shrink (Chc d l r)
-      | taut  d   = l'
-      | unsat d   = r'
-      | otherwise = Chc (shrinkBExpr d) l' r'
-    where
-      l' = shrink (select d l)
-      r' = shrink (select (bnot d) r)
-
   boolDims (One _)     = mempty
   boolDims (Chc d l r) = boolVars d <> boolDims l <> boolDims r
 
@@ -98,28 +83,24 @@ instance Variational a => Variational (V a) where
 instance Variational a => Variational (Maybe a) where
   configure c = fmap (configure c)
   select    c = fmap (select c)
-  shrink      = fmap shrink
   boolDims    = foldMap boolDims
   intDims     = foldMap intDims
 
 instance Variational a => Variational [a] where
   configure c = map (configure c)
   select    c = map (select c)
-  shrink      = map shrink
   boolDims    = foldMap boolDims
   intDims     = foldMap intDims
 
 instance Variational v => Variational (Env k v) where
   configure c = fmap (configure c)
   select    c = fmap (select c)
-  shrink      = fmap shrink
   boolDims    = foldMap boolDims
   intDims     = foldMap intDims
 
 instance Variational Fun where
   configure c (Fun ps e) = Fun ps (configure c e)
   select    c (Fun ps e) = Fun ps (select c e)
-  shrink      (Fun ps e) = Fun ps (shrink e)
   boolDims    (Fun _  e) = boolDims e
   intDims     (Fun _  e) = intDims e
 
@@ -133,11 +114,6 @@ instance Variational Expr where
   select c (P2 o e1 e2)    = P2 o (select c e1) (select c e2)
   select c (P3 o e1 e2 e3) = P3 o (select c e1) (select c e2) (select c e3)
   select _ e = e
-
-  shrink (P1 o e)        = P1 o (shrink e)
-  shrink (P2 o e1 e2)    = P2 o (shrink e1) (shrink e2)
-  shrink (P3 o e1 e2 e3) = P3 o (shrink e1) (shrink e2) (shrink e3)
-  shrink e = e
 
   boolDims (P1 _ e)        = boolDims e
   boolDims (P2 _ e1 e2)    = boolDims e1 <> boolDims e2
@@ -159,11 +135,6 @@ instance Variational Effect where
   select c (Check  f) = Check  (select c f)
   select c (Modify f) = Modify (select c f)
   select _ Delete     = Delete
-
-  shrink (Create e) = Create (shrink e)
-  shrink (Check  f) = Check  (shrink f)
-  shrink (Modify f) = Modify (shrink f)
-  shrink Delete     = Delete
 
   boolDims (Create e) = boolDims e
   boolDims (Check  f) = boolDims f
@@ -188,12 +159,6 @@ instance Variational Stmt where
   select c (Let v e ss) = Let v (select c e) (select c ss)
   select c (Load e es)  = Load (select c e) (map (select c) es)
 
-  shrink (Do p e)     = Do p (shrink e)
-  shrink (If b t e)   = If (shrink b) (shrink t) (shrink e)
-  shrink (In p ss)    = In p (shrink ss)
-  shrink (Let v e ss) = Let v (shrink e) (shrink ss)
-  shrink (Load e es)  = Load (shrink e) (map (shrink) es)
-
   boolDims (Do _ e)     = boolDims e
   boolDims (If b t e)   = boolDims b <> boolDims t <> boolDims e
   boolDims (In _ ss)    = boolDims ss
@@ -209,13 +174,11 @@ instance Variational Stmt where
 instance Variational Model where
   configure c (Model ps ss) = Model ps (configure c ss)
   select    c (Model ps ss) = Model ps (select c ss)
-  shrink      (Model ps ss) = Model ps (shrink ss)
   boolDims    (Model _  ss) = boolDims ss
   intDims     (Model _  ss) = intDims ss
 
 instance Variational StateCtx where
   configure c (SCtx r a e m) = SCtx (configure c r) a e (configure c m)
   select    c (SCtx r a e m) = SCtx (select c r) a e (select c m)
-  shrink      (SCtx r a e m) = SCtx (shrink r) a e (shrink m)
   boolDims    (SCtx r _ _ m) = boolDims r <> boolDims m
   intDims     (SCtx r _ _ m) = intDims r <> intDims m

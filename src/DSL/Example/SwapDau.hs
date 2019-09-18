@@ -677,8 +677,10 @@ findReplacement mx rules inv req = do
     daus = toReplace req
     invs = toSearch mx daus inv
     ports = buildPortMap daus
-    test i = runEvalM withNoDict (withResEnv (initEnv i))
-               (loadModel (appModel rules (provisions i) daus) [])
+    test i =
+      let model = appModel rules (provisions i) daus
+          dims = boolDims model
+      in runEvalWith envEmpty (initEnv i) dims Set.empty (loadModel model [])
     loop []     = return Nothing
     loop (i:is) = do
       (_, SCtx renv _ ctx _) <- test i

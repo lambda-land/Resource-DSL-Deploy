@@ -9,6 +9,7 @@ import Options.Applicative hiding (str)
 import DSL.Boolean
 import DSL.Types
 import DSL.Environment
+import DSL.Evaluation
 import DSL.Serialize
 import DSL.Sugar
 
