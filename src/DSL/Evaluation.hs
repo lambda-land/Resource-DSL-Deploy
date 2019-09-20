@@ -85,7 +85,11 @@ newtype EvalM a = EvalM {
 
 -- | Execute a computation in the given context.
 runEval :: Context -> StateCtx -> EvalM a -> IO (VOpt a, StateCtx)
-runEval ctx init (EvalM mx) = runSMTWith (z3 { verbose = True }) (query (runReaderT (runStateT mx init) ctx))
+runEval ctx init (EvalM mx) = runQ (runR (runS mx))
+  where
+    runQ = runSMTWith (z3 { verbose = True }) . query
+    runR = flip runReaderT ctx
+    runS = flip runStateT init
 
 -- | Execute a computation on the given inputs with initialized contexts.
 runEvalWith
