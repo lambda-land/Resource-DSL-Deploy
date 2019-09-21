@@ -8,12 +8,58 @@ import Data.Text (unpack)
 import qualified Data.Set as Set
 import Z3.Monad
 
+import DSL.Boolean
 import DSL.Types
 import DSL.Environment
 import DSL.Primitive
 
+
 --
 -- * Conditions
+--
+
+-- ** Operations
+
+-- | Apply a unary operator to a condition.
+condOp1
+  :: MonadZ3 m
+  => (BExpr -> BExpr)  -- ^ operation on boolean expression
+  -> (AST -> m AST)    -- ^ operation on symbolic encoding
+  -> Cond              -- ^ condition to modify
+  -> m Cond
+condOp1 eOp sOp (Cond e (Just s)) = do
+    s' <- sOp s
+    return (Cond (eOp e) (Just s'))
+condOp1 eOp _ (Cond e _) = return (Cond (eOp e) Nothing)
+
+-- | Combine two conditions with a binary operator.
+condOp2
+  :: MonadZ3 m
+  => (BExpr -> BExpr -> BExpr)  -- ^ operation on boolean expressions
+  -> (AST -> AST -> m AST)      -- ^ operation on symbolic encodings
+  -> Cond                       -- ^ left condition
+  -> Cond                       -- ^ right condition
+  -> m Cond
+condOp2 eOp sOp (Cond e1 (Just s1)) (Cond e2 (Just s2)) = do
+    s' <- sOp s1 s2
+    return (Cond (eOp e1 e2) (Just s'))
+condOp2 eOp _ (Cond e1 _) (Cond e2 _) = return (Cond (eOp e1 e2) Nothing)
+
+-- | Boolean negation of a condition.
+condNot :: MonadZ3 m => Cond -> m Cond
+condNot = condOp1 bnot mkNot
+
+-- | Conjunction of two conditions.
+condAnd :: MonadZ3 m => Cond -> Cond -> m Cond
+condAnd = condOp2 (&&&) (\l r -> mkAnd [l,r])
+
+-- | Disjunction of two conditions.
+condOr :: MonadZ3 m => Cond -> Cond -> m Cond
+condOr = condOp2 (|||) (\l r -> mkOr [l,r])
+
+
+--
+-- * Boolean expressions
 --
 
 -- ** Variables
@@ -39,20 +85,7 @@ intVars (OpIB _ l r) = intVars' l `Set.union` intVars' r
     intVars' (OpII _ l r) = intVars' l `Set.union` intVars' r
 
 
--- ** Evaluation to plain and symbolic values
-
--- | Construct an environment with fresh symbolic values for each variable.
-symEnv :: MonadZ3 m => (Name -> m a) -> Set Name -> m (Env Var a)
-symEnv f s = fmap (envFromList . zip vs) (mapM f vs)
-  where vs = Set.toList s
-
--- | Create a fresh symbolic boolean variable.
-symBool :: MonadZ3 m => Name -> m AST
-symBool n = mkStringSymbol (unpack n) >>= mkBoolVar
-
--- | Create a fresh symbolic integer variable.
-symInt :: MonadZ3 m => Name -> m AST
-symInt n = mkStringSymbol (unpack n) >>= mkIntVar
+-- ** Evaluation
 
 -- | Evaluate a boolean expression to a ground boolean, given environments
 --   binding all of the variables.
@@ -70,6 +103,49 @@ evalIExpr _ (ILit i)     = i
 evalIExpr m (IRef v)     = envLookupOrFail v m
 evalIExpr m (OpI o e)    = opN_N o (evalIExpr m e)
 evalIExpr m (OpII o l r) = (opNN_N o `on` evalIExpr m) l r
+
+
+-- ** Minimization
+
+-- | Apply some basic rules to shrink the size of a boolean expression. Does
+--   not attempt to shrink integer expressions within comparison operations.
+shrinkBExpr :: BExpr -> BExpr
+shrinkBExpr (OpB Not e) = case shrinkBExpr e of
+    BLit True  -> BLit False
+    BLit False -> BLit True
+    OpB Not e' -> e'
+    e' -> OpB Not e'
+shrinkBExpr (OpBB And l r) = case (shrinkBExpr l, shrinkBExpr r) of
+    (BLit False, _) -> BLit False
+    (_, BLit False) -> BLit False
+    (BLit True, r') -> r'
+    (l', BLit True) -> l'
+    (l', r') | l' == r'  -> l'
+             | otherwise -> OpBB And l' r'
+shrinkBExpr (OpBB Or l r) = case (shrinkBExpr l, shrinkBExpr r) of
+    (BLit True, _) -> BLit True
+    (_, BLit True) -> BLit True
+    (BLit False, r') -> r'
+    (l', BLit False) -> l'
+    (l', r') | l' == r'  -> l'
+             | otherwise -> OpBB Or l' r'
+shrinkBExpr e = e
+
+
+-- ** Conversion to symbolic values
+
+-- | Construct an environment with fresh symbolic values for each variable.
+symEnv :: MonadZ3 m => (Name -> m a) -> Set Name -> m (Env Var a)
+symEnv f s = fmap (envFromList . zip vs) (mapM f vs)
+  where vs = Set.toList s
+
+-- | Create a fresh symbolic boolean variable.
+symBool :: MonadZ3 m => Name -> m AST
+symBool n = mkStringSymbol (unpack n) >>= mkBoolVar
+
+-- | Create a fresh symbolic integer variable.
+symInt :: MonadZ3 m => Name -> m AST
+symInt n = mkStringSymbol (unpack n) >>= mkIntVar
 
 -- | Convert a boolean expression to a symbolic boolean with fresh variables.
 symBExprFresh :: MonadZ3 m => BExpr -> m AST
@@ -147,30 +223,3 @@ symNN_N Sub l r = mkSub [l,r]
 symNN_N Mul l r = mkMul [l,r]
 symNN_N Div l r = mkDiv l r
 symNN_N Mod l r = mkMod l r
-
-
--- ** Minimization
-
--- | Apply some basic rules to shrink the size of a boolean expression. Does
---   not attempt to shrink integer expressions within comparison operations.
-shrinkBExpr :: BExpr -> BExpr
-shrinkBExpr (OpB Not e) = case shrinkBExpr e of
-    BLit True  -> BLit False
-    BLit False -> BLit True
-    OpB Not e' -> e'
-    e' -> OpB Not e'
-shrinkBExpr (OpBB And l r) = case (shrinkBExpr l, shrinkBExpr r) of
-    (BLit False, _) -> BLit False
-    (_, BLit False) -> BLit False
-    (BLit True, r') -> r'
-    (l', BLit True) -> l'
-    (l', r') | l' == r'  -> l'
-             | otherwise -> OpBB And l' r'
-shrinkBExpr (OpBB Or l r) = case (shrinkBExpr l, shrinkBExpr r) of
-    (BLit True, _) -> BLit True
-    (_, BLit True) -> BLit True
-    (BLit False, r') -> r'
-    (l', BLit False) -> l'
-    (l', r') | l' == r'  -> l'
-             | otherwise -> OpBB Or l' r'
-shrinkBExpr e = e
