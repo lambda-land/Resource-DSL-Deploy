@@ -1,0 +1,176 @@
+module DSL.Condition where
+
+import Prelude hiding (LT,GT)
+
+import Data.Function (on)
+import Data.Set (Set)
+import Data.Text (unpack)
+import qualified Data.Set as Set
+import Z3.Monad
+
+import DSL.Types
+import DSL.Environment
+import DSL.Primitive
+
+--
+-- * Conditions
+--
+
+-- ** Variables
+
+-- | The set of boolean variables referenced in a boolean expression.
+boolVars :: BExpr -> Set Var
+boolVars (BRef v)     = Set.singleton v
+boolVars (OpB _ e)    = boolVars e
+boolVars (OpBB _ l r) = boolVars l `Set.union` boolVars r
+boolVars _            = Set.empty
+
+-- | The set of integer variables referenced in a boolean expression.
+intVars :: BExpr -> Set Var
+intVars (BLit _)     = Set.empty
+intVars (BRef _)     = Set.empty
+intVars (OpB _ e)    = intVars e
+intVars (OpBB _ l r) = intVars l `Set.union` intVars r
+intVars (OpIB _ l r) = intVars' l `Set.union` intVars' r
+  where
+    intVars' (ILit _)     = Set.empty
+    intVars' (IRef v)     = Set.singleton v
+    intVars' (OpI _ e)    = intVars' e
+    intVars' (OpII _ l r) = intVars' l `Set.union` intVars' r
+
+
+-- ** Evaluation to plain and symbolic values
+
+-- | Construct an environment with fresh symbolic values for each variable.
+symEnv :: MonadZ3 m => (Name -> m a) -> Set Name -> m (Env Var a)
+symEnv f s = fmap (envFromList . zip vs) (mapM f vs)
+  where vs = Set.toList s
+
+-- | Create a fresh symbolic boolean variable.
+symBool :: MonadZ3 m => Name -> m AST
+symBool n = mkStringSymbol (unpack n) >>= mkBoolVar
+
+-- | Create a fresh symbolic integer variable.
+symInt :: MonadZ3 m => Name -> m AST
+symInt n = mkStringSymbol (unpack n) >>= mkIntVar
+
+-- | Evaluate a boolean expression to a ground boolean, given environments
+--   binding all of the variables.
+evalBExpr :: Env Var Bool -> Env Var Int -> BExpr -> Bool
+evalBExpr _  _  (BLit b)     = b
+evalBExpr mb _  (BRef v)     = envLookupOrFail v mb
+evalBExpr mb mi (OpB o e)    = opB_B o (evalBExpr mb mi e)
+evalBExpr mb mi (OpBB o l r) = (opBB_B o `on` evalBExpr mb mi) l r
+evalBExpr _  mi (OpIB o l r) = (opNN_B o `on` evalIExpr mi) l r
+
+-- | Evaluate an integer expression to a ground integer, given environments
+--   binding all of the variables.
+evalIExpr :: Env Var Int -> IExpr -> Int
+evalIExpr _ (ILit i)     = i
+evalIExpr m (IRef v)     = envLookupOrFail v m
+evalIExpr m (OpI o e)    = opN_N o (evalIExpr m e)
+evalIExpr m (OpII o l r) = (opNN_N o `on` evalIExpr m) l r
+
+-- | Convert a boolean expression to a symbolic boolean with fresh variables.
+symBExprFresh :: MonadZ3 m => BExpr -> m AST
+symBExprFresh e = do
+    mb <- symEnv symBool (boolVars e)
+    mi <- symEnv symInt (intVars e)
+    symBExpr mb mi e
+
+-- | Evaluate a boolean expression to a symbolic boolean, given environments
+--   binding all of the variables.
+symBExpr :: MonadZ3 m => Env Var AST -> Env Var AST -> BExpr -> m AST
+symBExpr _  _  (BLit b)     = mkBool b
+symBExpr mb _  (BRef v)     = return (envLookupOrFail v mb)
+symBExpr mb mi (OpB o e)    = symBExpr mb mi e >>= symB_B o
+symBExpr mb mi (OpBB o l r) = do
+    l' <- symBExpr mb mi l 
+    r' <- symBExpr mb mi r
+    symBB_B o l' r'
+symBExpr _  mi (OpIB o l r) = do
+    l' <- symIExpr mi l 
+    r' <- symIExpr mi r
+    symNN_B o l' r'
+
+-- | Evaluate an integer expression to a ground integer, given environments
+--   binding all of the variables.
+symIExpr :: MonadZ3 m => Env Var AST -> IExpr -> m AST
+symIExpr _ (ILit i)     = mkIntNum i
+symIExpr m (IRef v)     = return (envLookupOrFail v m)
+symIExpr m (OpI o e)    = symIExpr m e >>= symN_N o
+symIExpr m (OpII o l r) = do
+    l' <- symIExpr m l 
+    r' <- symIExpr m r
+    symNN_N o l' r'
+
+-- | Lookup symbolic unary ASToolean operator.
+symB_B :: MonadZ3 m => B_B -> AST -> m AST
+symB_B Not = mkNot
+
+-- | Lookup symbolic unary integer operator.
+symN_N :: MonadZ3 m => N_N -> AST -> m AST
+symN_N Neg  n = mkUnaryMinus n
+symN_N Abs  n = do
+    zero <- mkIntNum (0 :: Int)
+    isPos <- mkGt n zero
+    mkIte isPos n =<< mkUnaryMinus n
+symN_N Sign n = do
+    zero <- mkIntNum (0 :: Int)
+    pos <- mkIntNum (1 :: Int)
+    neg <- mkIntNum (-1 :: Int)
+    isNeg <- mkLt n zero
+    isPos <- mkGt n zero
+    mkIte isPos pos =<< mkIte isNeg neg zero
+
+-- | Lookup symbolic ASTinary ASToolean operator.
+symBB_B :: MonadZ3 m => BB_B -> AST -> AST -> m AST
+symBB_B And l r = mkAnd [l,r]
+symBB_B Or  l r = mkOr [l,r]
+symBB_B XOr l r = mkXor l r
+symBB_B Imp l r = mkImplies l r
+symBB_B Eqv l r = mkEq l r
+
+-- | Lookup symbolic ASTinary integer comparison operator.
+symNN_B :: MonadZ3 m => NN_B -> AST -> AST -> m AST
+symNN_B LT  l r = mkLt l r
+symNN_B LTE l r = mkLe l r
+symNN_B Equ l r = mkEq l r
+symNN_B Neq l r = mkDistinct [l,r]
+symNN_B GTE l r = mkGt l r
+symNN_B GT  l r = mkGe l r
+
+-- | Lookup symbolic ASTinary integer operator.
+symNN_N :: MonadZ3 m => NN_N -> AST -> AST -> m AST
+symNN_N Add l r = mkAdd [l,r]
+symNN_N Sub l r = mkSub [l,r]
+symNN_N Mul l r = mkMul [l,r]
+symNN_N Div l r = mkDiv l r
+symNN_N Mod l r = mkMod l r
+
+
+-- ** Minimization
+
+-- | Apply some basic rules to shrink the size of a boolean expression. Does
+--   not attempt to shrink integer expressions within comparison operations.
+shrinkBExpr :: BExpr -> BExpr
+shrinkBExpr (OpB Not e) = case shrinkBExpr e of
+    BLit True  -> BLit False
+    BLit False -> BLit True
+    OpB Not e' -> e'
+    e' -> OpB Not e'
+shrinkBExpr (OpBB And l r) = case (shrinkBExpr l, shrinkBExpr r) of
+    (BLit False, _) -> BLit False
+    (_, BLit False) -> BLit False
+    (BLit True, r') -> r'
+    (l', BLit True) -> l'
+    (l', r') | l' == r'  -> l'
+             | otherwise -> OpBB And l' r'
+shrinkBExpr (OpBB Or l r) = case (shrinkBExpr l, shrinkBExpr r) of
+    (BLit True, _) -> BLit True
+    (_, BLit True) -> BLit True
+    (BLit False, r') -> r'
+    (l', BLit False) -> l'
+    (l', r') | l' == r'  -> l'
+             | otherwise -> OpBB Or l' r'
+shrinkBExpr e = e

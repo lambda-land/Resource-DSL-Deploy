@@ -8,7 +8,7 @@ import Test.Tasty.HUnit
 import DSL.Boolean
 import DSL.Environment
 import DSL.Evaluation
-import DSL.Predicate
+import DSL.Condition
 import DSL.Sugar
 import DSL.Types
 

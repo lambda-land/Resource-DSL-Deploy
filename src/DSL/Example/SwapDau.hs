@@ -30,7 +30,7 @@ import DSL.Environment
 import DSL.Evaluation
 import DSL.Parser (parseExprText)
 import DSL.Path
-import DSL.Predicate
+import DSL.Condition
 import DSL.Pretty
 import DSL.Primitive
 import DSL.SAT

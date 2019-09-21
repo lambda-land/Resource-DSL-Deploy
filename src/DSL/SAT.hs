@@ -10,8 +10,7 @@ import System.IO.Unsafe (unsafePerformIO)
 
 import DSL.Boolean
 import DSL.Types
-import DSL.Predicate
-
+import DSL.Condition
 
 -- | Find a variable assignment that satisfies the given boolean expression.
 satResult :: BExpr -> IO SatResult

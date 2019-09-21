@@ -2,3 +2,7 @@
 # http://docs.haskellstack.org/en/stable/yaml_configuration/
 
 resolver: lts-14.3
+extra-deps:
+  - z3-408.0
+extra-include-dirs:
+  - /usr/include/z3/

@@ -110,7 +110,7 @@ instance Pretty Op2 where
   pretty (SS_B o) = pretty o
 
 
--- ** Predicates
+-- ** Conditions
 
 instance PrettyTerm BExpr where
   prettyTerm (BLit b) = pretty b

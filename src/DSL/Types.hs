@@ -13,9 +13,6 @@ import Data.Map.Strict (Map)
 import Data.String (IsString(..))
 import Data.Text (Text,pack,splitOn)
 
-import qualified Data.SBV as SBV
-import Data.SBV (SBool,SInteger,SInt8,SInt16,SInt32,SInt64)
-
 import DSL.Boolean
 
 
@@ -177,71 +174,9 @@ instance Prim Bool Double where
   (.>=) = (>=)
   (.>)  = (>)
 
--- Symbolic instances
-
-instance PrimN SInteger where
-  (./)  = SBV.sDiv
-  (.%)  = SBV.sMod
-
-instance PrimN SInt8 where
-  (./)  = SBV.sDiv
-  (.%)  = SBV.sMod
-
-instance PrimN SInt16 where
-  (./)  = SBV.sDiv
-  (.%)  = SBV.sMod
-
-instance PrimN SInt32 where
-  (./)  = SBV.sDiv
-  (.%)  = SBV.sMod
-
-instance PrimN SInt64 where
-  (./)  = SBV.sDiv
-  (.%)  = SBV.sMod
-
-instance Prim SBool SInteger where
-  (.<)  = (SBV..<)
-  (.<=) = (SBV..<=)
-  (.==) = (SBV..==)
-  (./=) = (SBV../=)
-  (.>=) = (SBV..>=)
-  (.>)  = (SBV..>)
-
-instance Prim SBool SInt8 where
-  (.<)  = (SBV..<)
-  (.<=) = (SBV..<=)
-  (.==) = (SBV..==)
-  (./=) = (SBV../=)
-  (.>=) = (SBV..>=)
-  (.>)  = (SBV..>)
-
-instance Prim SBool SInt16 where
-  (.<)  = (SBV..<)
-  (.<=) = (SBV..<=)
-  (.==) = (SBV..==)
-  (./=) = (SBV../=)
-  (.>=) = (SBV..>=)
-  (.>)  = (SBV..>)
-
-instance Prim SBool SInt32 where
-  (.<)  = (SBV..<)
-  (.<=) = (SBV..<=)
-  (.==) = (SBV..==)
-  (./=) = (SBV../=)
-  (.>=) = (SBV..>=)
-  (.>)  = (SBV..>)
-
-instance Prim SBool SInt64 where
-  (.<)  = (SBV..<)
-  (.<=) = (SBV..<=)
-  (.==) = (SBV..==)
-  (./=) = (SBV../=)
-  (.>=) = (SBV..>=)
-  (.>)  = (SBV..>)
-
 
 --
--- * Predicates
+-- * Conditions
 --
 
 -- | Boolean expressions with variable references.

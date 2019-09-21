@@ -21,7 +21,7 @@ import DSL.Boolean
 import DSL.Types
 import DSL.Environment
 import DSL.Path
-import DSL.Predicate
+import DSL.Condition
 import DSL.Primitive
 
 
@@ -139,36 +139,6 @@ instance MonadReader Context EvalM where
 instance MonadState StateCtx EvalM where
   get = EvalM (get >>= plain)
   put s = EvalM (put s >> plain ())
-
-instance MonadQuery EvalM where
-  queryState = EvalM (queryState >>= plain)
-
-instance MonadSymbolic EvalM where
-  symbolicEnv = EvalM (symbolicEnv >>= plain)
-
-instance SolverContext EvalM where
-  constrain b = EvalM (constrain b >> plain ())
-  softConstrain b = EvalM (softConstrain b >> plain ())
-  namedConstraint s b = EvalM (namedConstraint s b >> plain ())
-  constrainWithAttribute as b = EvalM (constrainWithAttribute as b >> plain ())
-  setOption o = EvalM (setOption o >> plain ())
-  contextState = EvalM (contextState >>= plain)
-
-instance (Monad m, SolverContext m) => SolverContext (StateT s m) where
-  constrain b = lift (constrain b)
-  softConstrain b = lift (softConstrain b)
-  namedConstraint s b = lift (namedConstraint s b)
-  constrainWithAttribute as b = lift (constrainWithAttribute as b)
-  setOption o = lift (setOption o)
-  contextState = lift contextState
-
-instance (Monad m, SolverContext m) => SolverContext (ReaderT s m) where
-  constrain b = lift (constrain b)
-  softConstrain b = lift (softConstrain b)
-  namedConstraint s b = lift (namedConstraint s b)
-  constrainWithAttribute as b = lift (constrainWithAttribute as b)
-  setOption o = lift (setOption o)
-  contextState = lift contextState
 
 
 -- ** Core operations

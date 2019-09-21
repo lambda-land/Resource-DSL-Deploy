@@ -4,7 +4,7 @@ import Data.Set (Set)
 
 import DSL.Boolean
 import DSL.Evaluation
-import DSL.Predicate
+import DSL.Condition
 import DSL.SAT
 import DSL.Types
 

@@ -54,12 +54,11 @@ library
     , mtl
     , optparse-applicative
     , parser-combinators
-    , sbv
     , scientific
     , split
     , text
     , vector
-
+    , z3
   exposed-modules:
       DSL.Boolean
     , DSL.Driver
