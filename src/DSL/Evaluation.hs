@@ -75,7 +75,7 @@ runEval
   :: Dictionary  -- ^ dictionary of models
   -> ResEnv      -- ^ initial resource environment
   -> EvalM a     -- ^ computation to run
-  -> IO (VOpt a, StateCtx)
+  -> IO (VOpt a, StateCtx, Z3.Context, Z3.Solver)
 runEval dict renv (EvalM mx) = do
     cfg <- Z3B.mkConfig
     Z3.setOpts cfg Z3.stdOpts
@@ -85,7 +85,8 @@ runEval dict renv (EvalM mx) = do
     fls <- Z3B.mkFalse ctx
     let r = RCtx dict z3 ctx envEmpty (ResID []) (Cond true (Just tru))
     let s = SCtx renv False (Cond false (Just fls)) (One Nothing)
-    runReaderT (runStateT mx s) r
+    (va,s') <- runReaderT (runStateT mx s) r
+    return (va,s',ctx,z3)
 
 -- | Helper function for returning plain values from within EvalM.
 plain :: Monad m => a -> m (VOpt a)
