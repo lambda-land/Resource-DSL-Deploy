@@ -2,7 +2,7 @@
 
 module DSL.Evaluation where
 
-import Data.Data (Data,Typeable)
+import Data.Data (Typeable)
 import GHC.Generics (Generic)
 
 import Control.Applicative (Alternative(..))
@@ -11,11 +11,9 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Data.Composition ((.:))
 import Data.Maybe (fromMaybe)
-import Data.SBV.Internals (SolverContext(..))
-import Data.SBV.Trans
-import Data.SBV.Trans.Control
 import Data.Set (Set)
-import Data.Text (unpack)
+import qualified Z3.Base as Z3B
+import qualified Z3.Monad as Z3
 
 import DSL.Boolean
 import DSL.Types
@@ -29,10 +27,6 @@ import DSL.Primitive
 -- * Evaluation context
 --
 
--- | The dimension environment associates symbolic values with each name that
---   occurs in the condition of a choice.
-type DimEnv = (Env Var SBool, Env Var SInt32)
-
 -- | The resource environment tracks the values of globally scoped resources.
 type ResEnv = Env ResID Value
 
@@ -40,35 +34,28 @@ type ResEnv = Env ResID Value
 type VarEnv = Env Var Value
 
 -- | Reader context for evaluation.
-data Context = Ctx {
+data ReaderCtx = RCtx {
   dictionary  :: Dictionary, -- ^ dictionary of models
-  dimensions  :: DimEnv,     -- ^ symbolic values for boolean dimensions
+  z3Solver    :: Z3.Solver,  -- ^ solver reference
+  z3Context   :: Z3.Context, -- ^ solver context
   environment :: VarEnv,     -- ^ variable environment
   prefix      :: ResID,      -- ^ resource ID prefix
-  vCtx        :: BExpr       -- ^ current variational context
+  vCtx        :: Cond        -- ^ current variational context
 } deriving (Eq,Generic,Show,Typeable)
 
 -- | State context for evaluation.
 data StateCtx = SCtx {
   resEnv :: ResEnv,          -- ^ the resource environment
   abort  :: Bool,            -- ^ whether to abort this branch of the execution
-  errCtx :: BExpr,           -- ^ variation context of errors that have occurred
+  errCtx :: Cond,            -- ^ variation context of errors that have occurred
   vError :: VError           -- ^ variational error
-} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+} deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Resulting context of a successful computation.
 data SuccessCtx = SuccessCtx {
   successCtx  :: BExpr,      -- ^ the variants that succeeded
   configSpace :: Set Var     -- ^ dimensions in the configuration space
-} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
-
--- | Initialize a context with the given dictionary.
-withDict :: Dictionary -> Context
-withDict dict = Ctx dict (envEmpty,envEmpty) envEmpty (ResID []) (BLit True)
-
--- | Initialize a state context with the given resource environment.
-withResEnv :: ResEnv -> StateCtx
-withResEnv renv = SCtx renv False (BLit False) (One Nothing)
+} deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 
 --
@@ -76,31 +63,29 @@ withResEnv renv = SCtx renv False (BLit False) (One Nothing)
 --
 
 -- | Requirements of an evaluation monad.
-type MonadEval m = (MonadReader Context m, MonadState StateCtx m)
+type MonadEval m = (MonadReader ReaderCtx m, MonadState StateCtx m, Z3.MonadZ3 m)
 
 -- | A monad for running variational computations in an evaluation monad.
 newtype EvalM a = EvalM {
-  unEvalM :: StateT StateCtx (ReaderT Context Query) (VOpt a)
+  unEvalM :: StateT StateCtx (ReaderT ReaderCtx IO) (VOpt a)
 }
 
--- | Execute a computation in the given context.
-runEval :: Context -> StateCtx -> EvalM a -> IO (VOpt a, StateCtx)
-runEval ctx init (EvalM mx) = runQ (runR (runS mx))
-  where
-    runQ = runSMTWith (z3 { verbose = True }) . query
-    runR = flip runReaderT ctx
-    runS = flip runStateT init
-
 -- | Execute a computation on the given inputs with initialized contexts.
-runEvalWith
+runEval
   :: Dictionary  -- ^ dictionary of models
   -> ResEnv      -- ^ initial resource environment
-  -> Set Var     -- ^ set of boolean dimensions
-  -> Set Var     -- ^ set of integer dimensions
   -> EvalM a     -- ^ computation to run
   -> IO (VOpt a, StateCtx)
-runEvalWith dict renv bs is mx =
-    runEval (withDict dict) (withResEnv renv) (withDims bs is mx)
+runEval dict renv (EvalM mx) = do
+    cfg <- Z3B.mkConfig
+    Z3.setOpts cfg Z3.stdOpts
+    ctx <- Z3B.mkContext cfg
+    z3  <- Z3B.mkSolver ctx
+    tru <- Z3B.mkTrue ctx
+    fls <- Z3B.mkFalse ctx
+    let r = RCtx dict z3 ctx envEmpty (ResID []) (Cond true (Just tru))
+    let s = SCtx renv False (Cond false (Just fls)) (One Nothing)
+    runReaderT (runStateT mx s) r
 
 -- | Helper function for returning plain values from within EvalM.
 plain :: Monad m => a -> m (VOpt a)
@@ -132,7 +117,7 @@ instance MonadFail EvalM where
 instance MonadIO EvalM where
   liftIO mx = EvalM (liftIO mx >>= plain)
 
-instance MonadReader Context EvalM where
+instance MonadReader ReaderCtx EvalM where
   ask = EvalM (ask >>= plain)
   local f (EvalM mx) = EvalM (local f mx)
 
@@ -140,32 +125,29 @@ instance MonadState StateCtx EvalM where
   get = EvalM (get >>= plain)
   put s = EvalM (put s >> plain ())
 
+instance (Applicative m, Monad m, MonadIO m, MonadReader ReaderCtx m) => Z3.MonadZ3 m where
+  getSolver = asks z3Solver
+  getContext = asks z3Context
+
+instance Show Z3.Context where
+  show _ = "<z3-context>"
+
+instance Show Z3.Solver where
+  show _ = "<z3-solver>"
+
 
 -- ** Core operations
 
--- | Execute a computation with new dimensions in the dimension environment.
-withDims :: Set Var -> Set Var -> EvalM a -> EvalM a
-withDims bs is mx = do
-    -- traceM "%%%% ADDING DIMS %%%%"
-    bm <- symEnv (sBool . unpack) bs
-    im <- symEnv (sInt32 . unpack) is
-    local (\c -> c { dimensions = (bm,im) }) mx
-
 -- | Execute a computation in an extended variation context.
-inVCtx :: BExpr -> EvalM a -> EvalM a
-inVCtx (BLit True) mx = mx
-inVCtx e mx = case shrinkBExpr e of
-    BLit True -> mx
-    e' -> do
-      s <- toSymbolic e
-      inVCtxSym e' s mx
-
--- | A version of 'inVCtx' that takes the already-generated symbolic value
---   for the boolean expression.
-inVCtxSym :: BExpr -> SBool -> EvalM a -> EvalM a
-inVCtxSym e s mx = inNewAssertionStack $ do
-    constrain s
-    local (\c -> c { vCtx = shrinkBExpr (e &&& vCtx c) }) mx
+inVCtx :: Cond -> EvalM a -> EvalM a
+inVCtx (Cond (BLit True) _) mx = mx
+inVCtx new@(Cond _ (Just s)) mx = do
+    old <- getVCtx
+    Z3.local $ do
+      Z3.assert s
+      c <- condAnd new old
+      local (\r -> r { vCtx = c }) mx
+inVCtx c _ = uncachedCond c
 
 -- | Extract the resulting variational value from an evaluation action.
 reflectV :: EvalM a -> EvalM (VOpt a)
@@ -215,17 +197,22 @@ checkAbort mx = EvalM $ do
 -- | Record an error in the current variation context and return an empty
 --   value.
 returnError :: Error -> EvalM a
-returnError e = EvalM $ do
+returnError err = EvalM $ do
     c <- getVCtx
     setAbort True
-    updateErrCtx (c |||)
-    updateVError (Chc c (One (Just e)))
+    updateErrCtx (condOr c)
+    updateVError (Chc c (One (Just err)))
     return (One Nothing)
 
 -- | Consume a value that may have failed, recording an error if so.
 handleError :: Either Error a -> EvalM a
 handleError (Right a) = return a
 handleError (Left e)  = returnError e
+
+-- | Record an uncached condition error. TODO: it might make sense to just
+--   fail in this case since this is almost certainly a sign of a bug.
+uncachedCond :: Cond -> EvalM a
+uncachedCond c = returnError (SolverError ("encountered uncached condition: " ++ show c))
 
 
 --
@@ -236,10 +223,6 @@ handleError (Left e)  = returnError e
 getDict :: MonadEval m => m Dictionary
 getDict = asks dictionary
 
--- | Get the dimension environment.
-getDimEnv :: MonadEval m => m DimEnv
-getDimEnv = asks dimensions
-
 -- | Get the current variable environment.
 getVarEnv :: MonadEval m => m VarEnv
 getVarEnv = asks environment
@@ -249,7 +232,7 @@ getPrefix :: MonadEval m => m ResID
 getPrefix = asks prefix
 
 -- | Get the current variational context.
-getVCtx :: MonadEval m => m BExpr
+getVCtx :: MonadEval m => m Cond
 getVCtx = asks vCtx
 
 -- | Get the current resource environment.
@@ -261,7 +244,7 @@ getAbort :: MonadEval m => m Bool
 getAbort = gets abort
 
 -- | Get the current error context.
-getErrCtx :: MonadEval m => m BExpr
+getErrCtx :: MonadEval m => m Cond
 getErrCtx = gets errCtx
 
 -- | Get the current variational error.
@@ -296,9 +279,16 @@ updateResEnv f = modify (\s -> s { resEnv = f (resEnv s) })
 setAbort :: MonadEval m => Bool -> m ()
 setAbort a = modify (\s -> s { abort = a })
 
+-- | Set the error contextj.
+setErrCtx :: MonadEval m => Cond -> m ()
+setErrCtx c = modify (\s -> s { errCtx = c })
+
 -- | Update the error context.
-updateErrCtx :: MonadEval m => (BExpr -> BExpr) -> m ()
-updateErrCtx f = modify (\s -> s { errCtx = f (errCtx s) })
+updateErrCtx :: MonadEval m => (Cond -> m Cond) -> m ()
+updateErrCtx f = do
+    c <- getErrCtx
+    c' <- f c
+    setErrCtx c'
 
 -- | Update the variational error.
 updateVError :: MonadEval m => (VError -> VError) -> m ()
@@ -342,26 +332,20 @@ resLookup rID = do
 -- * SAT interface
 --
 
--- | Get the symbolic value for a boolean expression.
-toSymbolic :: BExpr -> EvalM SBool
-toSymbolic e = do
-    (bs,is) <- getDimEnv
-    return (toSBool bs is e)
+-- | Is the symbolic condition satisfiable in the current context?
+isSat :: Z3.AST -> EvalM Bool
+isSat s = Z3.checkAssumptions [s] >>= \case
+    Z3.Sat   -> return True
+    Z3.Unsat -> return False
+    Z3.Undef -> returnError (SolverError "solver returned \"undefined\"")
 
--- | Is the predicate satisfiable in the current context?
-isSat :: SBool -> EvalM Bool
-isSat s = checkSatAssuming [s] >>= \case
-    Sat -> return True
-    Unsat -> return False
-    Unk -> error "Internal error: solver returned \"unknown\""
-
--- | Is the predicate unsatisfiable in the current context?
-isUnsat :: SBool -> EvalM Bool
+-- | Is the symbolic condition unsatisfiable in the current context?
+isUnsat :: Z3.AST -> EvalM Bool
 isUnsat = fmap not . isSat
 
--- | Is the predicate a tautology in the current context?
-isTaut :: SBool -> EvalM Bool
-isTaut = isUnsat . bnot
+-- | Is the symbolic condition a tautology in the current context?
+isTaut :: Z3.AST -> EvalM Bool
+isTaut s = Z3.mkNot s >>= isUnsat
 
 
 --
@@ -369,33 +353,32 @@ isTaut = isUnsat . bnot
 --
 
 -- | Partially configure a value using the given boolean expression.
-selectValue :: BExpr -> Value -> EvalM Value
+selectValue :: Cond -> Value -> EvalM Value
 selectValue d v = inVCtx d (shrinkValue v)
-
--- | Partially configure a value using the given boolean expression and its
---   encoding as a symbolic value.
-selectValueSym :: BExpr -> SBool -> Value -> EvalM Value
-selectValueSym d s v = inVCtxSym d s (shrinkValue v)
 
 -- | Shrink a value in the current variation context by eliminating dead
 --   alternatives and applying some basic restructuring rules.
 shrinkValue :: Value -> EvalM Value
 shrinkValue (One a) = return (One a)
-shrinkValue (Chc (BLit True)  l _) = shrinkValue l
-shrinkValue (Chc (BLit False) _ r) = shrinkValue r
-shrinkValue (Chc (OpB Not d) l r)  = shrinkValue (Chc d r l)
-shrinkValue (Chc d l r) = do
-    let d' = shrinkBExpr d
-    sd <- toSymbolic d'
-    taut <- isTaut sd
-    if taut then shrinkValue l
-    else do
-      unsat <- isUnsat sd
-      if unsat then shrinkValue r
-      else do
-        l' <- selectValueSym d' sd l
-        r' <- selectValueSym (bnot d') (bnot sd) r
-        return (Chc d' l' r')
+shrinkValue (Chc c@(Cond e (Just s)) l r) =
+    case e of
+      BLit True  -> shrinkValue l
+      BLit False -> shrinkValue r
+      OpB Not e' -> do
+        s' <- Z3.mkNot s
+        shrinkValue (Chc (Cond e' (Just s')) l r)
+      _ -> do
+        taut <- isTaut s
+        if taut then shrinkValue l
+        else do
+          unsat <- isUnsat s
+          if unsat then shrinkValue r
+          else do
+            c' <- condNot c
+            l' <- selectValue c l
+            r' <- selectValue c' r
+            return (Chc (Cond (shrinkBExpr e) (Just s)) l' r')
+shrinkValue (Chc c _ _) = uncachedCond c
 
 
 --

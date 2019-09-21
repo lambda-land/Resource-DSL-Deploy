@@ -20,6 +20,26 @@ import DSL.Primitive
 
 -- ** Operations
 
+-- | The true condition.
+condTrue :: MonadZ3 m => m Cond
+condTrue = mkTrue >>= return . Cond true . Just
+
+-- | The false condition.
+condFalse :: MonadZ3 m => m Cond
+condFalse = mkFalse >>= return . Cond false . Just
+
+-- | Boolean negation of a condition.
+condNot :: MonadZ3 m => Cond -> m Cond
+condNot = condOp1 bnot mkNot
+
+-- | Conjunction of two conditions.
+condAnd :: MonadZ3 m => Cond -> Cond -> m Cond
+condAnd = condOp2 (&&&) (\l r -> mkAnd [l,r])
+
+-- | Disjunction of two conditions.
+condOr :: MonadZ3 m => Cond -> Cond -> m Cond
+condOr = condOp2 (|||) (\l r -> mkOr [l,r])
+
 -- | Apply a unary operator to a condition.
 condOp1
   :: MonadZ3 m
@@ -44,18 +64,6 @@ condOp2 eOp sOp (Cond e1 (Just s1)) (Cond e2 (Just s2)) = do
     s' <- sOp s1 s2
     return (Cond (eOp e1 e2) (Just s'))
 condOp2 eOp _ (Cond e1 _) (Cond e2 _) = return (Cond (eOp e1 e2) Nothing)
-
--- | Boolean negation of a condition.
-condNot :: MonadZ3 m => Cond -> m Cond
-condNot = condOp1 bnot mkNot
-
--- | Conjunction of two conditions.
-condAnd :: MonadZ3 m => Cond -> Cond -> m Cond
-condAnd = condOp2 (&&&) (\l r -> mkAnd [l,r])
-
--- | Disjunction of two conditions.
-condOr :: MonadZ3 m => Cond -> Cond -> m Cond
-condOr = condOp2 (|||) (\l r -> mkOr [l,r])
 
 
 --

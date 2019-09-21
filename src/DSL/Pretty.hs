@@ -223,14 +223,16 @@ instance Pretty Error where
 
   pretty (EffectError k eff rID v) = unlines
       [ pretty k `snoc` ':'
-      , "  On resource: " `append` pretty rID
-      , "  While executing: " `append` pretty eff
-      , "  Resource value: " `append` pretty v ]
+      , "  On resource: " <> pretty rID
+      , "  While executing: " <> pretty eff
+      , "  Resource value: " <> pretty v ]
   
   pretty (StmtError k s v) = unlines
       [ pretty k `snoc` ':'
-      , "  In statement: " `append` pack (show s)  -- TODO: pretty print statements
-      , "  Offending value: " `append` pretty v ]
+      , "  In statement: " <> pack (show s)  -- TODO: pretty print statements
+      , "  Offending value: " <> pretty v ]
+
+  pretty (SolverError msg) = "Solver error: " <> pack msg
   
 instance Pretty EffectErrorKind where
   pretty CheckFailure        = "Resource check failure"

@@ -447,6 +447,8 @@ data Error
      -- ^ Error applying an effect.
    | StmtError StmtErrorKind Stmt PVal
      -- ^ Error executing a statement.
+   | SolverError String
+     -- ^ Error encountered during SAT solving.
   deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Kinds of errors that can occur when resolving or combining an effect.
