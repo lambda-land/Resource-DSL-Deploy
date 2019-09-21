@@ -26,7 +26,7 @@ testPrimOp2 = testGroup "primOp2"
 testPrimOp3 = testGroup "primOp3"
   [
     testCase "if True then 1 else 2 = 1" $
-      primOp3 Cond (B True) (I 1) (I 2) @?= Right (I 1),
+      primOp3 OpIf (B True) (I 1) (I 2) @?= Right (I 1),
     testCase "if 1 then 1 else 2 throws an error" $
-      primOp3 Cond (I 1) (I 1) (I 2) @?= Left (PrimTypeError3 Cond (I 1) (I 1) (I 2))
+      primOp3 OpIf (I 1) (I 1) (I 2) @?= Left (PrimTypeError3 Cond (I 1) (I 1) (I 2))
   ]

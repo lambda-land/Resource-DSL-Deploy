@@ -48,7 +48,7 @@ primOp2 o l r = Left (PrimTypeError2 o l r)
 
 -- | Evaluate a primitive ternary operator.
 primOp3 :: Op3 -> PVal -> PVal -> PVal -> Either Error PVal
-primOp3 Cond (B c) t e = Right (if c then t else e)
+primOp3 OpIf (B c) t e = Right (if c then t else e)
 primOp3 o c t e = Left (PrimTypeError3 o c t e)
 
 -- | Lookup unary boolean operator.

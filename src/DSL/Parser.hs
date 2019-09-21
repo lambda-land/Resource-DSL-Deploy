@@ -34,19 +34,27 @@ parseExprText = first errorBundlePretty . parse (topLevel expr) ""
 parseExprString :: String -> Either String Expr
 parseExprString = parseExprText . pack
 
--- | Parse a Text value as an expression.
+-- | Parse a Text value as a boolean expression.
 parseBExprText :: Text -> Either String BExpr
 parseBExprText = first errorBundlePretty . parse (topLevel bexpr) ""
 
--- | Parse a String value as an expression.
+-- | Parse a String value as a boolean expression.
 parseBExprString :: String -> Either String BExpr
 parseBExprString = parseBExprText . pack
 
--- | Parse a Text value as a Value.
+-- | Parse a Text value as a choice condition.
+parseCondText :: Text -> Either String Cond
+parseCondText = first errorBundlePretty . parse (topLevel cond) ""
+
+-- | Parse a String value as a choice condition.
+parseCondString :: String -> Either String Cond
+parseCondString = parseCondText . pack
+
+-- | Parse a Text value as a variational value.
 parseValueText :: Text -> Either String Value
 parseValueText = first errorBundlePretty . parse (topLevel value) ""
 
--- | Parse a String value as an expression.
+-- | Parse a String value as a variational value.
 parseValueString :: String -> Either String Value
 parseValueString = parseValueText . pack
 
@@ -187,6 +195,9 @@ bterm = try (parens bexpr)
 bexpr :: Parser BExpr
 bexpr = makeExprParser bterm opTableBExpr <?> "boolean expression"
 
+cond :: Parser Cond
+cond = bexpr >>= \e -> return (Cond e Nothing)
+
 -- ** Variational Parser
 
 v :: Parser a -> Parser (V a)
@@ -194,7 +205,7 @@ v a = chc <|> one <?> "choice expression"
   where
     chc = do
       verbatim "["
-      d <- bexpr
+      d <- cond
       verbatim "]"
       verbatim "{"
       l <- v a
@@ -209,7 +220,7 @@ v' e = chc <|> one <?> "choice expression"
   where
     chc = do
       verbatim "["
-      d <- bexpr
+      d <- cond
       verbatim "]"
       verbatim "{"
       trylit d <|> ex d
@@ -284,7 +295,7 @@ eterm =
       t <- v' expr
       rword "else"
       e <- v' expr
-      return (P3 Cond c t e)
+      return (P3 OpIf c t e)
 
 p2 :: Op2 -> Parser (V Expr -> V Expr -> Expr)
 p2 o = P2 o <$ verbatim (pretty o)

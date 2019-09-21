@@ -3,7 +3,7 @@
 
 module DSL.Types where
 
-import Data.Data (Data,Typeable)
+import Data.Data (Typeable)
 import GHC.Generics (Generic)
 
 import Prelude hiding (LT,GT)
@@ -12,6 +12,7 @@ import Data.Fixed (mod')
 import Data.Map.Strict (Map)
 import Data.String (IsString(..))
 import Data.Text (Text,pack,splitOn)
+import Z3.Monad (AST)
 
 import DSL.Boolean
 
@@ -28,7 +29,7 @@ type Var = Name
 
 -- | A path is either absolute or relative.
 data PathKind = Absolute | Relative
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | A path through a resource environment. Unlike resource IDs, paths may be
 --   relative, may contain "special" path names (such as ".." to refer to the
@@ -36,11 +37,11 @@ data PathKind = Absolute | Relative
 --   resource ID is a simple key in the resource environment, while a path is
 --   an intermediate object that can be manipulated in the language.
 data Path = Path PathKind [Name]
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Resource IDs are absolute paths from the root of the resource environment.
 newtype ResID = ResID [Name]
-  deriving (Data,Eq,Generic,Monoid,Ord,Read,Semigroup,Show,Typeable)
+  deriving (Eq,Generic,Monoid,Ord,Read,Semigroup,Show,Typeable)
 
 instance IsString Path where
   fromString ('/':s) = Path Absolute (splitOn "/" (pack s))
@@ -57,11 +58,11 @@ instance IsString ResID where
 
 -- | An environment is a map from keys to values.
 newtype Env k v = Env { envAsMap :: Map k v }
-  deriving (Data,Eq,Foldable,Functor,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Foldable,Functor,Generic,Ord,Read,Show,Typeable)
 
 -- | Error thrown when a name is not found in the environment.
 data NotFound k = NotFound k
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 
 --
@@ -75,7 +76,7 @@ data PType
    | TInt
    | TFloat
    | TString
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Primitive values.
 data PVal
@@ -84,7 +85,7 @@ data PVal
    | I Int
    | F Double
    | S Text
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 instance IsString PVal where
   fromString = S . fromString
@@ -95,7 +96,7 @@ data Op1
    | B_B B_B    -- ^ unary boolean operator
    | N_N N_N    -- ^ unary numeric operator
    | F_I F_I    -- ^ unary float-to-integer operator
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Primitive binary operators organized by type.
 data Op2
@@ -103,38 +104,38 @@ data Op2
    | NN_N NN_N  -- ^ binary numeric operator
    | NN_B NN_B  -- ^ numeric comparison operator
    | SS_B SS_B  -- ^ string comparison operator
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Primitive ternary operator.
-data Op3 = Cond
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+data Op3 = OpIf
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Boolean negation.
 data B_B = Not
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Unary numeric operators.
 data N_N = Abs | Neg | Sign
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Unary float-to-integer operators.
 data F_I = Ceil | Floor | Round
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Binary boolean operators.
 data BB_B = And | Or | XOr | Imp | Eqv
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Binary numeric comparison operators.
 data NN_B = LT | LTE | Equ | Neq | GTE | GT
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Binary numeric arithmetic operators.
 data NN_N = Add | Sub | Mul | Div | Mod
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 data SS_B = SEqu
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Add division and modulus to the Num type class.
 class Num n => PrimN n where
@@ -179,6 +180,15 @@ instance Prim Bool Double where
 -- * Conditions
 --
 
+-- | A condition on a choice. A condition is a boolean expression over
+--   configuration options. Additionally, this data type contains an
+--   optionally cached symbolic encoding of a condition for use during
+--   SAT solving.
+data Cond = Cond {
+  condExpr :: BExpr,     -- ^ boolean expression
+  condSym  :: Maybe AST  -- ^ cached symbolic encoding
+} deriving (Eq,Generic,Ord,Show)
+
 -- | Boolean expressions with variable references.
 data BExpr
    = BLit Bool
@@ -186,7 +196,7 @@ data BExpr
    | OpB  B_B  BExpr
    | OpBB BB_B BExpr BExpr
    | OpIB NN_B IExpr IExpr
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Integer expressions with variable references.
 data IExpr
@@ -194,9 +204,13 @@ data IExpr
    | IRef Var
    | OpI  N_N  IExpr
    | OpII NN_N IExpr IExpr
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
--- Use SBV's Boolean type class for boolean expressions.
+-- Read in conditions as boolean expressions.
+instance Read Cond where
+  readsPrec i = map (\(e,s) -> (Cond e Nothing,s)) . readsPrec i
+
+-- Use handy Boolean type class for boolean expressions.
 instance Boolean BExpr where
   true  = BLit True
   false = BLit False
@@ -206,6 +220,17 @@ instance Boolean BExpr where
   (<+>) = OpBB XOr
   (==>) = OpBB Imp
   (<=>) = OpBB Eqv
+
+-- The cache of conditions combined using this interface is always empty.
+instance Boolean Cond where
+  true  = Cond true Nothing
+  false = Cond false Nothing
+  bnot (Cond e _) = Cond (bnot e) Nothing
+  (Cond l _) &&& (Cond r _) = Cond (l &&& r) Nothing
+  (Cond l _) ||| (Cond r _) = Cond (l ||| r) Nothing
+  (Cond l _) <+> (Cond r _) = Cond (l <+> r) Nothing
+  (Cond l _) ==> (Cond r _) = Cond (l ==> r) Nothing
+  (Cond l _) <=> (Cond r _) = Cond (l <=> r) Nothing
 
 -- Use Num type class for integer arithmetic.
 instance Num IExpr where
@@ -232,6 +257,8 @@ instance Prim BExpr IExpr where
   (.>)  = OpIB GT
 
 -- Construct references with string literals
+instance IsString Cond where
+  fromString s = Cond (fromString s) Nothing
 instance IsString BExpr where
   fromString = BRef . pack
 instance IsString IExpr where
@@ -245,8 +272,8 @@ instance IsString IExpr where
 -- | Variational values implemented as formula choice trees.
 data V a
    = One a
-   | Chc BExpr (V a) (V a)
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+   | Chc Cond (V a) (V a)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Variational optional values.
 type VOpt a = V (Maybe a)
@@ -279,11 +306,11 @@ instance Monad V where
 data Param = Param {
   paramName :: Var,   -- ^ parameter name
   paramType :: PType  -- ^ parameter type
-} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+} deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Unary functions.
 data Fun = Fun Param (V Expr)
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Expressions.
 data Expr
@@ -293,7 +320,7 @@ data Expr
    | P1  Op1 (V Expr)                    -- ^ primitive unary function
    | P2  Op2 (V Expr) (V Expr)           -- ^ primitive binary function
    | P3  Op3 (V Expr) (V Expr) (V Expr)  -- ^ conditional expression
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 
 instance Boolean Expr where
@@ -371,7 +398,7 @@ type Dictionary = Env Name Model
 
 -- | An application model.
 data Model = Model [Param] Block
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Statement block.
 type Block = [Stmt]
@@ -383,7 +410,7 @@ data Stmt
    | In Path Block            -- ^ do work in a sub-environment
    | Let Var (V Expr) Block   -- ^ extend the variable environment
    | Load (V Expr) [V Expr]   -- ^ load a sub-model or profile
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | An effect on a particular resource.
 data Effect
@@ -391,7 +418,7 @@ data Effect
    | Check  Fun
    | Modify Fun
    | Delete
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 
 --
@@ -420,17 +447,17 @@ data Error
      -- ^ Error applying an effect.
    | StmtError StmtErrorKind Stmt PVal
      -- ^ Error executing a statement.
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Kinds of errors that can occur when resolving or combining an effect.
 data EffectErrorKind
    = CheckFailure         -- ^ The condition of a check effect failed.
    | CheckTypeError       -- ^ Type error when applying a check effect.
    | CreateAlreadyExists  -- ^ Tried to create a resource where one already exists.
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Kinds of errors that can occur in statements.
 data StmtErrorKind
    = IfTypeError    -- ^ non-boolean condition
    | LoadTypeError  -- ^ not a component ID
-  deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)

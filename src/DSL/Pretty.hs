@@ -112,6 +112,12 @@ instance Pretty Op2 where
 
 -- ** Conditions
 
+instance PrettyTerm Cond where
+  prettyTerm (Cond e _) = prettyTerm e
+
+instance Pretty Cond where
+  pretty (Cond e _) = pretty e
+
 instance PrettyTerm BExpr where
   prettyTerm (BLit b) = pretty b
   prettyTerm (BRef v) = v
@@ -171,7 +177,7 @@ instance Pretty Expr where
   pretty (P1 o e)          = pretty o `append` prettyTerm e
   pretty (P2 (NN_N o) l r) = concat [prettyTerm l, pretty o, prettyTerm r]
   pretty (P2 o l r)        = unwords [prettyTerm l, pretty o, prettyTerm r]
-  pretty (P3 Cond c l r)   = unwords ["if", prettyTerm c, "then", prettyTerm l, "else", prettyTerm r]
+  pretty (P3 OpIf c l r)   = unwords ["if", prettyTerm c, "then", prettyTerm l, "else", prettyTerm r]
 
 
 -- ** Effects
