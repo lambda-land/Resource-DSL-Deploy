@@ -128,12 +128,6 @@ instance (Applicative m, Monad m, MonadIO m, MonadReader ReaderCtx m) => Z3.Mona
   getSolver = asks z3Solver
   getContext = asks z3Context
 
-instance Show Z3.Context where
-  show _ = "<z3-context>"
-
-instance Show Z3.Solver where
-  show _ = "<z3-solver>"
-
 
 -- ** Core operations
 

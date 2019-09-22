@@ -127,3 +127,15 @@ errorUndefined = throwSolverError "solver returned \"undefined\""
 -- | Encountered a condition that was not prepped before evaluating.
 errorUnprepped :: MonadZ3 m => Cond -> m a
 errorUnprepped c = throwSolverError ("condition not prepped for solver: " ++ show c)
+
+
+-- ** Instances
+
+-- These instances aren't that useful, but make it possible to derive 'Show'
+-- for other types that contain them.
+
+instance Show Context where
+  show _ = "<z3-context>"
+
+instance Show Solver where
+  show _ = "<z3-solver>"
