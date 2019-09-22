@@ -71,15 +71,6 @@ newtype EvalM a = EvalM {
   unEvalM :: StateT StateCtx (ReaderT ReaderCtx IO) (VOpt a)
 }
 
--- | Initialize and return a solver instance.
-initSolver :: IO (Z3.Solver, Z3.Context)
-initSolver = do
-    cfg <- Z3B.mkConfig
-    Z3.setOpts cfg Z3.stdOpts
-    ctx <- Z3B.mkContext cfg
-    z3  <- Z3B.mkSolver ctx
-    return (z3,ctx)
-
 -- | Execute a computation on the given inputs with initialized contexts.
 runEval
   :: Z3.Solver   -- ^ solver reference

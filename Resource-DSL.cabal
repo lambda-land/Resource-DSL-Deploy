@@ -37,6 +37,7 @@ library
     , LambdaCase
     , MultiParamTypeClasses
     , OverloadedStrings
+    , TupleSections
   other-extensions:
       UndecidableInstances
   build-depends:

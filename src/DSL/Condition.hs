@@ -4,7 +4,6 @@ import Prelude hiding (LT,GT)
 
 import Data.Function (on)
 import Data.Set (Set)
-import Data.Text (unpack)
 import qualified Data.Set as Set
 import Z3.Monad
 
@@ -12,6 +11,7 @@ import DSL.Boolean
 import DSL.Types
 import DSL.Environment
 import DSL.Primitive
+import DSL.SAT
 
 
 --
@@ -142,46 +142,30 @@ shrinkBExpr e = e
 
 -- ** Conversion to symbolic values
 
--- | Construct an environment with fresh symbolic values for each variable.
-symEnv :: MonadZ3 m => (Name -> m a) -> Set Name -> m (Env Var a)
-symEnv f s = fmap (envFromList . zip vs) (mapM f vs)
-  where vs = Set.toList s
-
--- | Create a fresh symbolic boolean variable.
-symBool :: MonadZ3 m => Name -> m AST
-symBool n = mkStringSymbol (unpack n) >>= mkBoolVar
-
--- | Create a fresh symbolic integer variable.
-symInt :: MonadZ3 m => Name -> m AST
-symInt n = mkStringSymbol (unpack n) >>= mkIntVar
-
 -- | Convert a boolean expression to a symbolic boolean with fresh variables.
 symBExprFresh :: MonadZ3 m => BExpr -> m AST
-symBExprFresh e = do
-    mb <- symEnv symBool (boolVars e)
-    mi <- symEnv symInt (intVars e)
-    symBExpr mb mi e
+symBExprFresh e = symEnv (boolVars e) (intVars e) >>= \m -> symBExpr m e
 
 -- | Evaluate a boolean expression to a symbolic boolean, given environments
 --   binding all of the variables.
-symBExpr :: MonadZ3 m => Env Var AST -> Env Var AST -> BExpr -> m AST
-symBExpr _  _  (BLit b)     = mkBool b
-symBExpr mb _  (BRef v)     = return (envLookupOrFail v mb)
-symBExpr mb mi (OpB o e)    = symBExpr mb mi e >>= symB_B o
-symBExpr mb mi (OpBB o l r) = do
-    l' <- symBExpr mb mi l 
-    r' <- symBExpr mb mi r
+symBExpr :: MonadZ3 m => SymEnv -> BExpr -> m AST
+symBExpr _ (BLit b)     = mkBool b
+symBExpr m (BRef x)     = return (envLookupOrFail (x,SymBool) m)
+symBExpr m (OpB o e)    = symBExpr m e >>= symB_B o
+symBExpr m (OpBB o l r) = do
+    l' <- symBExpr m l 
+    r' <- symBExpr m r
     symBB_B o l' r'
-symBExpr _  mi (OpIB o l r) = do
-    l' <- symIExpr mi l 
-    r' <- symIExpr mi r
+symBExpr m (OpIB o l r) = do
+    l' <- symIExpr m l 
+    r' <- symIExpr m r
     symNN_B o l' r'
 
 -- | Evaluate an integer expression to a ground integer, given environments
 --   binding all of the variables.
-symIExpr :: MonadZ3 m => Env Var AST -> IExpr -> m AST
+symIExpr :: MonadZ3 m => SymEnv -> IExpr -> m AST
 symIExpr _ (ILit i)     = mkIntNum i
-symIExpr m (IRef v)     = return (envLookupOrFail v m)
+symIExpr m (IRef x)     = return (envLookupOrFail (x,SymInt) m)
 symIExpr m (OpI o e)    = symIExpr m e >>= symN_N o
 symIExpr m (OpII o l r) = do
     l' <- symIExpr m l 
