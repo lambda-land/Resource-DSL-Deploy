@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+
 -- | Prepare a DSL program for evaluation.
 module DSL.Preparation where
 
@@ -5,10 +7,8 @@ import Data.Data (Typeable)
 import GHC.Generics (Generic)
 
 import Control.Monad.Reader
-import Data.Set (Set)
 import qualified Z3.Monad as Z3
 
-import DSL.Boolean
 import DSL.Condition
 import DSL.SAT
 import DSL.Types
@@ -39,3 +39,23 @@ newtype PrepM a = PrepM {
 runPrep :: PrepCtx -> PrepM a -> IO a
 runPrep ctx (PrepM mx) = runReaderT mx ctx
 
+instance Functor PrepM where
+  fmap f (PrepM mx) = PrepM (fmap f mx)
+
+instance Applicative PrepM where
+  pure a = PrepM (pure a)
+  (<*>) = ap
+
+instance Monad PrepM where
+  PrepM mx >>= f = PrepM (mx >>= unPrepM . f)
+
+instance MonadIO PrepM where
+  liftIO mx = PrepM (liftIO mx)
+
+instance MonadReader PrepCtx PrepM where
+  ask = PrepM ask
+  local f (PrepM mx) = PrepM (local f mx)
+
+instance (Applicative m, Monad m, MonadIO m, MonadReader PrepCtx m) => Z3.MonadZ3 m where
+  getSolver = asks z3Solver
+  getContext = asks z3Context
