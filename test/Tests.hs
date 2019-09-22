@@ -8,7 +8,7 @@ import DSL.Example.SwapDau.Test
 import DSL.Parser.Test
 import DSL.Primitive.Test
 import DSL.SAT.Test
-import DSL.Variational.Test
+import DSL.Preparation.Test
 
 main :: IO ()
 main = defaultMain tests

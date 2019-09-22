@@ -21,7 +21,7 @@ import DSL.Parser (parseBExprString)
 import DSL.SAT
 import DSL.Serialize
 import DSL.Types hiding (Check)
-import DSL.Variational
+import DSL.Preparation
 
 import DSL.Example.CrossApp
 import DSL.Example.Location

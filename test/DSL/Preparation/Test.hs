@@ -1,11 +1,11 @@
-module DSL.Variational.Test where
+module DSL.Preparation.Test where
 
 import Test.Tasty
 import Test.Tasty.HUnit
 
 import DSL.Boolean
 import DSL.Types
-import DSL.Variational
+import DSL.Preparation
 
 
 testV = testGroup "DSL.V" [testSelect]

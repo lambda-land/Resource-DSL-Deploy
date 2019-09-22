@@ -1,4 +1,4 @@
-module DSL.Variational where
+module DSL.Preparation where
 
 import Data.Set (Set)
 

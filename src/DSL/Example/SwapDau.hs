@@ -26,22 +26,21 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import DSL.Boolean
+import DSL.Condition
 import DSL.Environment
 import DSL.Evaluation
 import DSL.Parser (parseExprText)
 import DSL.Path
-import DSL.Condition
+import DSL.Preparation
 import DSL.Pretty
 import DSL.Primitive
 import DSL.SAT
 import DSL.Serialize
 import DSL.Sugar
 import DSL.Types
-import DSL.Variational
 
 -- For debugging...
 -- import Debug.Trace (traceShow)
--- import DSL.Variational
 
 
 --
