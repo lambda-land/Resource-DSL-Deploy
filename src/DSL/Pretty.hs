@@ -231,8 +231,6 @@ instance Pretty Error where
       [ pretty k `snoc` ':'
       , "  In statement: " <> pack (show s)  -- TODO: pretty print statements
       , "  Offending value: " <> pretty v ]
-
-  pretty (SolverError msg) = "Solver error: " <> pack msg
   
 instance Pretty EffectErrorKind where
   pretty CheckFailure        = "Resource check failure"
