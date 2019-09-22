@@ -68,6 +68,7 @@ library
     , DSL.Parser
     , DSL.Path
     , DSL.Predicate
+    , DSL.Preparation
     , DSL.Pretty
     , DSL.Primitive
     , DSL.SAT
