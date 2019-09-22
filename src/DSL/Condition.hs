@@ -3,6 +3,7 @@ module DSL.Condition where
 import Prelude hiding (LT,GT)
 
 import Data.Function (on)
+import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Z3.Monad
@@ -96,21 +97,54 @@ intVars (OpIB _ l r) = intVars' l `Set.union` intVars' r
 -- ** Evaluation
 
 -- | Evaluate a boolean expression to a ground boolean, given environments
---   binding all of the variables.
+--   binding its variables. Unbound boolean variables are assumed to be false,
+--   unbound integer variables are zero.
 evalBExpr :: Env Var Bool -> Env Var Int -> BExpr -> Bool
 evalBExpr _  _  (BLit b)     = b
-evalBExpr mb _  (BRef v)     = envLookupOrFail v mb
+evalBExpr mb _  (BRef x)     = fromMaybe False (envLookup x mb)
 evalBExpr mb mi (OpB o e)    = opB_B o (evalBExpr mb mi e)
 evalBExpr mb mi (OpBB o l r) = (opBB_B o `on` evalBExpr mb mi) l r
 evalBExpr _  mi (OpIB o l r) = (opNN_B o `on` evalIExpr mi) l r
 
 -- | Evaluate an integer expression to a ground integer, given environments
---   binding all of the variables.
+--   binding its variables. Unbound variables are assumed to be zero.
 evalIExpr :: Env Var Int -> IExpr -> Int
 evalIExpr _ (ILit i)     = i
-evalIExpr m (IRef v)     = envLookupOrFail v m
+evalIExpr m (IRef x)     = fromMaybe 0 (envLookup x m)
 evalIExpr m (OpI o e)    = opN_N o (evalIExpr m e)
 evalIExpr m (OpII o l r) = (opNN_N o `on` evalIExpr m) l r
+
+-- | Partially evaluate a boolean expression given definitions for some of
+--   its variables.
+reduceBExpr :: Env Var Bool -> Env Var Int -> BExpr -> BExpr
+reduceBExpr _  _  e@(BLit _) = e
+reduceBExpr mb _  e@(BRef x) = maybe e BLit (envLookup x mb)
+reduceBExpr mb mi (OpB o e) =
+    case reduceBExpr mb mi e of
+      BLit b -> BLit (opB_B o b)
+      e'     -> OpB o e'
+reduceBExpr mb mi (OpBB o l r) =
+    case (reduceBExpr mb mi l, reduceBExpr mb mi r) of
+      (BLit lb, BLit rb) -> BLit (opBB_B o lb rb)
+      (l', r')           -> OpBB o l' r'
+reduceBExpr _  mi (OpIB o l r) =
+    case (reduceIExpr mi l, reduceIExpr mi r) of
+      (ILit li, ILit ri) -> BLit (opNN_B o li ri)
+      (l', r')           -> OpIB o l' r'
+
+-- | Partially evaluate an integer expression given definitions for some of
+--   its variables.
+reduceIExpr :: Env Var Int -> IExpr -> IExpr
+reduceIExpr _ e@(ILit _) = e
+reduceIExpr m e@(IRef x) = maybe e ILit (envLookup x m)
+reduceIExpr m (OpI o e) =
+    case reduceIExpr m e of
+      ILit i -> ILit (opN_N o i)
+      e'     -> OpI o e'
+reduceIExpr m (OpII o l r) =
+    case (reduceIExpr m l, reduceIExpr m r) of
+      (ILit li, ILit ri) -> ILit (opNN_N o li ri)
+      (l', r')           -> OpII o l' r'
 
 
 -- ** Minimization
@@ -150,7 +184,7 @@ symBExprFresh e = symEnv (boolVars e) (intVars e) >>= \m -> symBExpr m e
 --   binding all of the variables.
 symBExpr :: MonadZ3 m => SymEnv -> BExpr -> m AST
 symBExpr _ (BLit b)     = mkBool b
-symBExpr m (BRef x)     = return (envLookupOrFail (x,SymBool) m)
+symBExpr m (BRef x)     = return (envLookupOrFail (x,OptBool) m)
 symBExpr m (OpB o e)    = symBExpr m e >>= symB_B o
 symBExpr m (OpBB o l r) = do
     l' <- symBExpr m l 
@@ -165,7 +199,7 @@ symBExpr m (OpIB o l r) = do
 --   binding all of the variables.
 symIExpr :: MonadZ3 m => SymEnv -> IExpr -> m AST
 symIExpr _ (ILit i)     = mkIntNum i
-symIExpr m (IRef x)     = return (envLookupOrFail (x,SymInt) m)
+symIExpr m (IRef x)     = return (envLookupOrFail (x,OptInt) m)
 symIExpr m (OpI o e)    = symIExpr m e >>= symN_N o
 symIExpr m (OpII o l r) = do
     l' <- symIExpr m l 

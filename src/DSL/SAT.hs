@@ -11,7 +11,7 @@ import Data.Text (unpack)
 import Z3.Monad
 import qualified Z3.Base as Z3B
 
-import DSL.Types (Cond,Env,Var)
+import DSL.Types (Cond,Env,OptType(..),Var)
 import DSL.Environment (envFromList,envLookup)
 
 
@@ -33,21 +33,17 @@ initSolver = do
 
 -- ** Symbol environments
 
--- | Types of symbolic values.
-data SymType = SymBool | SymInt
-  deriving (Eq,Generic,Ord,Read,Show,Typeable)
-
--- | An environment mapping typed variables to symbolic values.
-type SymEnv = Env (Var,SymType) AST
+-- | An environment mapping typed configuration options to symbolic values.
+type SymEnv = Env (Var,OptType) AST
 
 -- | Given sets of boolean and integer variables, construct an environment
 --   with fresh symbolic values for each variable.
 symEnv :: MonadZ3 m => Set Var -> Set Var -> m SymEnv
 symEnv bs is = fmap envFromList (mapM sym xs)
   where
-    xs = Set.toList (Set.map (,SymBool) bs <> Set.map (,SymInt) is)
-    sym k@(x,SymBool) = symBool x >>= \s -> return (k,s)
-    sym k@(x,SymInt)  = symInt  x >>= \s -> return (k,s)
+    xs = Set.toList (Set.map (,OptBool) bs <> Set.map (,OptInt) is)
+    sym k@(x,OptBool) = symBool x >>= \s -> return (k,s)
+    sym k@(x,OptInt)  = symInt  x >>= \s -> return (k,s)
 
 -- | Create a fresh symbolic boolean variable.
 symBool :: MonadZ3 m => Var -> m AST
@@ -94,13 +90,13 @@ satModels _ s = satModel s >>= return . maybe [] (:[])
 
 -- | Read the value of a boolean variable in a SAT model.
 boolVal :: MonadZ3 m => Var -> SymEnv -> Model -> m (Maybe Bool)
-boolVal x env mod = case envLookup (x,SymBool) env of
+boolVal x env mod = case envLookup (x,OptBool) env of
     Just s -> evalBool mod s
     _ -> return Nothing
 
 -- | Read the value of an integer variable in a SAT model.
 intVal :: MonadZ3 m => Var -> SymEnv -> Model -> m (Maybe Int)
-intVal x env mod = case envLookup (x,SymInt) env of
+intVal x env mod = case envLookup (x,OptInt) env of
     Just s -> evalInt mod s >>= return . fmap fromIntegral
     _ -> return Nothing
 

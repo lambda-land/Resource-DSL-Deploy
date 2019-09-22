@@ -55,7 +55,7 @@ data StateCtx = SCtx {
 -- | Resulting context of a successful computation.
 data SuccessCtx = SuccessCtx {
   successCtx  :: BExpr,      -- ^ the variants that succeeded
-  configSpace :: Set Var     -- ^ dimensions in the configuration space
+  configSpace :: Set Var     -- ^ options in the configuration space
 } deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 

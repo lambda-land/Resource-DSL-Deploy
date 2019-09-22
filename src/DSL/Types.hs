@@ -180,6 +180,10 @@ instance Prim Bool Double where
 -- * Conditions
 --
 
+-- | Types of configuration options.
+data OptType = OptBool | OptInt
+  deriving (Eq,Generic,Ord,Read,Show,Typeable)
+
 -- | A condition on a choice. A condition is a boolean expression over
 --   configuration options. Additionally, this data type contains an
 --   optionally cached symbolic encoding of a condition for use during
