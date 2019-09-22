@@ -70,23 +70,29 @@ newtype EvalM a = EvalM {
   unEvalM :: StateT StateCtx (ReaderT ReaderCtx IO) (VOpt a)
 }
 
--- | Execute a computation on the given inputs with initialized contexts.
-runEval
-  :: Dictionary  -- ^ dictionary of models
-  -> ResEnv      -- ^ initial resource environment
-  -> EvalM a     -- ^ computation to run
-  -> IO (VOpt a, StateCtx, Z3.Context, Z3.Solver)
-runEval dict renv (EvalM mx) = do
+-- | Initialize and return a solver instance.
+initSolver :: IO (Z3.Solver, Z3.Context)
+initSolver = do
     cfg <- Z3B.mkConfig
     Z3.setOpts cfg Z3.stdOpts
     ctx <- Z3B.mkContext cfg
     z3  <- Z3B.mkSolver ctx
+    return (z3,ctx)
+
+-- | Execute a computation on the given inputs with initialized contexts.
+runEval
+  :: Z3.Solver   -- ^ solver reference
+  -> Z3.Context  -- ^ solver context
+  -> Dictionary  -- ^ dictionary of models
+  -> ResEnv      -- ^ initial resource environment
+  -> EvalM a     -- ^ computation to run
+  -> IO (VOpt a, StateCtx)
+runEval z3 ctx dict renv (EvalM mx) = do
     tru <- Z3B.mkTrue ctx
     fls <- Z3B.mkFalse ctx
     let r = RCtx dict z3 ctx envEmpty (ResID []) (Cond true (Just tru))
     let s = SCtx renv False (Cond false (Just fls)) (One Nothing)
-    (va,s') <- runReaderT (runStateT mx s) r
-    return (va,s',ctx,z3)
+    runReaderT (runStateT mx s) r
 
 -- | Helper function for returning plain values from within EvalM.
 plain :: Monad m => a -> m (VOpt a)
