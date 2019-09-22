@@ -16,11 +16,12 @@ import qualified Z3.Base as Z3B
 import qualified Z3.Monad as Z3
 
 import DSL.Boolean
-import DSL.Types
+import DSL.Condition
 import DSL.Environment
 import DSL.Path
-import DSL.Condition
 import DSL.Primitive
+import DSL.SAT
+import DSL.Types
 
 
 --
@@ -35,9 +36,9 @@ type VarEnv = Env Var Value
 
 -- | Reader context for evaluation.
 data ReaderCtx = RCtx {
-  dictionary  :: Dictionary, -- ^ dictionary of models
   z3Solver    :: Z3.Solver,  -- ^ solver reference
   z3Context   :: Z3.Context, -- ^ solver context
+  dictionary  :: Dictionary, -- ^ dictionary of models
   environment :: VarEnv,     -- ^ variable environment
   prefix      :: ResID,      -- ^ resource ID prefix
   vCtx        :: Cond        -- ^ current variational context
@@ -90,7 +91,7 @@ runEval
 runEval z3 ctx dict renv (EvalM mx) = do
     tru <- Z3B.mkTrue ctx
     fls <- Z3B.mkFalse ctx
-    let r = RCtx dict z3 ctx envEmpty (ResID []) (Cond true (Just tru))
+    let r = RCtx z3 ctx dict envEmpty (ResID []) (Cond true (Just tru))
     let s = SCtx renv False (Cond false (Just fls)) (One Nothing)
     runReaderT (runStateT mx s) r
 
@@ -154,7 +155,7 @@ inVCtx new@(Cond _ (Just s)) mx = do
       Z3.assert s
       c <- condAnd new old
       local (\r -> r { vCtx = c }) mx
-inVCtx c _ = uncachedCond c
+inVCtx c _ = errorUnprepped c
 
 -- | Extract the resulting variational value from an evaluation action.
 reflectV :: EvalM a -> EvalM (VOpt a)
@@ -215,11 +216,6 @@ returnError err = EvalM $ do
 handleError :: Either Error a -> EvalM a
 handleError (Right a) = return a
 handleError (Left e)  = returnError e
-
--- | Record an uncached condition error. TODO: it might make sense to just
---   fail in this case since this is almost certainly a sign of a bug.
-uncachedCond :: Cond -> EvalM a
-uncachedCond c = returnError (SolverError ("encountered uncached condition: " ++ show c))
 
 
 --
@@ -336,26 +332,6 @@ resLookup rID = do
 
 
 --
--- * SAT interface
---
-
--- | Is the symbolic condition satisfiable in the current context?
-isSat :: Z3.AST -> EvalM Bool
-isSat s = Z3.checkAssumptions [s] >>= \case
-    Z3.Sat   -> return True
-    Z3.Unsat -> return False
-    Z3.Undef -> returnError (SolverError "solver returned \"undefined\"")
-
--- | Is the symbolic condition unsatisfiable in the current context?
-isUnsat :: Z3.AST -> EvalM Bool
-isUnsat = fmap not . isSat
-
--- | Is the symbolic condition a tautology in the current context?
-isTaut :: Z3.AST -> EvalM Bool
-isTaut s = Z3.mkNot s >>= isUnsat
-
-
---
 -- * Variational values
 --
 
@@ -385,7 +361,7 @@ shrinkValue (Chc c@(Cond e (Just s)) l r) =
             l' <- selectValue c l
             r' <- selectValue c' r
             return (Chc (Cond (shrinkBExpr e) (Just s)) l' r')
-shrinkValue (Chc c _ _) = uncachedCond c
+shrinkValue (Chc c _ _) = errorUnprepped c
 
 
 --
