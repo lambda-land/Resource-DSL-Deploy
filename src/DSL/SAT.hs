@@ -4,12 +4,12 @@ import Data.Data (Typeable)
 import GHC.Generics (Generic)
 
 import Control.Exception (Exception,throwIO)
-import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Reader
 import Data.Foldable (foldrM)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (unpack)
-import Z3.Monad
+import Z3.Monad hiding (local)
 import qualified Z3.Base as Z3B
 
 import DSL.Types (Cond,Env,OptType(..),Var)
@@ -39,20 +39,32 @@ type SymEnv = Env (Var,OptType) AST
 
 -- | Given sets of boolean and integer variables, construct an environment
 --   with fresh symbolic values for each variable.
-symEnvFresh :: MonadZ3 m => Set Var -> Set Var -> m SymEnv
-symEnvFresh bs is = fmap envFromList (mapM sym xs)
+symEnvFresh :: Context -> Set Var -> Set Var -> IO SymEnv
+symEnvFresh ctx bs is = fmap envFromList (mapM sym xs)
   where
     xs = Set.toList (Set.map (,OptBool) bs <> Set.map (,OptInt) is)
-    sym k@(x,OptBool) = symBool x >>= \s -> return (k,s)
-    sym k@(x,OptInt)  = symInt  x >>= \s -> return (k,s)
+    sym k@(x,t) = do
+      s <- Z3B.mkStringSymbol ctx (unpack x)
+      case t of
+        OptBool -> Z3B.mkBoolVar ctx s >>= return . (k,)
+        OptInt  -> Z3B.mkIntVar  ctx s >>= return . (k,)
 
--- | Create a fresh symbolic boolean variable.
-symBool :: MonadZ3 m => Var -> m AST
-symBool x = mkStringSymbol (unpack x) >>= mkBoolVar
 
--- | Create a fresh symbolic integer variable.
-symInt :: MonadZ3 m => Var -> m AST
-symInt x = mkStringSymbol (unpack x) >>= mkIntVar
+-- ** SAT monad
+
+-- | SAT reader context.
+type SatCtx = (Solver,Context)
+
+-- | A monad for interacting with the SAT solver.
+type SatM a = ReaderT SatCtx IO a
+
+-- | Execute a computation in the SAT monad.
+runSat :: SatCtx -> SatM a -> IO a
+runSat = flip runReaderT
+
+instance MonadZ3 (ReaderT SatCtx IO) where
+  getSolver = asks fst
+  getContext = asks snd
 
 
 -- ** Sat checking

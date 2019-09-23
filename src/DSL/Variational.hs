@@ -2,9 +2,10 @@ module DSL.Variational where
 
 import Control.Monad (liftM2,liftM3)
 import Data.Set (Set)
+import Z3.Monad (MonadZ3)
 
 import DSL.Condition
-import DSL.Preparation
+import DSL.SAT
 import DSL.Types
 
 
@@ -29,7 +30,7 @@ class Variational a where
 
   -- | Prepare a variational value for evaluation by embedding the required
   --   symbolic values in its conditions.
-  prepare :: MonadPrep m => a -> m a
+  prepare :: MonadZ3 m => SymEnv -> a -> m a
 
   -- | Get all boolean variables within choice conditions.
   boolDims :: a -> Set Var
@@ -45,21 +46,21 @@ class Variational a where
 instance Variational PVal where
   configure _ _ = id
   reduce    _ _ = id
-  prepare    = return
+  prepare  _ = return
   boolDims _ = mempty
   intDims  _ = mempty
 
 instance Variational PType where
   configure _ _ = id
   reduce    _ _ = id
-  prepare    = return
+  prepare  _ = return
   boolDims _ = mempty
   intDims  _ = mempty
 
 instance Variational Error where
   configure _ _ = id
   reduce    _ _ = id
-  prepare    = return
+  prepare  _ = return
   boolDims _ = mempty
   intDims  _ = mempty
 
@@ -82,7 +83,12 @@ instance Variational a => Variational (V a) where
       l' = reduce mb mi l
       r' = reduce mb mi r
 
-  prepare = prepareV
+  prepare _ (One a) = return (One a)
+  prepare m (Chc (Cond e _) l r) = case shrinkBExpr e of
+      BLit True  -> prepare m l
+      BLit False -> prepare m r
+      e' -> symBExpr m e' >>= \s ->
+        liftM2 (Chc (Cond e' (Just s))) (prepare m l) (prepare m r)
 
   boolDims (One _)     = mempty
   boolDims (Chc d l r) = boolVars (condExpr d) <> boolDims l <> boolDims r
@@ -96,28 +102,28 @@ instance Variational a => Variational (V a) where
 instance Variational a => Variational (Maybe a) where
   configure mb mi = fmap (configure mb mi)
   reduce    mb mi = fmap (reduce mb mi)
-  prepare  = mapM prepare
+  prepare m = mapM (prepare m)
   boolDims = foldMap boolDims
   intDims  = foldMap intDims
 
 instance Variational a => Variational [a] where
   configure mb mi = map (configure mb mi)
   reduce    mb mi = map (reduce mb mi)
-  prepare  = mapM prepare
+  prepare m = mapM (prepare m)
   boolDims = foldMap boolDims
   intDims  = foldMap intDims
 
 instance Variational v => Variational (Env k v) where
   configure mb mi = fmap (configure mb mi)
   reduce    mb mi = fmap (reduce mb mi)
-  prepare  = mapM prepare
+  prepare m = mapM (prepare m)
   boolDims = foldMap boolDims
   intDims  = foldMap intDims
 
 instance Variational Fun where
   configure mb mi (Fun ps e) = Fun ps (configure mb mi e)
   reduce    mb mi (Fun ps e) = Fun ps (reduce mb mi e)
-  prepare  (Fun ps e) = fmap (Fun ps) (prepare e)
+  prepare m (Fun ps e) = fmap (Fun ps) (prepare m e)
   boolDims (Fun _  e) = boolDims e
   intDims  (Fun _  e) = intDims e
 
@@ -134,11 +140,11 @@ instance Variational Expr where
   reduce mb mi (P3 o e1 e2 e3) = P3 o (reduce mb mi e1) (reduce mb mi e2) (reduce mb mi e3)
   reduce _ _ e = e
   
-  prepare (Lit v)         = fmap Lit (prepare v)
-  prepare (P1 o e)        = fmap (P1 o) (prepare e)
-  prepare (P2 o e1 e2)    = liftM2 (P2 o) (prepare e1) (prepare e2)
-  prepare (P3 o e1 e2 e3) = liftM3 (P3 o) (prepare e1) (prepare e2) (prepare e3)
-  prepare e = return e
+  prepare m (Lit v)         = fmap Lit (prepare m v)
+  prepare m (P1 o e)        = fmap (P1 o) (prepare m e)
+  prepare m (P2 o e1 e2)    = liftM2 (P2 o) (prepare m e1) (prepare m e2)
+  prepare m (P3 o e1 e2 e3) = liftM3 (P3 o) (prepare m e1) (prepare m e2) (prepare m e3)
+  prepare _ e = return e
 
   boolDims (Lit v)         = boolDims v
   boolDims (P1 _ e)        = boolDims e
@@ -163,10 +169,10 @@ instance Variational Effect where
   reduce mb mi (Modify f) = Modify (reduce mb mi f)
   reduce _  _  Delete     = Delete
   
-  prepare (Create e) = fmap Create (prepare e)
-  prepare (Check  f) = fmap Check (prepare f)
-  prepare (Modify f) = fmap Modify (prepare f)
-  prepare Delete     = return Delete
+  prepare m (Create e) = fmap Create (prepare m e)
+  prepare m (Check  f) = fmap Check (prepare m f)
+  prepare m (Modify f) = fmap Modify (prepare m f)
+  prepare _ Delete     = return Delete
 
   boolDims (Create e) = boolDims e
   boolDims (Check  f) = boolDims f
@@ -191,11 +197,11 @@ instance Variational Stmt where
   reduce mb mi (Let v e ss) = Let v (reduce mb mi e) (reduce mb mi ss)
   reduce mb mi (Load e es)  = Load (reduce mb mi e) (map (reduce mb mi) es)
   
-  prepare (Do p e)     = fmap (Do p) (prepare e)
-  prepare (If b t e)   = liftM3 If (prepare b) (prepare t) (prepare e)
-  prepare (In p ss)    = fmap (In p) (prepare ss)
-  prepare (Let v e ss) = liftM2 (Let v) (prepare e) (prepare ss)
-  prepare (Load e es)  = liftM2 Load (prepare e) (mapM prepare es)
+  prepare m (Do p e)     = fmap (Do p) (prepare m e)
+  prepare m (If b t e)   = liftM3 If (prepare m b) (prepare m t) (prepare m e)
+  prepare m (In p ss)    = fmap (In p) (prepare m ss)
+  prepare m (Let v e ss) = liftM2 (Let v) (prepare m e) (prepare m ss)
+  prepare m (Load e es)  = liftM2 Load (prepare m e) (mapM (prepare m) es)
 
   boolDims (Do _ e)     = boolDims e
   boolDims (If b t e)   = boolDims b <> boolDims t <> boolDims e
@@ -212,6 +218,6 @@ instance Variational Stmt where
 instance Variational Model where
   configure mb mi (Model ps ss) = Model ps (configure mb mi ss)
   reduce    mb mi (Model ps ss) = Model ps (reduce mb mi ss)
-  prepare  (Model ps ss) = fmap (Model ps) (prepare ss)
+  prepare m (Model ps ss) = fmap (Model ps) (prepare m ss)
   boolDims (Model _  ss) = boolDims ss
   intDims  (Model _  ss) = intDims ss
