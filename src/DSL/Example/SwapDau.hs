@@ -2,21 +2,22 @@
 
 module DSL.Example.SwapDau where
 
-import Data.Data (Data,Typeable)
+import Data.Data (Typeable)
 import GHC.Generics (Generic)
 
 import Control.Monad (when)
+import Control.Monad.IO.Class (liftIO)
 import Data.Aeson hiding (Value)
 import Data.Aeson.BetterErrors
 import Data.Aeson.Types (Pair, listValue)
 import Data.Function (on)
 import Data.List (findIndex,foldl',nub,nubBy,sortBy,subsequences)
 import Data.Maybe (fromMaybe)
-import Data.SBV (SatResult,getModelDictionary)
-import Data.SBV.Internals (trueCV)
 import Data.String (fromString)
+import Data.Text (unpack)
 import Options.Applicative hiding ((<|>))
 import System.Exit
+import Z3.Monad (modelToString)
 
 import Data.Text (pack)
 import qualified Data.Text as Text
@@ -31,13 +32,13 @@ import DSL.Environment
 import DSL.Evaluation
 import DSL.Parser (parseExprText)
 import DSL.Path
-import DSL.Preparation
 import DSL.Pretty
 import DSL.Primitive
 import DSL.SAT
 import DSL.Serialize
 import DSL.Sugar
 import DSL.Types
+import DSL.Variational
 
 -- For debugging...
 -- import Debug.Trace (traceShow)
@@ -60,14 +61,14 @@ type PortGroups a = [PortGroup a]
 --   unconfigured DAU, the values of port attributes will be 'Constraint',
 --   which captures the range of possible values the port can take on.
 newtype PortAttrs a = MkPortAttrs (Env Name a)
-  deriving (Data,Typeable,Generic,Eq,Show,Functor)
+  deriving (Typeable,Generic,Eq,Show,Functor)
 
 -- | A port is a named connection to a DAU and its associated attributes.
 data Port a = MkPort {
      portID    :: Name          -- ^ unique ID
    , portFunc  :: Name          -- ^ core functionality of this port
    , portAttrs :: PortAttrs a   -- ^ named port attributes
-} deriving (Data,Typeable,Generic,Eq,Show)
+} deriving (Typeable,Generic,Eq,Show)
 
 -- | A port group is a set of ports with identical attributes.
 data PortGroup a = MkPortGroup {
@@ -75,7 +76,7 @@ data PortGroup a = MkPortGroup {
    , groupFunc  :: Name         -- ^ functionality of the ports in this group
    , groupAttrs :: PortAttrs a  -- ^ attributes shared among ports in the group
    , groupSize  :: Int          -- ^ number of ports in the group
-} deriving (Data,Typeable,Generic,Eq,Show)
+} deriving (Typeable,Generic,Eq,Show)
 
 -- | A constraint on a port attribute in an unconfigured DAU.
 data Constraint
@@ -83,13 +84,13 @@ data Constraint
    | OneOf [PVal]
    | Range Int Int
    | Sync [PortAttrs Constraint]
-  deriving (Data,Typeable,Generic,Eq,Show)
+  deriving (Typeable,Generic,Eq,Show)
 
 -- | A value of a port attribute in a configured DAU.
 data AttrVal
    = Leaf PVal
    | Node (PortAttrs AttrVal)
-  deriving (Data,Typeable,Generic,Eq,Show)
+  deriving (Typeable,Generic,Eq,Show)
 
 
 -- ** Attribute rules
@@ -102,11 +103,11 @@ data AttrVal
 data Rule
    = Compatible [PVal]
    | Equation Expr
-  deriving (Data,Typeable,Generic,Eq,Show)
+  deriving (Typeable,Generic,Eq,Show)
 
 -- | A set of rules that apply to a given attribute-value pair.
 newtype Rules = MkRules (Env (Name,PVal) Rule)
-  deriving (Eq,Show,Data)
+  deriving (Typeable,Generic,Eq,Show)
 
 
 -- ** DAUs
@@ -119,7 +120,7 @@ data Dau p = MkDau {
      dauID   :: Name  -- ^ globally unique ID of this DAU
    , ports   :: p     -- ^ named ports
    , monCost :: Int   -- ^ fixed monetary cost of the DAU
-} deriving (Data,Typeable,Generic,Eq,Show)
+} deriving (Typeable,Generic,Eq,Show)
 
 -- | A DAU inventory is a list of available DAUs, sorted by monetary cost,
 --   where the ports in each DAU have been organized into groups.
@@ -137,7 +138,7 @@ data Provision = MkProvision {
      provDau   :: Name                  -- ^ DAU this provision belongs to
    , provIdx   :: Int                   -- ^ group index of this provision
    , provGroup :: PortGroup Constraint  -- ^ the provided port groups
-} deriving (Data,Typeable,Generic,Eq,Show)
+} deriving (Typeable,Generic,Eq,Show)
 
 -- | Associates port functionalities with port groups from provided DAUs.
 type Provisions = Env Name [Provision]
@@ -148,13 +149,13 @@ type Provisions = Env Name [Provision]
 -- | Set the current DAU inventory.
 data SetInventory = MkSetInventory {
      invDaus :: [Dau (Ports Constraint)]
-} deriving (Data,Typeable,Generic,Eq,Show)
+} deriving (Typeable,Generic,Eq,Show)
 
 -- | An adaptation request contains the relevant DAUs that may need to be
 --   replaced.
 data Request = MkRequest {
      reqDaus :: [RequestDau]
-} deriving (Data,Typeable,Generic,Eq,Show)
+} deriving (Typeable,Generic,Eq,Show)
 
 -- | A DAU in an adaptation request, which may be flagged for replacement,
 --   whose ports are constrained according to the requirements of the
@@ -162,25 +163,25 @@ data Request = MkRequest {
 data RequestDau = MkRequestDau {
      replace :: Bool
    , reqDau  :: Dau (Ports Constraint)
-} deriving (Data,Typeable,Generic,Eq,Show)
+} deriving (Typeable,Generic,Eq,Show)
 
 -- | An adaptation response consists of configured DAUs.
 data Response = MkResponse {
      resDaus :: [ResponseDau]
-} deriving (Data,Typeable,Generic,Eq,Show)
+} deriving (Typeable,Generic,Eq,Show)
 
 -- | A port in an adaptation response, which replaces another named port.
 data ResponsePort = MkResponsePort {
      oldPort :: Name
    , resPort :: Port AttrVal
-} deriving (Data,Typeable,Generic,Eq,Show)
+} deriving (Typeable,Generic,Eq,Show)
 
 -- | A DAU in an adaptation response, which replaces one or more DAUs in the
 --   corresponding request, whose ports are configured to single values.
 data ResponseDau = MkResponseDau {
      oldDaus :: [Name]
    , resDau  :: Dau [ResponsePort]
-} deriving (Data,Typeable,Generic,Eq,Show)
+} deriving (Typeable,Generic,Eq,Show)
 
 
 
@@ -515,11 +516,11 @@ buildPortMap ds = Map.fromList $ do
 
 -- | Build a map describing which inventory DAUs and groups replaced which
 --   request DAUs and groups from the output of the SAT solver.
-buildReplaceMap :: SatResult -> ReplaceMap
-buildReplaceMap = foldr processDim Map.empty
-    . Map.keys . Map.filter (== trueCV) . getModelDictionary
+buildReplaceMap :: Env Var Bool -> ReplaceMap
+buildReplaceMap dimEnv = foldr processDim Map.empty (envToList dimEnv)
   where
-    processDim dim daus
+    processDim (_,False) daus = daus
+    processDim (d,True)  daus
         | k == "Use" =
             let (ldau,_:lgrp) = split l
                 (rdau,_:rgrp) = split r
@@ -537,18 +538,10 @@ buildReplaceMap = foldr processDim Map.empty
                      Just gs ->
                        (nub (reqDau : ns), Map.insert invGrp ((reqDau,reqGrp):gs) grps)
         | k == "Cfg" = daus
-        | otherwise  = error ("buildReplaceMap: Unrecognized dimension: " ++ dim)
+        | otherwise  = error ("buildReplaceMap: Unrecognized dimension: " ++ unpack d)
       where
-        (k:l:r:_) = words dim
+        (k:l:r:_) = words (unpack d)
         split = break (== '+')
-
--- | Build a configuration from the output of the SAT solver.
-buildConfig :: SatResult -> BExpr
-buildConfig = shrinkBExpr . foldr processDim true . Map.assocs . getModelDictionary
-  where
-    processDim (dim,v) cfg =
-      let ref = BRef (fromString dim)
-      in (if v == trueCV then ref else bnot ref) &&& cfg
 
 -- | Create a response.
 buildResponse
@@ -556,7 +549,7 @@ buildResponse
   -> Inventory
   -> ResEnv
   -> ReplaceMap
-  -> BExpr
+  -> Env Var Bool
   -> Response
 buildResponse ports inv renv rep cfg =
     MkResponse (snd (foldl' go (ports,[]) inv))
@@ -569,7 +562,7 @@ buildResponse ports inv renv rep cfg =
 buildResponseDau
   :: ResEnv
   -> ReplaceMap
-  -> BExpr
+  -> Env Var Bool
   -> Dau (PortGroups Constraint)
   -> PortMap
   -> (PortMap, ResponseDau)
@@ -606,7 +599,7 @@ replacedPorts rep invDau invGrp size ports
 -- | Expand and configure a port group.
 expandAndConfig
   :: ResEnv                -- ^ final resource environment
-  -> BExpr                 -- ^ configuration
+  -> Env Var Bool          -- ^ configuration
   -> [(Name,Int,[Name])]   -- ^ replaced required ports w/ DAU ID & group index
   -> Name                  -- ^ inventory DAU ID
   -> Int                   -- ^ inventory group index
@@ -626,7 +619,7 @@ expandAndConfig renv cfg repl invDau invGrp (MkPortGroup invPorts f as _) = do
 -- | Configure port attributes based on the resource environment.
 configPortAttrs
   :: ResEnv                -- ^ final resource environment
-  -> BExpr                 -- ^ configuration
+  -> Env Var Bool          -- ^ configuration
   -> Name                  -- ^ inventory DAU ID
   -> Int                   -- ^ inventory group index
   -> Name                  -- ^ required DAU ID
@@ -641,16 +634,16 @@ configPortAttrs renv cfg invDauID invGrpIx reqDauID reqGrpIx (MkPortAttrs (Env m
     path (ResID ns) a = ResID (ns ++ [a])
     config p a (Sync as) =
       let ds = take (length as) (dimN (dimGen a))
-          ix = fromMaybe 0 $ findIndex (\d -> sat (BRef d &&& cfg)) ds
+          ix = fromMaybe 0 $ findIndex (\d -> envLookupOrFail d cfg) ds
           MkPortAttrs (Env m) = as !! ix
       in Node (MkPortAttrs (Env (Map.mapWithKey (config (path p a)) m)))
     config p a _ = case envLookup (path p a) renv of
-      Just v -> case configure cfg v of
+      Just v -> case configure cfg envEmpty v of
         One (Just pv) -> Leaf pv
         One Nothing ->
           error $ "Misconfigured attribute: " ++ prettyString (path p a)
             ++ "\n  started with: " ++ prettyString v
-            ++ "\n  configured with: " ++ prettyString cfg
+            ++ "\n  configured with: " ++ show cfg
         _ -> error $ "Internal error: choice after configuration: " ++ prettyString v
       Nothing -> error ("Missing attribute: " ++ prettyString (path p a))
 
@@ -659,34 +652,39 @@ configPortAttrs renv cfg invDauID invGrpIx reqDauID reqGrpIx (MkPortAttrs (Env m
 
 -- | Find replacement DAUs in the given inventory.
 findReplacement :: Int -> Rules -> Inventory -> Request -> IO (Maybe Response)
-findReplacement mx rules inv req = do
+findReplacement size rules inv req = do
+    z3 <- initSolver
+    let daus = toReplace req
+    let invs = toSearch size daus inv
+    let ports = buildPortMap daus
+    let test i = do
+          let model = appModel rules (provisions i) daus
+          let dims = boolDims model
+          syms <- symEnvFresh z3 dims Set.empty
+          model' <- runSat z3 (prepare syms model)
+          (_,s) <- runEval z3 envEmpty (initEnv i) (loadModel model' [])
+          return (syms,s)
+    let loop []     = return Nothing
+        loop (i:is) = do
+          (syms,s) <- test i
+          pass <- runSat z3 (condNot (errCtx s))
+          ok <- runSat z3 (isSat (condSymOrFail pass))
+          if ok then return (Just (i, syms, resEnv s, pass)) else loop is
     -- writeJSON "outbox/swap-model-debug.json" (appModel rules (provisions (invs !! 1)) daus)
     -- putStrLn $ "To replace: " ++ show daus
     -- putStrLn $ "Inventory: " ++ show inv
     result <- loop invs
     case result of
       Nothing -> return Nothing
-      Just (i, renv, ctx) -> do 
-        r <- satResult ctx
-        writeFile "outbox/swap-solution.txt" (show r)
+      Just (i, syms, renv, pass) -> runSat z3 $ do
+        Just sol <- satModel (condSymOrFail pass)
+        solStr <- modelToString sol
+        liftIO $ writeFile "outbox/swap-solution.txt" solStr
+        (cfg,_) <- satResult syms sol
+        let replace = buildReplaceMap cfg
         -- putStrLn $ "Configuration: " ++ show (buildConfig r)
         -- putStrLn $ "Resource Env: " ++ show renv
-        return (Just (buildResponse ports i renv (buildReplaceMap r) (buildConfig r)))
-  where
-    daus = toReplace req
-    invs = toSearch mx daus inv
-    ports = buildPortMap daus
-    test i =
-      let model = appModel rules (provisions i) daus
-          dims = boolDims model
-      in runEvalWith envEmpty (initEnv i) dims Set.empty (loadModel model [])
-    loop []     = return Nothing
-    loop (i:is) = do
-      (_, SCtx renv _ ctx _) <- test i
-      let pass = bnot ctx
-      if sat pass
-        then return (Just (i, renv, bnot ctx))
-        else loop is
+        return (Just (buildResponse ports i renv replace cfg))
 
 
 --
@@ -849,7 +847,7 @@ data SwapOpts = MkSwapOpts {
    , swapInventoryFile :: FilePath
    , swapRequestFile   :: FilePath
    , swapResponseFile  :: FilePath
-} deriving (Data,Typeable,Generic,Eq,Read,Show)
+} deriving (Typeable,Generic,Eq,Read,Show)
 
 defaultOpts :: SwapOpts
 defaultOpts = MkSwapOpts True 2 defaultRulesFile defaultInventoryFile defaultRequestFile defaultResponseFile

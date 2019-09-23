@@ -21,6 +21,11 @@ import DSL.SAT
 
 -- ** Operations
 
+-- | Get the symbolic represenation of a condition or fail if it's not there.
+condSymOrFail :: Cond -> AST
+condSymOrFail (Cond _ (Just s)) = s
+condSymOrFail c = error $ "condSymOrFail: no symbolic representation of: " ++ show c
+
 -- | The true condition.
 condTrue :: MonadZ3 m => m Cond
 condTrue = mkTrue >>= return . Cond true . Just

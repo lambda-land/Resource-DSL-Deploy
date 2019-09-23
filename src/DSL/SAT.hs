@@ -22,8 +22,11 @@ import DSL.Environment
 
 -- ** Initialization
 
+-- | SAT solver context.
+type SatCtx = (Solver,Context)
+
 -- | Initialize and return a solver instance and a new context.
-initSolver :: IO (Solver, Context)
+initSolver :: IO SatCtx
 initSolver = do
     cfg <- Z3B.mkConfig
     setOpts cfg stdOpts
@@ -39,8 +42,8 @@ type SymEnv = Env (Var,OptType) AST
 
 -- | Given sets of boolean and integer variables, construct an environment
 --   with fresh symbolic values for each variable.
-symEnvFresh :: Context -> Set Var -> Set Var -> IO SymEnv
-symEnvFresh ctx bs is = fmap envFromList (mapM sym xs)
+symEnvFresh :: SatCtx -> Set Var -> Set Var -> IO SymEnv
+symEnvFresh (_,ctx) bs is = fmap envFromList (mapM sym xs)
   where
     xs = Set.toList (Set.map (,OptBool) bs <> Set.map (,OptInt) is)
     sym k@(x,t) = do
@@ -51,9 +54,6 @@ symEnvFresh ctx bs is = fmap envFromList (mapM sym xs)
 
 
 -- ** SAT monad
-
--- | SAT reader context.
-type SatCtx = (Solver,Context)
 
 -- | A monad for interacting with the SAT solver.
 type SatM a = ReaderT SatCtx IO a
