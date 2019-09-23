@@ -3,6 +3,7 @@
 
 resolver: lts-14.3
 extra-deps:
-  - z3-408.0
+  - git: https://github.com/IagoAbal/haskell-z3
+    commit: e79d2497b45f37365ca7d5b060c72f8624f2d7e2
 extra-include-dirs:
   - /usr/include/z3/
