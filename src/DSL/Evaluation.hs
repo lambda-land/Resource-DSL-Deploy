@@ -73,13 +73,12 @@ newtype EvalM a = EvalM {
 
 -- | Execute a computation on the given inputs with initialized contexts.
 runEval
-  :: Z3.Solver   -- ^ solver reference
-  -> Z3.Context  -- ^ solver context
+  :: SatCtx      -- ^ solver context
   -> Dictionary  -- ^ dictionary of models
   -> ResEnv      -- ^ initial resource environment
   -> EvalM a     -- ^ computation to run
   -> IO (VOpt a, StateCtx)
-runEval z3 ctx dict renv (EvalM mx) = do
+runEval (z3,ctx) dict renv (EvalM mx) = do
     tru <- Z3B.mkTrue ctx
     fls <- Z3B.mkFalse ctx
     let r = RCtx z3 ctx dict envEmpty (ResID []) (Cond true (Just tru))
@@ -124,7 +123,11 @@ instance MonadState StateCtx EvalM where
   get = EvalM (get >>= plain)
   put s = EvalM (put s >> plain ())
 
-instance (Applicative m, Monad m, MonadIO m, MonadReader ReaderCtx m) => Z3.MonadZ3 m where
+instance Z3.MonadZ3 EvalM where
+  getSolver = asks z3Solver
+  getContext = asks z3Context
+
+instance Z3.MonadZ3 (StateT StateCtx (ReaderT ReaderCtx IO)) where
   getSolver = asks z3Solver
   getContext = asks z3Context
 
