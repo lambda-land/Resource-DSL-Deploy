@@ -178,7 +178,7 @@ shrinkBExpr e = e
 
 -- | Convert a boolean expression to a symbolic boolean with fresh variables.
 symBExprFresh :: MonadZ3 m => BExpr -> m AST
-symBExprFresh e = symEnv (boolVars e) (intVars e) >>= \m -> symBExpr m e
+symBExprFresh e = symEnvFresh (boolVars e) (intVars e) >>= \m -> symBExpr m e
 
 -- | Evaluate a boolean expression to a symbolic boolean, given environments
 --   binding all of the variables.

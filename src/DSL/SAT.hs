@@ -38,8 +38,8 @@ type SymEnv = Env (Var,OptType) AST
 
 -- | Given sets of boolean and integer variables, construct an environment
 --   with fresh symbolic values for each variable.
-symEnv :: MonadZ3 m => Set Var -> Set Var -> m SymEnv
-symEnv bs is = fmap envFromList (mapM sym xs)
+symEnvFresh :: MonadZ3 m => Set Var -> Set Var -> m SymEnv
+symEnvFresh bs is = fmap envFromList (mapM sym xs)
   where
     xs = Set.toList (Set.map (,OptBool) bs <> Set.map (,OptInt) is)
     sym k@(x,OptBool) = symBool x >>= \s -> return (k,s)

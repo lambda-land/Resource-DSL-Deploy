@@ -6,6 +6,7 @@ module DSL.Preparation where
 import Data.Data (Typeable)
 import GHC.Generics (Generic)
 
+import Control.Monad (liftM2)
 import Control.Monad.Reader
 import qualified Z3.Monad as Z3
 
@@ -59,3 +60,24 @@ instance MonadReader PrepCtx PrepM where
 instance (Applicative m, Monad m, MonadIO m, MonadReader PrepCtx m) => Z3.MonadZ3 m where
   getSolver = asks z3Solver
   getContext = asks z3Context
+
+
+-- ** Operations
+
+-- | Prepare a condition for evaluation.
+prepareCond :: MonadPrep m => Cond -> m Cond
+prepareCond (Cond e _) = do
+    let e' = shrinkBExpr e
+    m <- asks symEnv
+    s <- symBExpr m e'
+    return (Cond e' (Just s))
+
+-- | Prepare a variational value for evaluation.
+prepareV :: MonadPrep m => V a -> m (V a)
+prepareV (One a)     = return (One a)
+prepareV (Chc c l r) = do
+    c' <- prepareCond c
+    case condExpr c' of
+      BLit True  -> prepareV l
+      BLit False -> prepareV r
+      _ -> liftM2 (Chc c') (prepareV l) (prepareV r)
