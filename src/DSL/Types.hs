@@ -9,6 +9,7 @@ import GHC.Generics (Generic)
 import Prelude hiding (LT,GT)
 
 import Data.Fixed (mod')
+import Data.Function (on)
 import Data.Map.Strict (Map)
 import Data.String (IsString(..))
 import Data.Text (Text,pack,splitOn)
@@ -191,7 +192,7 @@ data OptType = OptBool | OptInt
 data Cond = Cond {
   condExpr :: BExpr,     -- ^ boolean expression
   condSym  :: Maybe AST  -- ^ cached symbolic encoding
-} deriving (Eq,Generic,Ord,Show)
+} deriving (Generic,Show)
 
 -- | Boolean expressions with variable references.
 data BExpr
@@ -210,6 +211,14 @@ data IExpr
    | OpII NN_N IExpr IExpr
   deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
+-- Check equality on the expression component only.
+instance Eq Cond where
+  (==) = (==) `on` condExpr
+
+-- Order based on the expression component only.
+instance Ord Cond where
+  compare = compare `on` condExpr
+
 -- Read in conditions as boolean expressions.
 instance Read Cond where
   readsPrec i = map (\(e,s) -> (Cond e Nothing,s)) . readsPrec i
@@ -224,17 +233,6 @@ instance Boolean BExpr where
   (<+>) = OpBB XOr
   (==>) = OpBB Imp
   (<=>) = OpBB Eqv
-
--- The cache of conditions combined using this interface is always empty.
-instance Boolean Cond where
-  true  = Cond true Nothing
-  false = Cond false Nothing
-  bnot (Cond e _) = Cond (bnot e) Nothing
-  (Cond l _) &&& (Cond r _) = Cond (l &&& r) Nothing
-  (Cond l _) ||| (Cond r _) = Cond (l ||| r) Nothing
-  (Cond l _) <+> (Cond r _) = Cond (l <+> r) Nothing
-  (Cond l _) ==> (Cond r _) = Cond (l ==> r) Nothing
-  (Cond l _) <=> (Cond r _) = Cond (l <=> r) Nothing
 
 -- Use Num type class for integer arithmetic.
 instance Num IExpr where

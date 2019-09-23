@@ -12,10 +12,8 @@ import Control.Monad.State
 import Data.Composition ((.:))
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
-import qualified Z3.Base as Z3B
 import qualified Z3.Monad as Z3
 
-import DSL.Boolean
 import DSL.Condition
 import DSL.Environment
 import DSL.Path
@@ -79,10 +77,10 @@ runEval
   -> EvalM a     -- ^ computation to run
   -> IO (VOpt a, StateCtx)
 runEval (z3,ctx) dict renv (EvalM mx) = do
-    tru <- Z3B.mkTrue ctx
-    fls <- Z3B.mkFalse ctx
-    let r = RCtx z3 ctx dict envEmpty (ResID []) (Cond true (Just tru))
-    let s = SCtx renv False (Cond false (Just fls)) (One Nothing)
+    tru <- runSat (z3,ctx) condTrue
+    fls <- runSat (z3,ctx) condFalse
+    let r = RCtx z3 ctx dict envEmpty (ResID []) tru
+    let s = SCtx renv False fls (One Nothing)
     runReaderT (runStateT mx s) r
 
 -- | Helper function for returning plain values from within EvalM.
@@ -135,13 +133,13 @@ instance Z3.MonadZ3 (StateT StateCtx (ReaderT ReaderCtx IO)) where
 -- ** Core operations
 
 -- | Execute a computation in an extended variation context.
-inVCtx :: Cond -> EvalM a -> EvalM a
+inVCtx :: MonadEval m => Cond -> m a -> m a
 inVCtx (Cond (BLit True) _) mx = mx
 inVCtx new@(Cond _ (Just s)) mx = do
     old <- getVCtx
     Z3.local $ do
-      Z3.assert s
       c <- condAnd new old
+      Z3.assert s
       local (\r -> r { vCtx = c }) mx
 inVCtx c _ = errorUnprepped c
 
@@ -154,14 +152,16 @@ mapV :: (a -> EvalM b) -> V a -> EvalM b
 mapV f va = EvalM $ do
     b <- getAbort
     if b then return (One Nothing)
-    else go true va
+    else getVCtx >>= \c -> go c va
   where
-    go c (One a)     = unEvalM (inVCtx c (f a))
+    go c (One a)     = inVCtx c (unEvalM (f a))
     go c (Chc d l r) = do
-      l' <- go (d &&& c) l
+      lc <- condAnd c d
+      l' <- go lc l
       lb <- getAbort
       setAbort False
-      r' <- go (bnot d &&& c) r
+      rc <- condNot d >>= condAnd c
+      r' <- go rc r
       rb <- getAbort
       if lb && rb then return (One Nothing)
       else setAbort False >> return (Chc d l' r')
@@ -171,15 +171,17 @@ mapVOpt :: (a -> EvalM b) -> VOpt a -> EvalM b
 mapVOpt f va = EvalM $ do
     b <- getAbort
     if b then return (One Nothing)
-    else go true va
+    else getVCtx >>= \c -> go c va
   where
     go _ (One Nothing)  = return (One Nothing)
-    go c (One (Just a)) = unEvalM (inVCtx c (f a))
+    go c (One (Just a)) = inVCtx c (unEvalM (f a))
     go c (Chc d l r)    = do
-      l' <- go (d &&& c) l
+      lc <- condAnd c d
+      l' <- go lc l
       lb <- getAbort
       setAbort False
-      r' <- go (bnot d &&& c) r
+      rc <- condNot d >>= condAnd c
+      r' <- go rc r
       rb <- getAbort
       if lb && rb then return (One Nothing)
       else setAbort False >> return (Chc d l' r')
@@ -332,13 +334,13 @@ selectValue d v = inVCtx d (shrinkValue v)
 shrinkValue :: Value -> EvalM Value
 shrinkValue (One a) = return (One a)
 shrinkValue (Chc c@(Cond e (Just s)) l r) =
-    case e of
+    case shrinkBExpr e of
       BLit True  -> shrinkValue l
       BLit False -> shrinkValue r
       OpB Not e' -> do
         s' <- Z3.mkNot s
-        shrinkValue (Chc (Cond e' (Just s')) l r)
-      _ -> do
+        shrinkValue (Chc (Cond e' (Just s')) r l)
+      e' -> do
         taut <- isTaut s
         if taut then shrinkValue l
         else do
@@ -348,7 +350,7 @@ shrinkValue (Chc c@(Cond e (Just s)) l r) =
             c' <- condNot c
             l' <- selectValue c l
             r' <- selectValue c' r
-            return (Chc (Cond (shrinkBExpr e) (Just s)) l' r')
+            return (Chc (Cond e' (Just s)) l' r')
 shrinkValue (Chc c _ _) = errorUnprepped c
 
 

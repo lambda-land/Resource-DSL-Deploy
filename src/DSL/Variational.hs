@@ -83,7 +83,7 @@ instance Variational a => Variational (V a) where
       l' = reduce mb mi l
       r' = reduce mb mi r
 
-  prepare _ (One a) = return (One a)
+  prepare m (One a) = prepare m a >>= return . One
   prepare m (Chc (Cond e _) l r) = case shrinkBExpr e of
       BLit True  -> prepare m l
       BLit False -> prepare m r
