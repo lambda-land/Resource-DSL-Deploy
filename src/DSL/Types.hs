@@ -58,7 +58,7 @@ instance IsString ResID where
 
 -- | An environment is a map from keys to values.
 newtype Env k v = Env { envAsMap :: Map k v }
-  deriving (Eq,Foldable,Functor,Generic,Ord,Read,Show,Typeable)
+  deriving (Eq,Foldable,Functor,Generic,Ord,Read,Show,Traversable,Typeable)
 
 -- | Error thrown when a name is not found in the environment.
 data NotFound k = NotFound k

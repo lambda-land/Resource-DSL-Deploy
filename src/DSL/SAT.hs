@@ -5,6 +5,7 @@ import GHC.Generics (Generic)
 
 import Control.Exception (Exception,throwIO)
 import Control.Monad.IO.Class (liftIO)
+import Data.Foldable (foldrM)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (unpack)
@@ -12,7 +13,7 @@ import Z3.Monad
 import qualified Z3.Base as Z3B
 
 import DSL.Types (Cond,Env,OptType(..),Var)
-import DSL.Environment (envFromList,envLookup)
+import DSL.Environment
 
 
 --
@@ -99,6 +100,16 @@ intVal :: MonadZ3 m => Var -> SymEnv -> Model -> m (Maybe Int)
 intVal x env mod = case envLookup (x,OptInt) env of
     Just s -> evalInt mod s >>= return . fmap fromIntegral
     _ -> return Nothing
+
+-- | Return value environments for the given symbols in a SAT model.
+satResult :: MonadZ3 m => SymEnv -> Model -> m (Env Var Bool, Env Var Int)
+satResult env mod = foldrM go (envEmpty,envEmpty) (envToList env)
+  where
+    go ((x,OptBool),s) (mb,mi) = evalBool mod s
+      >>= maybe (err x) (\b -> return (envExtend x b mb, mi))
+    go ((x,OptInt),s) (mb,mi) = evalInt mod s
+      >>= maybe (err x) (\i -> return (mb, envExtend x (fromIntegral i) mi))
+    err x = error $ "Undefined variable when build result: " ++ unpack x
 
 
 -- ** Errors
