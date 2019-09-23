@@ -118,4 +118,3 @@ test-suite test
     , DSL.Parser.Test
     , DSL.Primitive.Test
     , DSL.SAT.Test
-    , DSL.Variational.Test

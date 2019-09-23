@@ -9,13 +9,13 @@ import DSL.Boolean
 import DSL.Environment
 import DSL.Evaluation
 import DSL.Condition
+import DSL.SAT
 import DSL.Sugar
 import DSL.Types
+import DSL.Variational
 
 
 testEval = testGroup "DSL.Evaluation" [testEvalOp1,testIf]
-
-runEmpty ds = runEvalWith envEmpty envEmpty (fromList ds) empty
 
 pbool :: Bool -> VOpt PVal
 pbool = One . Just . B
@@ -39,8 +39,11 @@ testEvalOp1 = testGroup "evalExpr Op1"
     ]
   where
     runOp1 o e = do
-      (res, SCtx _ _ err _) <- runEmpty ["A"] (evalExpr (P1 o e))
-      return (res, shrinkBExpr err)
+      z3 <- initSolver
+      syms <- symEnvFresh z3 (fromList ["A"]) empty
+      e' <- runSat z3 (prepare syms e)
+      (res, sctx) <- runEval z3 envEmpty envEmpty (evalExpr (P1 o e'))
+      return (res, shrinkBExpr (condExpr (errCtx sctx)))
 
 
 testIf = testGroup "execStmt If"
@@ -50,5 +53,8 @@ testIf = testGroup "execStmt If"
     ]
   where
     runStmt s = do
-      (_, SCtx renv _ _ _) <- runEmpty ["A"] (execStmt s)
-      return renv
+      z3 <- initSolver
+      syms <- symEnvFresh z3 (fromList ["A"]) empty
+      s' <- runSat z3 (prepare syms s)
+      (_, sctx) <- runEval z3 envEmpty envEmpty (execStmt s')
+      return (resEnv sctx)
