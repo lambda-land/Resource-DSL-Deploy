@@ -63,12 +63,12 @@ library
     , z3
   exposed-modules:
       DSL.Boolean
+    , DSL.Condition
     , DSL.Driver
     , DSL.Environment
     , DSL.Evaluation
     , DSL.Parser
     , DSL.Path
-    , DSL.Predicate
     , DSL.Pretty
     , DSL.Primitive
     , DSL.SAT

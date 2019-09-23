@@ -2,6 +2,7 @@ module DSL.Condition where
 
 import Prelude hiding (LT,GT)
 
+import Control.Monad.IO.Class (liftIO)
 import Data.Function (on)
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
@@ -180,6 +181,14 @@ shrinkBExpr e = e
 
 
 -- ** Conversion to symbolic values
+
+-- | Convert a boolean expression to a symbolic boolean with fresh variables.
+symBExprFresh :: MonadZ3 m => BExpr -> m AST
+symBExprFresh e = do
+    z3 <- getSolver
+    ctx <- getContext
+    syms <- liftIO $ symEnvFresh (z3,ctx) (boolVars e) (intVars e)
+    symBExpr syms e
 
 -- | Evaluate a boolean expression to a symbolic boolean, given environments
 --   binding all of the variables.
