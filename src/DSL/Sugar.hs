@@ -13,6 +13,10 @@ import DSL.Types
 
 -- ** Variational values
 
+-- | Construct a condition from a boolean expression.
+cond :: BExpr -> Cond
+cond e = Cond e Nothing
+
 -- | Construct a binary choice in the given dimension.
 chc :: Var -> a -> a -> V a
 chc d l r = Chc (Cond (BRef d) Nothing) (One l) (One r)

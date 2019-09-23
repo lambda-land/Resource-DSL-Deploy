@@ -6,7 +6,6 @@ import GHC.Generics (Generic)
 import Control.Monad (when)
 import Options.Applicative hiding (str)
 
-import DSL.Boolean
 import DSL.Types
 import DSL.Environment
 import DSL.Evaluation
@@ -129,9 +128,9 @@ networkConfigCP2 cs pli img scale =
     , One $ I img   -- imageRate
     , One $ I 2500  -- resX
     , One $ I 2000  -- resY
-    , Chc (BRef "color") (One $ B true) (One $ B false) -- color
+    , chc "color" (B True) (B False) -- color
     , One $ F scale -- scale
-    , Chc (BRef "compress") (One $ B true) (One $ B false) -- compress
+    , chc "compress" (B True) (B False) -- compress
     , One $ I pli   -- pliRate
     ]
 
