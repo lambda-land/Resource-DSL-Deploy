@@ -304,7 +304,7 @@ varLookup x = do
     m <- getVarEnv
     case envLookup x m of
       Nothing -> returnError (VarNotFound x)
-      Just v -> shrinkValue v >>= EvalM . return
+      Just v -> shrinkValueInCtx v >>= EvalM . return
 
 -- | Convert a path to a resource ID, using the prefix if the path is relative.
 getResID :: Path -> EvalM ResID
@@ -318,7 +318,7 @@ resLookup rID = do
     m <- getResEnv
     case envLookup rID m of
       Nothing -> returnError (ResNotFound rID)
-      Just v -> shrinkValue v >>= EvalM . return
+      Just v -> shrinkValueInCtx v >>= EvalM . return
 
 
 --
@@ -327,13 +327,39 @@ resLookup rID = do
 
 -- | Partially configure a value using the given boolean expression.
 selectValue :: Cond -> Value -> EvalM Value
-selectValue d v = inVCtx d (shrinkValue v)
+selectValue d v = inVCtx d (shrinkValueInCtx v)
 
 -- | Shrink a value in the current variation context by eliminating dead
 --   alternatives and applying some basic restructuring rules.
+shrinkValueInCtx :: Value -> EvalM Value
+shrinkValueInCtx (One a) = return (One a)
+shrinkValueInCtx (Chc c@(Cond e (Just s)) l r) =
+    case shrinkBExpr e of
+      BLit True  -> shrinkValueInCtx l
+      BLit False -> shrinkValueInCtx r
+      OpB Not e' -> do
+        s' <- Z3.mkNot s
+        shrinkValueInCtx (Chc (Cond e' (Just s')) r l)
+      e' -> do
+        taut <- isTaut s
+        if taut then shrinkValueInCtx l
+        else do
+          unsat <- isUnsat s
+          if unsat then shrinkValueInCtx r
+          else do
+            c' <- condNot c
+            l' <- selectValue c l
+            r' <- selectValue c' r
+            if l' == r'
+              then return l'
+              else return (Chc (Cond e' (Just s)) l' r')
+shrinkValueInCtx (Chc c _ _) = errorUnprepped c
+
+-- | Shrink a value independent of context and without the SAT solver by
+--   applying some basic restructuring rules.
 shrinkValue :: Value -> EvalM Value
 shrinkValue (One a) = return (One a)
-shrinkValue (Chc c@(Cond e (Just s)) l r) =
+shrinkValue (Chc (Cond e (Just s)) l r) =
     case shrinkBExpr e of
       BLit True  -> shrinkValue l
       BLit False -> shrinkValue r
@@ -341,16 +367,26 @@ shrinkValue (Chc c@(Cond e (Just s)) l r) =
         s' <- Z3.mkNot s
         shrinkValue (Chc (Cond e' (Just s')) r l)
       e' -> do
-        taut <- isTaut s
-        if taut then shrinkValue l
-        else do
-          unsat <- isUnsat s
-          if unsat then shrinkValue r
-          else do
-            c' <- condNot c
-            l' <- selectValue c l
-            r' <- selectValue c' r
-            return (Chc (Cond e' (Just s)) l' r')
+        l' <- shrinkValue l
+        r' <- shrinkValue r
+        return $ case (l', r') of
+          (Chc (Cond el _) ll _, Chc (Cond er _) _ rr) ->
+            if e' == el
+              then if e' == er
+                then Chc (Cond e' (Just s)) ll rr
+                else Chc (Cond e' (Just s)) ll r'
+              else if e' == er
+                then Chc (Cond e' (Just s)) l' rr
+                else Chc (Cond e' (Just s)) l' r'
+          (Chc (Cond el _) ll _, _) ->
+            if e' == el
+              then Chc (Cond e' (Just s)) ll r'
+              else Chc (Cond e' (Just s)) l' r'
+          (_, Chc (Cond er _) _ rr) ->
+            if e' == er
+              then Chc (Cond e' (Just s)) l' rr
+              else Chc (Cond e' (Just s)) l' r'
+          _ -> Chc (Cond e' (Just s)) l' r'
 shrinkValue (Chc c _ _) = errorUnprepped c
 
 
