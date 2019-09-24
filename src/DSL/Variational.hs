@@ -90,10 +90,10 @@ instance Variational a => Variational (V a) where
       e' -> symBExpr m e' >>= \s ->
         liftM2 (Chc (Cond e' (Just s))) (prepare m l) (prepare m r)
 
-  boolDims (One _)     = mempty
+  boolDims (One a)     = boolDims a
   boolDims (Chc d l r) = boolVars (condExpr d) <> boolDims l <> boolDims r
 
-  intDims (One _)     = mempty
+  intDims (One a)     = intDims a
   intDims (Chc d l r) = intVars (condExpr d) <> intDims l <> intDims r
 
 
