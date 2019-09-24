@@ -31,7 +31,7 @@ initSolver = do
     cfg <- Z3B.mkConfig
     setOpts cfg stdOpts
     ctx <- Z3B.mkContext cfg
-    z3  <- Z3B.mkSolver ctx
+    z3  <- Z3B.mkSolverForLogic ctx Z3B.QF_LIA
     return (z3,ctx)
 
 
@@ -121,7 +121,7 @@ satResult env mod = foldrM go (envEmpty,envEmpty) (envToList env)
       >>= maybe (err x) (\b -> return (envExtend x b mb, mi))
     go ((x,OptInt),s) (mb,mi) = evalInt mod s
       >>= maybe (err x) (\i -> return (mb, envExtend x (fromIntegral i) mi))
-    err x = error $ "Undefined variable when build result: " ++ unpack x
+    err x = error $ "Undefined variable when building result: " ++ unpack x
 
 
 -- ** Errors
