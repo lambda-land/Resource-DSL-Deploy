@@ -56,7 +56,7 @@ condOp1
   -> m Cond
 condOp1 eOp sOp (Cond e (Just s)) = do
     s' <- sOp s
-    return (Cond (eOp e) (Just s'))
+    return (Cond (shrinkBExpr (eOp e)) (Just s'))
 condOp1 eOp _ (Cond e _) = return (Cond (eOp e) Nothing)
 
 -- | Combine two conditions with a binary operator.
@@ -69,7 +69,7 @@ condOp2
   -> m Cond
 condOp2 eOp sOp (Cond e1 (Just s1)) (Cond e2 (Just s2)) = do
     s' <- sOp s1 s2
-    return (Cond (eOp e1 e2) (Just s'))
+    return (Cond (shrinkBExpr (eOp e1 e2)) (Just s'))
 condOp2 eOp _ (Cond e1 _) (Cond e2 _) = return (Cond (eOp e1 e2) Nothing)
 
 
