@@ -4,12 +4,12 @@ import Data.Data (Typeable)
 import GHC.Generics (Generic)
 
 import Control.Exception (Exception,throwIO)
-import Control.Monad.Reader
+import Control.Monad.Reader hiding (local)
 import Data.Foldable (foldrM)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (unpack)
-import Z3.Monad hiding (local)
+import Z3.Monad
 import qualified Z3.Base as Z3B
 
 import DSL.Types (Cond,Env,OptType(..),Var)
@@ -29,6 +29,10 @@ type SatCtx = (Solver,Context)
 initSolver :: IO SatCtx
 initSolver = do
     cfg <- Z3B.mkConfig
+    -- Some helpful options for z3 debugging.
+    -- Z3B.setParamValue cfg "debug_ref_count" "true"
+    -- Z3B.setParamValue cfg "trace" "true"
+    -- Z3B.setParamValue cfg "well_sorted_check" "true"
     setOpts cfg stdOpts
     ctx <- Z3B.mkContext cfg
     z3  <- Z3B.mkSolverForLogic ctx Z3B.QF_LIA
@@ -90,10 +94,7 @@ isTaut s = mkNot s >>= isUnsat
 -- | Find a variable assignment that satisfies the given boolean expression.
 satModel :: MonadZ3 m => AST -> m (Maybe Model)
 satModel s = do
-    push
-    assert s
-    (_,r) <- getModel
-    pop 1
+    (_,r) <- local (assert s >> getModel)
     return r
 
 -- | Find several different variable assignments that satisfy the given
