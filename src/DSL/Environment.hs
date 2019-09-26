@@ -94,9 +94,9 @@ envLookup k (Env m) = Map.lookup k m
 
 -- | Lookup a binding in an environment, failing with a runtim error if it
 --   doesn't exist.
-envLookupOrFail :: (Show k, Ord k) => k -> Env k v -> v
-envLookupOrFail k = fromMaybe err . envLookup k
-  where err = error ("Lookup failed: " ++ show k)
+envLookupOrFail :: (Show k, Ord k) => String -> k -> Env k v -> v
+envLookupOrFail s k = fromMaybe err . envLookup k
+  where err = error ("Lookup failed in " ++ s ++ ": " ++ show k)
 
 -- | Apply a result-less monadic action to all key-value pairs.
 envMapM_ :: Monad m => (k -> v -> m ()) -> Env k v -> m ()
