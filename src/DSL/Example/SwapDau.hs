@@ -274,25 +274,30 @@ dimN pre = [mconcat [pre, "+", pack (show i)] | i <- [1..]]
 
 -- | Dimension indicating how to configure a port attribute.
 dimAttr
-  :: Name  -- ^ provided DAU ID
-  -> Int   -- ^ group index in provided DAU
+  :: Name  -- ^ inventory DAU ID
+  -> Int   -- ^ inventory group index
   -> Name  -- ^ required DAU ID
-  -> Int   -- ^ group index in required DAU
+  -> Int   -- ^ required group index
   -> Name  -- ^ attribute name
   -> Var
-dimAttr pn pg rn rg att = mconcat 
-    ["Cfg ", pn, "+", pack (show pg), " ", rn, "+", pack (show rg), " ", att]
+dimAttr invDau invGrp reqDau reqGrp att = mconcat 
+    [ "Cfg "
+    , invDau, "+", pack (show invGrp), " "
+    , reqDau, "+", pack (show reqGrp), " "
+    , att]
 
 -- | Dimension indicating whether a provided DAU + group is used to (partially)
 --   satisfy a required DAU + port group.
 dimUseGroup
-  :: Name  -- ^ provided DAU
-  -> Int   -- ^ group index in provided DAU
-  -> Name  -- ^ required DAU
-  -> Int   -- ^ group index in required DAU
+  :: Name  -- ^ inventory DAU ID
+  -> Int   -- ^ inventory group index
+  -> Name  -- ^ required DAU ID
+  -> Int   -- ^ required group index
   -> Var
-dimUseGroup pn pg rn rg = mconcat
-    ["Use ", pn, "+", pack (show pg), " ", rn, "+", pack (show rg)]
+dimUseGroup invDau invGrp reqDau reqGrp = mconcat
+    [ "Use "
+    , invDau, "+", pack (show invGrp), " "
+    , reqDau, "+", pack (show reqGrp)]
 
 
 -- ** Provisions
@@ -319,16 +324,16 @@ initEnv inv = envFromList (cost : match : concatMap dau inv)
 -- | Provide a port group for use by a particular required port group.
 providePortGroup
   :: Rules                 -- ^ shared attribute rules
-  -> Name                  -- ^ provided DAU ID
-  -> Int                   -- ^ provided group ID
+  -> Name                  -- ^ inventory DAU ID
+  -> Int                   -- ^ inventory group index
   -> Name                  -- ^ required DAU ID
-  -> Int                   -- ^ required group ID
+  -> Int                   -- ^ required group index
   -> PortGroup Constraint  -- ^ provided port group
   -> Stmt
-providePortGroup rules pn pg rn rg grp =
+providePortGroup rules invDauID invGrpIx reqDauID reqGrpIx grp =
     In "Attributes" (providePortAttrs rules dimGen (groupAttrs grp))
   where
-    dimGen = dimAttr pn pg rn rg
+    dimGen = dimAttr invDauID invGrpIx reqDauID reqGrpIx
 
 -- | Encode a set of provided port attributes as a DSL statement block.
 providePortAttrs
