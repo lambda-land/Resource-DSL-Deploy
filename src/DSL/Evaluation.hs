@@ -2,7 +2,7 @@
 
 module DSL.Evaluation where
 
-import Data.Data (Data,Typeable)
+import Data.Data (Typeable)
 import GHC.Generics (Generic)
 
 import Control.Applicative (Alternative(..))
@@ -12,65 +12,49 @@ import Control.Monad.State
 import Data.Composition ((.:))
 import Data.Maybe (fromMaybe)
 import Data.Set (Set)
+import qualified Z3.Monad as Z3
 
-import DSL.Boolean
-import DSL.Types
+import DSL.Condition
 import DSL.Environment
 import DSL.Path
-import DSL.Predicate
 import DSL.Primitive
-import DSL.Variational
+import DSL.SAT
+import DSL.Types
 
 
 --
 -- * Evaluation context
 --
 
--- | Variable environment.
-type VarEnv = Env Var Value
-
--- | Resource environment.
+-- | The resource environment tracks the values of globally scoped resources.
 type ResEnv = Env ResID Value
 
+-- | The variable environment tracks the values of locally scoped variables.
+type VarEnv = Env Var Value
+
 -- | Reader context for evaluation.
-data Context = Ctx {
-  prefix      :: ResID,      -- ^ resource ID prefix
-  environment :: VarEnv,     -- ^ variable environment
+data ReaderCtx = RCtx {
+  z3Solver    :: Z3.Solver,  -- ^ solver reference
+  z3Context   :: Z3.Context, -- ^ solver context
   dictionary  :: Dictionary, -- ^ dictionary of models
-  vCtx        :: BExpr       -- ^ current variational context
-} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
+  environment :: VarEnv,     -- ^ variable environment
+  prefix      :: ResID,      -- ^ resource ID prefix
+  vCtx        :: Cond        -- ^ current variational context
+} deriving (Eq,Generic,Show,Typeable)
 
 -- | State context for evaluation.
 data StateCtx = SCtx {
   resEnv :: ResEnv,          -- ^ the resource environment
   abort  :: Bool,            -- ^ whether to abort this branch of the execution
-  errCtx :: BExpr,           -- ^ variation context of errors that have occurred
+  errCtx :: Cond,            -- ^ variation context of errors that have occurred
   vError :: VError           -- ^ variational error
-} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
-
-instance Variational StateCtx where
-  configure c (SCtx r a e m) = SCtx (configure c r) a e (configure c m)
-  select    c (SCtx r a e m) = SCtx (select c r) a e (select c m)
-  shrink      (SCtx r a e m) = SCtx (shrink r) a e (shrink m)
-  dimensions  (SCtx r _ _ m) = dimensions r <> dimensions m
+} deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 -- | Resulting context of a successful computation.
 data SuccessCtx = SuccessCtx {
   successCtx  :: BExpr,      -- ^ the variants that succeeded
-  configSpace :: Set Var     -- ^ dimensions in the configuration space
-} deriving (Data,Eq,Generic,Ord,Read,Show,Typeable)
-
--- | Initialize a context with the given dictionary.
-withDict :: Dictionary -> Context
-withDict dict = Ctx (ResID []) envEmpty dict (BLit True)
-
--- | Initialize a state context with the given resource environment.
-withResEnv :: ResEnv -> StateCtx
-withResEnv renv = SCtx renv False (BLit False) (One Nothing)
-
--- | An initial context with no dictionary.
-withNoDict :: Context 
-withNoDict = withDict envEmpty
+  configSpace :: Set Var     -- ^ options in the configuration space
+} deriving (Eq,Generic,Ord,Read,Show,Typeable)
 
 
 --
@@ -78,14 +62,30 @@ withNoDict = withDict envEmpty
 --
 
 -- | Requirements of an evaluation monad.
-type MonadEval m = (MonadReader Context m, MonadState StateCtx m)
+type MonadEval m = (MonadReader ReaderCtx m, MonadState StateCtx m, Z3.MonadZ3 m)
 
 -- | A monad for running variational computations in an evaluation monad.
-newtype EvalM a = EvalM { unEvalM :: StateT StateCtx (Reader Context) (VOpt a) }
+newtype EvalM a = EvalM {
+  unEvalM :: StateT StateCtx (ReaderT ReaderCtx IO) (VOpt a)
+}
 
--- | Execute a computation in the given context.
-runEvalM :: Context -> StateCtx -> EvalM a -> (VOpt a, StateCtx)
-runEvalM ctx init (EvalM mx) = runReader (runStateT mx init) ctx
+-- | Execute a computation on the given inputs with initialized contexts.
+runEval
+  :: SatCtx      -- ^ solver context
+  -> Dictionary  -- ^ dictionary of models
+  -> ResEnv      -- ^ initial resource environment
+  -> EvalM a     -- ^ computation to run
+  -> IO (VOpt a, StateCtx)
+runEval (z3,ctx) dict renv (EvalM mx) = do
+    tru <- runSat (z3,ctx) condTrue
+    fls <- runSat (z3,ctx) condFalse
+    let r = RCtx z3 ctx dict envEmpty (ResID []) tru
+    let s = SCtx renv False fls (One Nothing)
+    runReaderT (runStateT mx s) r
+
+-- | Helper function for returning plain values from within EvalM.
+plain :: Monad m => a -> m (VOpt a)
+plain = return . One . Just
 
 instance Functor EvalM where
   fmap f (EvalM mx) = EvalM (mx >>= return . fmap (fmap f))
@@ -110,16 +110,38 @@ instance MonadPlus EvalM
 instance MonadFail EvalM where
   fail _ = EvalM (return (One Nothing))
 
-instance MonadReader Context EvalM where
-  ask = EvalM (ask >>= return . One . Just)
+instance MonadIO EvalM where
+  liftIO mx = EvalM (liftIO mx >>= plain)
+
+instance MonadReader ReaderCtx EvalM where
+  ask = EvalM (ask >>= plain)
   local f (EvalM mx) = EvalM (local f mx)
 
 instance MonadState StateCtx EvalM where
-  get = EvalM (get >>= return . One . Just)
-  put s = EvalM (put s >> return (One (Just ())))
+  get = EvalM (get >>= plain)
+  put s = EvalM (put s >> plain ())
+
+instance Z3.MonadZ3 EvalM where
+  getSolver = asks z3Solver
+  getContext = asks z3Context
+
+instance Z3.MonadZ3 (StateT StateCtx (ReaderT ReaderCtx IO)) where
+  getSolver = asks z3Solver
+  getContext = asks z3Context
 
 
 -- ** Core operations
+
+-- | Execute a computation in an extended variation context.
+inVCtx :: MonadEval m => Cond -> m a -> m a
+inVCtx (Cond (BLit True) _) mx = mx
+inVCtx new@(Cond _ (Just s)) mx = do
+    old <- getVCtx
+    Z3.local $ do
+      c <- condAnd new old
+      Z3.assert s
+      local (\r -> r { vCtx = c }) mx
+inVCtx c _ = errorUnprepped c
 
 -- | Extract the resulting variational value from an evaluation action.
 reflectV :: EvalM a -> EvalM (VOpt a)
@@ -134,10 +156,12 @@ mapV f va = EvalM $ do
   where
     go c (One a)     = inVCtx c (unEvalM (f a))
     go c (Chc d l r) = do
-      l' <- go (d &&& c) l
+      lc <- condAnd c d
+      l' <- go lc l
       lb <- getAbort
       setAbort False
-      r' <- go (bnot d &&& c) r
+      rc <- condNot d >>= condAnd c
+      r' <- go rc r
       rb <- getAbort
       if lb && rb then return (One Nothing)
       else setAbort False >> return (Chc d l' r')
@@ -152,10 +176,12 @@ mapVOpt f va = EvalM $ do
     go _ (One Nothing)  = return (One Nothing)
     go c (One (Just a)) = inVCtx c (unEvalM (f a))
     go c (Chc d l r)    = do
-      l' <- go (d &&& c) l
+      lc <- condAnd c d
+      l' <- go lc l
       lb <- getAbort
       setAbort False
-      r' <- go (bnot d &&& c) r
+      rc <- condNot d >>= condAnd c
+      r' <- go rc r
       rb <- getAbort
       if lb && rb then return (One Nothing)
       else setAbort False >> return (Chc d l' r')
@@ -169,11 +195,11 @@ checkAbort mx = EvalM $ do
 -- | Record an error in the current variation context and return an empty
 --   value.
 returnError :: Error -> EvalM a
-returnError e = EvalM $ do
+returnError err = EvalM $ do
     c <- getVCtx
     setAbort True
-    updateErrCtx (c |||)
-    updateVError (Chc c (One (Just e)))
+    updateErrCtx (condOr c)
+    updateVError (Chc c (One (Just err)))
     return (One Nothing)
 
 -- | Consume a value that may have failed, recording an error if so.
@@ -182,22 +208,24 @@ handleError (Right a) = return a
 handleError (Left e)  = returnError e
 
 
--- ** Getters
+--
+-- * Getters
+--
 
--- | Get the current resource ID prefix.
-getPrefix :: MonadEval m => m ResID
-getPrefix = asks prefix
+-- | Get the dictionary of models.
+getDict :: MonadEval m => m Dictionary
+getDict = asks dictionary
 
 -- | Get the current variable environment.
 getVarEnv :: MonadEval m => m VarEnv
 getVarEnv = asks environment
 
--- | Get the current dictionary of profiles and models.
-getDict :: MonadEval m => m Dictionary
-getDict = asks dictionary
+-- | Get the current resource ID prefix.
+getPrefix :: MonadEval m => m ResID
+getPrefix = asks prefix
 
 -- | Get the current variational context.
-getVCtx :: MonadEval m => m BExpr
+getVCtx :: MonadEval m => m Cond
 getVCtx = asks vCtx
 
 -- | Get the current resource environment.
@@ -209,7 +237,7 @@ getAbort :: MonadEval m => m Bool
 getAbort = gets abort
 
 -- | Get the current error context.
-getErrCtx :: MonadEval m => m BExpr
+getErrCtx :: MonadEval m => m Cond
 getErrCtx = gets errCtx
 
 -- | Get the current variational error.
@@ -219,13 +247,9 @@ getVError = gets vError
 
 -- ** Setters
 
--- | Execute a computation with a specific prefix.
-withPrefix :: MonadEval m => ResID -> m a -> m a
-withPrefix p = local (\(Ctx _ m d v) -> Ctx p m d v)
-
 -- | Execute a computation with an updated value environment.
 withVarEnv :: MonadEval m => (VarEnv -> VarEnv) -> m a -> m a
-withVarEnv f = local (\(Ctx p m d v) -> Ctx p (f m) d v)
+withVarEnv f = local (\c -> c { environment = f (environment c) })
 
 -- | Execute a computation with an extended value environment.
 withNewVar :: MonadEval m => Var -> Value -> m a -> m a
@@ -236,28 +260,51 @@ withNewVar = withVarEnv .: envExtend
 withNewVars :: MonadEval m => [(Var,Value)] -> m a -> m a
 withNewVars = withVarEnv . envExtends
 
--- | Execute a computation in an extended variation context.
-inVCtx :: MonadEval m => BExpr -> m a -> m a
-inVCtx c' = local (\(Ctx p m d c) -> Ctx p m d (shrinkBExpr (c' &&& c)))
+-- | Execute a computation with a specific prefix.
+withPrefix :: MonadEval m => ResID -> m a -> m a
+withPrefix p = local (\c -> c { prefix = p })
 
 -- | Update the resource environment.
 updateResEnv :: MonadEval m => (ResEnv -> ResEnv) -> m ()
-updateResEnv f = modify (\(SCtx r a e m) -> SCtx (f r) a e m)
+updateResEnv f = modify (\s -> s { resEnv = f (resEnv s) })
 
 -- | Set the abort flag.
 setAbort :: MonadEval m => Bool -> m ()
-setAbort a = modify (\(SCtx r _ e m) -> SCtx r a e m)
+setAbort a = modify (\s -> s { abort = a })
+
+-- | Set the error contextj.
+setErrCtx :: MonadEval m => Cond -> m ()
+setErrCtx c = modify (\s -> s { errCtx = c })
 
 -- | Update the error context.
-updateErrCtx :: MonadEval m => (BExpr -> BExpr) -> m ()
-updateErrCtx f = modify (\(SCtx r a e m) -> SCtx r a (f e) m)
+updateErrCtx :: MonadEval m => (Cond -> m Cond) -> m ()
+updateErrCtx f = do
+    c <- getErrCtx
+    c' <- f c
+    setErrCtx c'
 
 -- | Update the variational error.
 updateVError :: MonadEval m => (VError -> VError) -> m ()
-updateVError f = modify (\(SCtx r a e m) -> SCtx r a e (f m))
+updateVError f = modify (\s -> s { vError = f (vError s)})
 
 
 -- ** Queries
+
+-- | Lookup a component in the dictionary.
+compLookup :: Var -> EvalM Model
+compLookup x = do
+    d <- getDict
+    case envLookup x d of
+      Nothing -> returnError (CompNotFound x)
+      Just m -> return m  -- TODO: do we need to mask this?
+
+-- | Lookup a variable in the variable environment.
+varLookup :: Var -> EvalM PVal
+varLookup x = do
+    m <- getVarEnv
+    case envLookup x m of
+      Nothing -> returnError (VarNotFound x)
+      Just v -> shrinkValueInCtx v >>= EvalM . return
 
 -- | Convert a path to a resource ID, using the prefix if the path is relative.
 getResID :: Path -> EvalM ResID
@@ -265,32 +312,82 @@ getResID path = do
     pre <- getPrefix
     handleError (toResID pre path)
 
--- | Lookup a variable in the variable environment.
-varLookup :: Var -> EvalM PVal
-varLookup x = do
-    c <- getVCtx
-    m <- getVarEnv
-    case envLookup x m of
-      Nothing -> returnError (VarNotFound x)
-      Just v -> EvalM (return (select c v))
-
--- | Lookup a component in the dictionary.
-compLookup :: Var -> EvalM Model
-compLookup x = do
-    c <- getVCtx
-    d <- getDict
-    case envLookup x d of
-      Nothing -> returnError (CompNotFound x)
-      Just m -> return (select c m)
-
 -- | Lookup a resource in the resource environment.
 resLookup :: ResID -> EvalM PVal
 resLookup rID = do
-    c <- getVCtx
     m <- getResEnv
     case envLookup rID m of
       Nothing -> returnError (ResNotFound rID)
-      Just v -> EvalM (return (select c v))
+      Just v -> shrinkValueInCtx v >>= EvalM . return
+
+
+--
+-- * Variational values
+--
+
+-- | Partially configure a value using the given boolean expression.
+selectValue :: Cond -> Value -> EvalM Value
+selectValue d v = inVCtx d (shrinkValueInCtx v)
+
+-- | Shrink a value in the current variation context by eliminating dead
+--   alternatives and applying some basic restructuring rules.
+shrinkValueInCtx :: Value -> EvalM Value
+shrinkValueInCtx (One a) = return (One a)
+shrinkValueInCtx (Chc c@(Cond e (Just s)) l r) =
+    case shrinkBExpr e of
+      BLit True  -> shrinkValueInCtx l
+      BLit False -> shrinkValueInCtx r
+      OpB Not e' -> do
+        s' <- Z3.mkNot s
+        shrinkValueInCtx (Chc (Cond e' (Just s')) r l)
+      e' -> do
+        taut <- isTaut s
+        if taut then shrinkValueInCtx l
+        else do
+          unsat <- isUnsat s
+          if unsat then shrinkValueInCtx r
+          else do
+            c' <- condNot c
+            l' <- selectValue c l
+            r' <- selectValue c' r
+            if l' == r'
+              then return l'
+              else return (Chc (Cond e' (Just s)) l' r')
+shrinkValueInCtx (Chc c _ _) = errorUnprepped c
+
+-- | Shrink a value independent of context and without the SAT solver by
+--   applying some basic restructuring rules.
+shrinkValue :: Value -> EvalM Value
+shrinkValue (One a) = return (One a)
+shrinkValue (Chc (Cond e (Just s)) l r) =
+    case shrinkBExpr e of
+      BLit True  -> shrinkValue l
+      BLit False -> shrinkValue r
+      OpB Not e' -> do
+        s' <- Z3.mkNot s
+        shrinkValue (Chc (Cond e' (Just s')) r l)
+      e' -> do
+        l' <- shrinkValue l
+        r' <- shrinkValue r
+        return $ case (l', r') of
+          (Chc (Cond el _) ll _, Chc (Cond er _) _ rr) ->
+            if e' == el
+              then if e' == er
+                then Chc (Cond e' (Just s)) ll rr
+                else Chc (Cond e' (Just s)) ll r'
+              else if e' == er
+                then Chc (Cond e' (Just s)) l' rr
+                else Chc (Cond e' (Just s)) l' r'
+          (Chc (Cond el _) ll _, _) ->
+            if e' == el
+              then Chc (Cond e' (Just s)) ll r'
+              else Chc (Cond e' (Just s)) l' r'
+          (_, Chc (Cond er _) _ rr) ->
+            if e' == er
+              then Chc (Cond e' (Just s)) l' rr
+              else Chc (Cond e' (Just s)) l' r'
+          _ -> Chc (Cond e' (Just s)) l' r'
+shrinkValue (Chc c _ _) = errorUnprepped c
 
 
 --
@@ -378,7 +475,8 @@ updateRes rID new = do
     ctx <- getVCtx
     env <- getResEnv
     let old = fromMaybe (One Nothing) (envLookup rID env)
-    updateResEnv (envExtend rID (shrink (Chc ctx new old)))
+    v <- shrinkValue (Chc ctx new old)
+    updateResEnv (envExtend rID v)
 
 -- | Execute the effect on the given resource environment.
 execEffect :: ResID -> Effect -> EvalM ()

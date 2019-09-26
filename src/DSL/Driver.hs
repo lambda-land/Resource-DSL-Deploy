@@ -4,20 +4,21 @@ module DSL.Driver where
 
 import Prelude hiding (init)
 
-import Data.Data (Data,Typeable)
+import Data.Data (Typeable)
 import GHC.Generics (Generic)
 
-import Data.List ((\\))
 import Data.Monoid ((<>))
-import Data.Set (Set,toList)
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (pack)
-import Options.Applicative
+import Options.Applicative hiding (empty)
 import System.Environment (getArgs)
 import System.Exit
+import Z3.Monad (modelToString)
 
-import DSL.Boolean
+import DSL.Condition
+import DSL.Environment
 import DSL.Evaluation
-import DSL.Parser (parseBExprString)
 import DSL.SAT
 import DSL.Serialize
 import DSL.Types hiding (Check)
@@ -30,7 +31,7 @@ import DSL.Example.SwapDau
 
 
 --
--- * Run the Program
+-- * Run the program
 --
 
 -- | Top level driver.
@@ -45,18 +46,21 @@ runDriver = do
       Swap opts  -> runSwap opts
       Check opts -> runCheck opts
 
--- | Compute a selection from the set of all features and the selection options.
-getSelection :: Set Var -> Maybe SelOpts -> BExpr
-getSelection _  Nothing   = true
-getSelection vs (Just os) = case os of
-    Formula s -> case parseBExprString s of
-      Right sel -> sel
-      Left err  -> error ("Could not parse selection: " ++ err)
-    OnOff ons offs -> gen (map pack ons) (map pack offs)
-    Total ons ->
-      let ons' = map pack ons in gen ons' (toList vs \\ ons')
-  where
-    gen ons offs = foldr (&&&) true $ map BRef ons ++ map (bnot . BRef) offs
+-- | Construct a set of variables from a list of strings.
+varSet :: [String] -> Set Var
+varSet = Set.fromList . map pack
+
+-- | Create a total configuration from the set of all configuration options
+--   and a set to turn on.
+totalConfig :: Set Var -> Set Var -> Env Var Bool
+totalConfig all ons = Set.foldr go envEmpty all
+  where go x = envExtend x (Set.member x ons)
+
+-- | Create a partial configuration from a set of configuration options to
+--   turn on and a set to turn off.
+partialConfig :: Set Var -> Set Var -> Env Var Bool
+partialConfig ons offs = envUnion (sub True ons) (sub False offs)
+  where sub b = Set.foldr (\x -> envExtend x b) envEmpty
 
 -- | Execute the 'run' command.
 run :: RunOpts -> IO ()
@@ -72,47 +76,63 @@ run opts = do
       Nothing -> readJSON (configFile opts) asConfig
     
     -- compute the selection and update the inputs
-    let vars = dimensions dict
-            <> dimensions init
-            <> dimensions model
-            <> dimensions reqs
-            <> dimensions args
-    let sel = getSelection vars (selection opts)
-    let (dict', init', model', reqs', args') = case selection opts of
+    -- TODO: deal with integer dimensions
+    let dims = boolDims dict
+            <> boolDims init
+            <> boolDims model
+            <> boolDims reqs
+            <> boolDims args
+    let (dictS, initS, modelS, reqsS, argsS) = case selection opts of
           Nothing -> (dict, init, model, reqs, args)
-          Just (Total _) ->
-            (configure sel dict, configure sel init, configure sel model,
-             configure sel reqs, configure sel args)
-          _ ->
-            (select sel dict, select sel init, select sel model,
-             select sel reqs, select sel args)
+          Just (Total ons) ->
+            let cfg = totalConfig dims (varSet ons)
+                shrink = configure cfg envEmpty
+            in (shrink dict, shrink init, shrink model,
+                shrink reqs, shrink args)
+          Just (OnOff ons offs) ->
+            let cfg = partialConfig (varSet ons) (varSet offs)
+                shrink = reduce cfg envEmpty
+            in (shrink dict, shrink init, shrink model,
+                shrink reqs, shrink args)
+
+    -- initialize the SAT solver and prepare everything for execution
+    z3 <- initSolver
+    syms <- symEnvFresh z3 dims Set.empty
+    dictP  <- runSat z3 (prepare syms dictS)
+    initP  <- runSat z3 (prepare syms initS)
+    modelP <- runSat z3 (prepare syms modelS)
+    reqsP  <- runSat z3 (prepare syms reqsS)
+    argsP  <- runSat z3 (prepare syms argsS)
     
     -- run the model and check against requirements
-    let Model [] reqsBlock = reqs'
-    let Model xs mainBlock = model'
+    let Model [] reqsBlock = reqsP
+    let Model xs mainBlock = modelP
     let toRun = Model xs (mainBlock ++ if noReqs opts then [] else reqsBlock)
-    let (_, sctx) = runEvalM (withDict dict') (withResEnv init') (loadModel toRun args')
+    (_, sctx) <- runEval z3 dictP initP (loadModel toRun argsP)
     
     -- write the outputs
-    let passed = bnot (errCtx sctx)
+    passed <- runSat z3 (condNot (errCtx sctx))
     writeJSON (outputFile opts) (resEnv sctx)
     writeJSON (errorFile opts) (vError sctx)
-    writeJSON (successFile opts) (SuccessCtx passed vars)
+    writeJSON (successFile opts) (SuccessCtx (condExpr passed) dims)
     putStrLn "Done. Run 'check' to determine if any configurations were successful."
 
 -- | Execute the 'check' command.
+--   TODO: This currently does not take either the selection or the max-results
+--   into account!
 runCheck :: CheckOpts -> IO ()
 runCheck opts = do
     succ <- readJSON (successF opts) asSuccess
-    let sel = getSelection (configSpace succ) (verOpts opts)
-    let passed = sel &&& successCtx succ
-    res <- satResults (maxRes opts) passed
-    writeFile (bestFile opts) (show res)
-    if take 2 (show res) == "No" then do
-      putStrLn "No successful configurations found."
-      exitWith (ExitFailure 4)
-    else
-      putStrLn "Success"
+    z3 <- initSolver
+    res <- runSat z3 (symBExprFresh (successCtx succ) >>= satModel)
+    case res of
+      Nothing -> do
+        putStrLn "No successful configurations found."
+        exitWith (ExitFailure 4)
+      Just sol -> do
+        solStr <- runSat z3 (modelToString sol)
+        writeFile (bestFile opts) (show solStr)
+        putStrLn "Success"
 
 --
 -- * Command Line Arguments
@@ -123,13 +143,12 @@ data Command
      | Example Example
      | Check CheckOpts
      | Swap SwapOpts
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
+  deriving (Eq,Generic,Read,Show,Typeable)
 
 data SelOpts
-   = Formula String
-   | OnOff [String] [String]
+   = OnOff [String] [String]
    | Total [String]
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
+  deriving (Eq,Generic,Read,Show,Typeable)
 
 data RunOpts = RunOpts
      { noReqs      :: Bool
@@ -143,20 +162,20 @@ data RunOpts = RunOpts
      , outputFile  :: FilePath
      , errorFile   :: FilePath
      , successFile :: FilePath }
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
+  deriving (Eq,Generic,Read,Show,Typeable)
 
 data Example
      = Location LocationOpts
      | Network  NetworkOpts
      | CrossApp CrossAppOpts
-  deriving (Data,Eq,Generic,Read,Show,Typeable)
+  deriving (Eq,Generic,Read,Show,Typeable)
 
 data CheckOpts = CheckOpts {
       verOpts  :: Maybe SelOpts
     , successF :: FilePath
     , bestFile :: FilePath
     , maxRes :: Int
-  } deriving (Data,Eq,Generic,Read,Show,Typeable)
+  } deriving (Eq,Generic,Read,Show,Typeable)
 
 
 getCommand :: IO Command
@@ -196,14 +215,8 @@ parseExample = subparser
      )
 
 parseSel :: Parser (Maybe SelOpts)
-parseSel = optional (formula <|> onOff <|> total)
+parseSel = optional (onOff <|> total)
   where
-    formula = Formula
-      <$> strOption
-          ( short 'f'
-          <> long "formula"
-          <> metavar "STRING"
-          <> help "A boolean expression indicating the variants to be executed." )
     onOff = OnOff
       <$> option auto
           ( long "on"

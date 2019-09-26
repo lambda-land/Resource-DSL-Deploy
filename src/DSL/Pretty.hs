@@ -110,7 +110,13 @@ instance Pretty Op2 where
   pretty (SS_B o) = pretty o
 
 
--- ** Predicates
+-- ** Conditions
+
+instance PrettyTerm Cond where
+  prettyTerm (Cond e _) = prettyTerm e
+
+instance Pretty Cond where
+  pretty (Cond e _) = pretty e
 
 instance PrettyTerm BExpr where
   prettyTerm (BLit b) = pretty b
@@ -171,7 +177,7 @@ instance Pretty Expr where
   pretty (P1 o e)          = pretty o `append` prettyTerm e
   pretty (P2 (NN_N o) l r) = concat [prettyTerm l, pretty o, prettyTerm r]
   pretty (P2 o l r)        = unwords [prettyTerm l, pretty o, prettyTerm r]
-  pretty (P3 Cond c l r)   = unwords ["if", prettyTerm c, "then", prettyTerm l, "else", prettyTerm r]
+  pretty (P3 OpIf c l r)   = unwords ["if", prettyTerm c, "then", prettyTerm l, "else", prettyTerm r]
 
 
 -- ** Effects
@@ -217,14 +223,14 @@ instance Pretty Error where
 
   pretty (EffectError k eff rID v) = unlines
       [ pretty k `snoc` ':'
-      , "  On resource: " `append` pretty rID
-      , "  While executing: " `append` pretty eff
-      , "  Resource value: " `append` pretty v ]
+      , "  On resource: " <> pretty rID
+      , "  While executing: " <> pretty eff
+      , "  Resource value: " <> pretty v ]
   
   pretty (StmtError k s v) = unlines
       [ pretty k `snoc` ':'
-      , "  In statement: " `append` pack (show s)  -- TODO: pretty print statements
-      , "  Offending value: " `append` pretty v ]
+      , "  In statement: " <> pack (show s)  -- TODO: pretty print statements
+      , "  Offending value: " <> pretty v ]
   
 instance Pretty EffectErrorKind where
   pretty CheckFailure        = "Resource check failure"

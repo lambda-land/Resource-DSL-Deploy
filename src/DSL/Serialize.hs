@@ -129,6 +129,16 @@ asBExpr = do
       Right e  -> pure e
       Left msg -> throwCustomError (BExprParseError (pack msg) t)
 
+instance ToJSON Cond where
+  toJSON (Cond e _) = String (pretty e)
+
+asCond :: ParseIt Cond
+asCond = do
+    t <- asText
+    case parseCondText t of
+      Right e  -> pure e
+      Left msg -> throwCustomError (BExprParseError (pack msg) t)
+
 instance (ToJSON a) => ToJSON (V a) where
   toJSON (One a) = object ["vtype" .= String "one", "one" .= toJSON a]
   toJSON (Chc d l r) = object ["vtype" .= String "chc", "dim" .= d, "l" .= l, "r" .= r]
@@ -142,7 +152,7 @@ asV asA = do
     _ -> throwCustomError (BadCase "vtype" ["one", "chc"] vtype)
   where
     one = One <$> key "one" asA
-    chc = Chc <$> key "dim" asBExpr <*> key "l" (asV asA) <*> key "r" (asV asA)
+    chc = Chc <$> key "dim" asCond <*> key "l" (asV asA) <*> key "r" (asV asA)
 
 instance ToJSON PType where
   toJSON = String . pretty

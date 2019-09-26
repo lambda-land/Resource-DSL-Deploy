@@ -2,7 +2,7 @@
 
 module DSL.Example.CrossApp where
 
-import Data.Data (Data,Typeable)
+import Data.Data (Typeable)
 import GHC.Generics (Generic)
 
 import Control.Monad (when)
@@ -66,7 +66,7 @@ appModel = Model
   where
     checkSEP :: Block
     checkSEP =
-        [ If (Chc (foldOr (mkKeys [24,32,40,48,56,64])) true false)
+        [ If (Chc (cond (foldOr (mkKeys [24,32,40,48,56,64]))) true false)
           [ checkUnit "/Server/StrongEncryptionPolicy"
           , checkUnit "/Client/StrongEncryptionPolicy"
           ] []
@@ -109,7 +109,7 @@ appModel = Model
 
     keyRule :: T.Text -> [Int] -> Block
     keyRule alg is =
-        [ If (Chc (BRef alg &&& foldOr (allKeys \\ (mkKeys is))) true false)
+        [ If (Chc (cond (BRef alg &&& foldOr (allKeys \\ (mkKeys is)))) true false)
           [ checkUnit "Fail" ] []
         ]
 
@@ -137,7 +137,7 @@ mkCrossAppDFU name algs pads modes =
       ++ mk "Padding" pads allPads
       ++ mk "KeySize" allKeys allKeys
   where
-    mk name good all = foldMap (\a -> [If (Chc (foldOthers a all) true false) [create name (mkVExpr (S a)) ] []]) good
+    mk name good all = foldMap (\a -> [If (Chc (cond (foldOthers a all)) true false) [create name (mkVExpr (S a)) ] []]) good
     others x xs = S.difference (S.fromList xs) (S.singleton x)
     foldOthers x xs = foldl' (\b a -> b &&& (bnot (BRef a))) (BRef x) (S.toList (others x xs))
 
@@ -161,8 +161,8 @@ crossAppConfig :: Name -> Name -> [V PVal]
 crossAppConfig s c = [One (S s), One (S c)]
 
 crossAppConfigAll :: [V PVal]
-crossAppConfigAll = [ Chc "ServerJavax" (One "Javax") (One "BouncyCastle")
-                    , Chc "ClientJavax" (One "Javax") (One "BouncyCastle") ]
+crossAppConfigAll = [ chc "ServerJavax" "Javax" "BouncyCastle"
+                    , chc "ClientJavax" "Javax" "BouncyCastle" ]
 
 --
 -- * Requirements
@@ -178,14 +178,14 @@ crossAppReqs = Model [] []
 data CrossAppConfig = CrossAppConfig
      { serverProv :: String
      , clientProv :: String }
-  deriving (Show,Read,Eq,Data,Typeable,Generic,FromJSON)
+  deriving (Show,Read,Eq,Typeable,Generic,FromJSON)
 
 data CrossAppInit = CrossAppInit
      { serverAESNI :: Value
      , serverSEP   :: Value
      , clientAESNI :: Value
      , clientSEP   :: Value }
-  deriving (Eq,Read,Show,Data,Typeable,Generic,FromJSON)
+  deriving (Eq,Read,Show,Typeable,Generic,FromJSON)
 
 data CrossAppOpts = CrossAppOpts
      { genDict      :: Bool
@@ -195,7 +195,7 @@ data CrossAppOpts = CrossAppOpts
      , genConfig    :: Maybe CrossAppConfig
      , genConfigAll :: Bool
      , genReqs      :: Bool }
-  deriving (Eq,Read,Show,Data,Typeable,Generic)
+  deriving (Eq,Read,Show,Typeable,Generic)
 
 parseCrossAppOpts :: Parser CrossAppOpts
 parseCrossAppOpts = CrossAppOpts

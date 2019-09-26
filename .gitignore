@@ -5,6 +5,7 @@ outbox
 scratch
 TAGS
 trace.txt
+*.lock
 *.prof
 *.tix
 .#*

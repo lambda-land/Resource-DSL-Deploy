@@ -31,11 +31,14 @@ library
       ConstraintKinds
     , DeriveDataTypeable
     , DeriveGeneric
+    , DeriveTraversable
     , FlexibleContexts
     , FlexibleInstances
     , GeneralizedNewtypeDeriving
+    , LambdaCase
     , MultiParamTypeClasses
     , OverloadedStrings
+    , TupleSections
   other-extensions:
       UndecidableInstances
   build-depends:
@@ -53,20 +56,19 @@ library
     , mtl
     , optparse-applicative
     , parser-combinators
-    , sbv
     , scientific
     , split
     , text
     , vector
-
+    , z3
   exposed-modules:
       DSL.Boolean
+    , DSL.Condition
     , DSL.Driver
     , DSL.Environment
     , DSL.Evaluation
     , DSL.Parser
     , DSL.Path
-    , DSL.Predicate
     , DSL.Pretty
     , DSL.Primitive
     , DSL.SAT
@@ -104,6 +106,7 @@ test-suite test
     , aeson
     , aeson-better-errors
     , aeson-pretty
+    , containers
     , megaparsec
     , text
     , tasty
@@ -115,4 +118,3 @@ test-suite test
     , DSL.Parser.Test
     , DSL.Primitive.Test
     , DSL.SAT.Test
-    , DSL.Variational.Test

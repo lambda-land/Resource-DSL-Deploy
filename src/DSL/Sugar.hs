@@ -5,7 +5,6 @@ import qualified Data.Set as S
 
 import DSL.Boolean
 import DSL.Types
-import DSL.Parser
 
 
 --
@@ -14,15 +13,19 @@ import DSL.Parser
 
 -- ** Variational values
 
+-- | Construct a condition from a boolean expression.
+cond :: BExpr -> Cond
+cond e = Cond e Nothing
+
 -- | Construct a binary choice in the given dimension.
 chc :: Var -> a -> a -> V a
-chc d l r = Chc (BRef d) (One l) (One r)
+chc d l r = Chc (Cond (BRef d) Nothing) (One l) (One r)
 
 -- | Construct an n-ary choice by cascading binary choices drawn from the
 --   given list of dimensions.
 chcN :: [Var] -> [a] -> V a
 chcN _      [a]    = One a
-chcN (d:ds) (a:as) = Chc (BRef d) (One a) (chcN ds as)
+chcN (d:ds) (a:as) = Chc (Cond (BRef d) Nothing) (One a) (chcN ds as)
 chcN _ _ = error "chcN: illegal arguments"
 
 
@@ -76,7 +79,7 @@ pRound = P1 (F_I Round)
 
 -- | Conditional expressions.
 (??) :: V Expr -> (V Expr, V Expr) -> Expr
-c ?? (t,e) = P3 Cond c t e
+c ?? (t,e) = P3 OpIf c t e
 
 infix 1 ??
 
@@ -110,11 +113,6 @@ createUnit p = Do p (Create (One . Lit . One $ Unit))
 
 mkVExpr :: PVal -> V Expr
 mkVExpr = One . Lit . One
-
-dim :: T.Text -> BExpr
-dim t | Right b <- parseBExprText t = b
-      | Left s <- parseBExprText t = error s
-      | otherwise = error "impossible"
 
 exclusive' :: S.Set T.Text -> S.Set T.Text -> Maybe BExpr
 exclusive' all yes = combine (yesExpr yesList) (noExpr noList)

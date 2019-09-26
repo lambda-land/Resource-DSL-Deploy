@@ -1,9 +1,6 @@
--- | A reproduction of SBV's Boolean type class, which we use heavily but
---   was removed in SBV version 8.0.
+-- | A shared interface for boolean values and operations. This is a
+--   reproduction of SBV's pre-8.0 Boolean type class.
 module DSL.Boolean where
-
-import Data.SBV
-
 
 class Boolean b where
   true  :: b
@@ -36,13 +33,3 @@ instance Boolean Bool where
   bnot  = not
   (&&&) = (&&)
   (|||) = (||)
-
-instance Boolean SBool where
-  true = sTrue
-  false = sFalse
-  bnot = sNot
-  (&&&) = (.&&)
-  (|||) = (.||)
-  (<+>) = (.<+>)
-  (==>) = (.=>)
-  (<=>) = (.<=>)

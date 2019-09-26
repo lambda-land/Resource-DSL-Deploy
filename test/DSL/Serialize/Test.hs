@@ -113,7 +113,7 @@ testSerialize = testGroup "Roundtripping for Serialize"
 
     , testCase "RoundTrip for Function with ternary func" $
       roundTrip "Fun with ternary func" (Fun (Param "x" TBool)
-                                         (P3 Cond
+                                         (P3 OpIf
                                           (true ||| false)
                                           (negate 0)
                                           (bnot true))) asFun

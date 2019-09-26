@@ -2,3 +2,9 @@
 # http://docs.haskellstack.org/en/stable/yaml_configuration/
 
 resolver: lts-14.3
+extra-deps:
+  - git: https://github.com/walkie/haskell-z3
+    commit: f78a3fc8bc01dae863e95539c2c9ed4f9719ab71
+  # - ../../haskell-z3
+extra-include-dirs:
+  - /usr/include/z3/
