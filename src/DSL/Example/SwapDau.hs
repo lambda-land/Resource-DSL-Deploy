@@ -638,7 +638,7 @@ configPortAttrs renv cfg invDauID invGrpIx reqDauID reqGrpIx (MkPortAttrs (Env m
     dimGen = dimAttr invDauID invGrpIx reqDauID reqGrpIx
     path (ResID ns) a = ResID (ns ++ [a])
     config p a (Sync as) =
-      let ds = take (length as) (dimN (dimGen a))
+      let ds = take (length as - 1) (dimN (dimGen a))
           ix = fromMaybe 0 $ findIndex (\d -> envLookupOrFail "configPortAttrs" d cfg) ds
           MkPortAttrs (Env m) = as !! ix
       in Node (MkPortAttrs (Env (Map.mapWithKey (config (path p a)) m)))
