@@ -1,0 +1,17 @@
+[
+  {
+    "Attribute": "DataRate",
+    "AttributeValue": "@SampleRate * @DataLength",
+    "Equation": "@SampleRate * @DataLength"
+  },
+  {
+    "Attribute": "Direction",
+    "AttributeValue": "Input",
+    "Compatible": ["Input", "Bidirectional"]
+  },
+  {
+    "Attribute": "Direction",
+    "AttributeValue": "Output",
+    "Compatible": ["Output", "Bidirectional"]
+  }
+]

@@ -194,7 +194,7 @@ symBExprFresh e = do
 --   binding all of the variables.
 symBExpr :: MonadZ3 m => SymEnv -> BExpr -> m AST
 symBExpr _ (BLit b)     = mkBool b
-symBExpr m (BRef x)     = return (envLookupOrFail (x,OptBool) m)
+symBExpr m (BRef x)     = return (envLookupOrFail "symBExpr" (x,OptBool) m)
 symBExpr m (OpB o e)    = symBExpr m e >>= symB_B o
 symBExpr m (OpBB o l r) = do
     l' <- symBExpr m l 
@@ -209,7 +209,7 @@ symBExpr m (OpIB o l r) = do
 --   binding all of the variables.
 symIExpr :: MonadZ3 m => SymEnv -> IExpr -> m AST
 symIExpr _ (ILit i)     = mkIntNum i
-symIExpr m (IRef x)     = return (envLookupOrFail (x,OptInt) m)
+symIExpr m (IRef x)     = return (envLookupOrFail "symIExpr" (x,OptInt) m)
 symIExpr m (OpI o e)    = symIExpr m e >>= symN_N o
 symIExpr m (OpII o l r) = do
     l' <- symIExpr m l 
