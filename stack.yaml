@@ -8,3 +8,4 @@ extra-deps:
   # - ../../haskell-z3
 extra-include-dirs:
   - /usr/include/z3/
+  - ../z3-headers/
