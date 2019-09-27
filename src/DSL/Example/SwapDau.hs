@@ -17,6 +17,7 @@ import Data.String (fromString)
 import Data.Text (unpack)
 import Options.Applicative hiding ((<|>))
 import System.Exit
+import Z3.Base (getVersion)
 import Z3.Monad (modelToString)
 
 import Data.Text (pack)
@@ -847,6 +848,7 @@ defaultResponseFile  = "outbox/swap-response.json"
 
 data SwapOpts = MkSwapOpts {
      swapRunSearch     :: Bool
+   , swapZ3Version     :: Bool
    , swapMaxDaus       :: Int
    , swapRulesFile     :: FilePath
    , swapInventoryFile :: FilePath
@@ -855,7 +857,7 @@ data SwapOpts = MkSwapOpts {
 } deriving (Typeable,Generic,Eq,Read,Show)
 
 defaultOpts :: SwapOpts
-defaultOpts = MkSwapOpts True 2 defaultRulesFile defaultInventoryFile defaultRequestFile defaultResponseFile
+defaultOpts = MkSwapOpts True False 2 defaultRulesFile defaultInventoryFile defaultRequestFile defaultResponseFile
 
 parseSwapOpts :: Parser SwapOpts
 parseSwapOpts = MkSwapOpts
@@ -863,6 +865,10 @@ parseSwapOpts = MkSwapOpts
     <$> switch
          ( long "run"
         <> help "Run the search for replacement DAUs" )
+
+    <*> switch
+         ( long "z3-version"
+        <> help "Print the z3 version number" )
 
     <*> intOption 
          ( long "max-daus"
@@ -895,6 +901,9 @@ parseSwapOpts = MkSwapOpts
 -- | Top-level driver.
 runSwap :: SwapOpts -> IO ()
 runSwap opts = do
+    when (swapZ3Version opts) $ do
+      v <- getVersion
+      putStrLn ("z3 version: " ++ show v)
     when (swapRunSearch opts) $ do
       req <- readJSON (swapRequestFile opts) asRequest
       MkSetInventory daus <- readJSON (swapInventoryFile opts) asSetInventory
