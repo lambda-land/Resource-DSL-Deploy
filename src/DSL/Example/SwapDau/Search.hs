@@ -28,31 +28,32 @@ import DSL.Example.SwapDau.Types
 --
 
 -- | Find replacement DAUs in the given inventory.
-findReplacement :: Int -> Rules -> Inventory -> Request -> IO (Maybe Response)
+findReplacement :: Int -> Rules -> Inventory -> Request -> IO (Metrics, Maybe Response)
 findReplacement size rules inv req = do
     z3 <- initSolver
     let daus = toReplace req
     let invs = toSearch size daus inv
     let ports = buildPortMap daus
-    let test i = do
+    let metrics = initMetrics size inv
+    let test m i = do
           let model = appModel rules (provisions i) daus
           let dims = boolDims model
           syms <- symEnvFresh z3 dims Set.empty
           model' <- runSat z3 (prepare syms model)
           (_,s) <- runEval z3 envEmpty (initEnv i) (loadModel model' [])
-          return (syms,s)
-    let loop []     = return Nothing
-        loop (i:is) = do
-          (syms,s) <- test i
+          return (syms, m, s)
+    let loop m []     = return (m, Nothing)
+        loop m (i:is) = do
+          (syms, m, s) <- test m i
           pass <- runSat z3 (condNot (errCtx s))
           ok <- runSat z3 (isSat (condSymOrFail pass))
-          if ok then return (Just (i, syms, resEnv s, pass)) else loop is
+          if ok then return (m, Just (i, syms, resEnv s, pass)) else loop m is
     -- writeJSON "outbox/swap-model-debug.json" (appModel rules (provisions (invs !! 1)) daus)
     -- putStrLn $ "To replace: " ++ show daus
     -- putStrLn $ "Inventory: " ++ show inv
-    result <- loop invs
+    (metrics', result) <- loop metrics invs
     case result of
-      Nothing -> return Nothing
+      Nothing -> return (metrics', Nothing)
       Just (i, syms, renv, pass) -> runSat z3 $ do
         Just sol <- satModel (condSymOrFail pass)
         solStr <- modelToString sol
@@ -61,7 +62,16 @@ findReplacement size rules inv req = do
         let replace = buildReplaceMap cfg
         -- putStrLn $ "Configuration: " ++ show (buildConfig r)
         -- putStrLn $ "Resource Env: " ++ show renv
-        return (Just (buildResponse ports i renv replace cfg))
+        return (metrics', Just (buildResponse ports i renv replace cfg))
+
+
+--
+-- * Metrics
+--
+
+-- | Intitialize the metrics state.
+initMetrics :: Int -> Inventory -> Metrics
+initMetrics size inv = MkMetrics (length inv) 0 0 0 0 0 0 0
 
 
 --

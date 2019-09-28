@@ -156,3 +156,20 @@ data ResponseDau = MkResponseDau {
      oldDaus :: [Name]
    , resDau  :: Dau [ResponsePort]
 } deriving (Typeable,Generic,Eq,Show)
+
+
+--
+-- * Metrics
+--
+
+-- | A set of metrics to help characterize the size of the search space.
+data Metrics = MkMetrics {
+     numDaus        :: Int  -- ^ DAUs in the inventory
+   , numInventories :: Int  -- ^ sub-inventories considered
+   , numIgnored     :: Int  -- ^ sub-inventories filtered out before analysis
+   , numExplored    :: Int  -- ^ sub-inventories explored by variational analysis
+   , numPorts       :: Int  -- ^ total number of ports in explored sub-inventories
+   , numGroups      :: Int  -- ^ total number of port groups in explored sub-inventories
+   , numCfgDims     :: Int  -- ^ total number of configuration dimensions in explored sub-inventories
+   , numUseDims     :: Int  -- ^ total number of provision-to-requirement use dimensions in explored sub-inventories
+} deriving (Typeable,Generic,Eq,Show)

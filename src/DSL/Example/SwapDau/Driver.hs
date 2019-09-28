@@ -31,11 +31,12 @@ runSwap opts = do
       MkSetInventory daus <- readJSON (swapInventoryFile opts) asSetInventory
       rules <- readJSON (swapRulesFile opts) asRules
       putStrLn "Searching for replacement DAUs ..."
-      result <- findReplacement (swapMaxDaus opts) rules (createInventory daus) req
+      (metrics, result) <- findReplacement (swapMaxDaus opts) rules (createInventory daus) req
       case result of
         Just res -> do 
           let resFile = swapResponseFile opts
           writeJSON resFile res
+          writeJSON (swapMetricsFile opts) metrics
           putStrLn ("Success. Response written to: " ++ resFile)
         Nothing -> do
           putStrLn "No replacement DAUs found."
@@ -47,7 +48,7 @@ runSwapTest opts = do
     req <- readJSON (swapRequestFile opts) asRequest
     MkSetInventory daus <- readJSON (swapInventoryFile opts) asSetInventory
     rules <- readJSON (swapRulesFile opts) asRules
-    findReplacement (swapMaxDaus opts) rules (createInventory daus) req
+    fmap snd $ findReplacement (swapMaxDaus opts) rules (createInventory daus) req
 
 -- | Trivially configure a request into a response (for testing).
 triviallyConfigure :: Request -> Response
@@ -72,6 +73,7 @@ defaultRulesFile     = "inbox/swap-rules.json"
 defaultInventoryFile = "inbox/swap-inventory.json"
 defaultRequestFile   = "inbox/swap-request.json"
 defaultResponseFile  = "outbox/swap-response.json"
+defaultMetricsFile   = "outbox/swap-metrics.json"
 
 data SwapOpts = MkSwapOpts {
      swapRunSearch     :: Bool
@@ -81,10 +83,17 @@ data SwapOpts = MkSwapOpts {
    , swapInventoryFile :: FilePath
    , swapRequestFile   :: FilePath
    , swapResponseFile  :: FilePath
+   , swapMetricsFile   :: FilePath
 } deriving (Typeable,Generic,Eq,Read,Show)
 
 defaultOpts :: SwapOpts
-defaultOpts = MkSwapOpts True False 2 defaultRulesFile defaultInventoryFile defaultRequestFile defaultResponseFile
+defaultOpts = MkSwapOpts
+    True False 2
+    defaultRulesFile
+    defaultInventoryFile
+    defaultRequestFile
+    defaultResponseFile
+    defaultMetricsFile
 
 parseSwapOpts :: Parser SwapOpts
 parseSwapOpts = MkSwapOpts
@@ -121,6 +130,11 @@ parseSwapOpts = MkSwapOpts
          ( long "response-file"
         <> value defaultResponseFile
         <> help "Path to the JSON response file" )
+
+    <*> pathOption
+         ( long "metrics-file"
+        <> value defaultResponseFile
+        <> help "Path to the JSON metrics file" )
   where
     intOption mods = option auto (mods <> showDefault <> metavar "INT")
     pathOption mods = strOption (mods <> showDefault <> metavar "FILE")

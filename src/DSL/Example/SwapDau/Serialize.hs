@@ -153,4 +153,14 @@ instance ToJSON ResponsePort where
     where
       attr = "SupersededGloballyUniqueId" .= oldPort p
 
-
+instance ToJSON Metrics where
+  toJSON m = object
+    [ "daus-in-inventory"         .= numDaus m
+    , "candidate-sub-inventories" .= numInventories m
+    , "ignored-sub-inventories"   .= numIgnored m
+    , "explored-sub-inventories"  .= numExplored m
+    , "total-ports"               .= numPorts m
+    , "total-port-groups"         .= numGroups m
+    , "total-config-dimensions"   .= numCfgDims m
+    , "total-match-dimensions"    .= numUseDims m
+    ]
