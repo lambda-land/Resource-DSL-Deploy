@@ -80,6 +80,11 @@ library
     , DSL.Example.Location
     , DSL.Example.Network
     , DSL.Example.SwapDau
+    , DSL.Example.SwapDau.Driver
+    , DSL.Example.SwapDau.Encoding
+    , DSL.Example.SwapDau.Search
+    , DSL.Example.SwapDau.Serialize
+    , DSL.Example.SwapDau.Types
 
 executable resource-dsl
   hs-source-dirs:   app
