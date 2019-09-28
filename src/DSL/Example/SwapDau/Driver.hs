@@ -39,6 +39,7 @@ runSwap opts = do
           writeJSON (swapMetricsFile opts) metrics
           putStrLn ("Success. Response written to: " ++ resFile)
         Nothing -> do
+          writeJSON (swapMetricsFile opts) metrics
           putStrLn "No replacement DAUs found."
           exitWith (ExitFailure 3)
 
@@ -133,7 +134,7 @@ parseSwapOpts = MkSwapOpts
 
     <*> pathOption
          ( long "metrics-file"
-        <> value defaultResponseFile
+        <> value defaultMetricsFile
         <> help "Path to the JSON metrics file" )
   where
     intOption mods = option auto (mods <> showDefault <> metavar "INT")

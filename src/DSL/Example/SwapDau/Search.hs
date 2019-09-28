@@ -3,13 +3,13 @@ module DSL.Example.SwapDau.Search where
 import Control.Monad.IO.Class (liftIO)
 import Data.Function (on)
 import Data.List (findIndex,foldl',nub,nubBy,sortBy,subsequences)
-import Data.Maybe (fromMaybe)
-import Data.Text (pack,unpack)
-import Z3.Monad (modelToString)
-
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Maybe (fromMaybe)
+import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Text (isPrefixOf,pack,unpack)
+import Z3.Monad (modelToString)
 
 import DSL.Condition
 import DSL.Environment
@@ -34,20 +34,21 @@ findReplacement size rules inv req = do
     let daus = toReplace req
     let invs = toSearch size daus inv
     let ports = buildPortMap daus
-    let metrics = initMetrics size inv
+    let metrics = initMetrics daus (length inv) size (length invs)
     let test m i = do
           let model = appModel rules (provisions i) daus
           let dims = boolDims model
+          let m' = addExplored i dims m
           syms <- symEnvFresh z3 dims Set.empty
           model' <- runSat z3 (prepare syms model)
           (_,s) <- runEval z3 envEmpty (initEnv i) (loadModel model' [])
-          return (syms, m, s)
+          return (syms, m', s)
     let loop m []     = return (m, Nothing)
         loop m (i:is) = do
-          (syms, m, s) <- test m i
+          (syms, m', s) <- test m i
           pass <- runSat z3 (condNot (errCtx s))
           ok <- runSat z3 (isSat (condSymOrFail pass))
-          if ok then return (m, Just (i, syms, resEnv s, pass)) else loop m is
+          if ok then return (m', Just (i, syms, resEnv s, pass)) else loop m' is
     -- writeJSON "outbox/swap-model-debug.json" (appModel rules (provisions (invs !! 1)) daus)
     -- putStrLn $ "To replace: " ++ show daus
     -- putStrLn $ "Inventory: " ++ show inv
@@ -70,8 +71,35 @@ findReplacement size rules inv req = do
 --
 
 -- | Intitialize the metrics state.
-initMetrics :: Int -> Inventory -> Metrics
-initMetrics size inv = MkMetrics (length inv) 0 0 0 0 0 0 0
+initMetrics :: [Dau (PortGroups a)] -> Int -> Int -> Int -> Metrics
+initMetrics reqDaus invSize maxDaus okSubs = MkMetrics {
+      numReqDaus   = length reqDaus
+    , numReqPorts  = sum (map groupSize reqGrps)
+    , numReqGroups = length reqGrps
+    , numInvDaus   = invSize
+    , numInvs      = numSubs
+    , numIgnored   = numSubs - okSubs
+    , numExplored  = 0
+    , numExpPorts  = 0
+    , numExpGroups = 0
+    , numCfgDims   = 0
+    , numUseDims   = 0 }
+  where
+    reqGrps = concatMap ports reqDaus
+    numSubs = sum (map (choose invSize) [0..maxDaus])
+    choose n k = foldl (\z i -> (z * (n - i + 1)) `div` i) 1 [1..k]  -- binomial coefficient
+
+-- | Add an explored sub-inventory.
+addExplored :: Inventory -> Set Var -> Metrics -> Metrics
+addExplored inv dims m = m {
+      numExplored  = numExplored  m + 1
+    , numExpPorts  = numExpPorts  m + sum (map groupSize invGrps)
+    , numExpGroups = numExpGroups m + length invGrps
+    , numCfgDims   = numCfgDims   m + numDims "Cfg"
+    , numUseDims   = numUseDims   m + numDims "Use" }
+  where
+    invGrps = concatMap ports inv
+    numDims pre = Set.size (Set.filter (isPrefixOf pre) dims)
 
 
 --
