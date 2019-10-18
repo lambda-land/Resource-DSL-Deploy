@@ -31,7 +31,7 @@ runSwap opts = do
       MkSetInventory daus <- readJSON (swapInventoryFile opts) asSetInventory
       rules <- readJSON (swapRulesFile opts) asRules
       putStrLn "Searching for replacement DAUs ..."
-      (metrics, result) <- findReplacement (swapMaxDaus opts) rules (createInventory daus) req
+      (metrics, result) <- findReplacement False (swapMaxDaus opts) rules (createInventory daus) req
       case result of
         Just res -> do 
           let resFile = swapResponseFile opts
@@ -49,7 +49,7 @@ runSwapTest opts = do
     req <- readJSON (swapRequestFile opts) asRequest
     MkSetInventory daus <- readJSON (swapInventoryFile opts) asSetInventory
     rules <- readJSON (swapRulesFile opts) asRules
-    fmap snd $ findReplacement (swapMaxDaus opts) rules (createInventory daus) req
+    fmap snd $ findReplacement True (swapMaxDaus opts) rules (createInventory daus) req
 
 -- | Trivially configure a request into a response (for testing).
 triviallyConfigure :: Request -> Response

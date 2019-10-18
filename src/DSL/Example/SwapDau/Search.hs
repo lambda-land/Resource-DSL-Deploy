@@ -1,8 +1,9 @@
 module DSL.Example.SwapDau.Search where
 
+import Control.Monad (unless)
 import Control.Monad.IO.Class (liftIO)
 import Data.Function (on)
-import Data.List (findIndex,foldl',nub,nubBy,sortBy,subsequences)
+import Data.List (findIndex,foldl',intercalate,nub,nubBy,sortBy,subsequences)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (fromMaybe)
@@ -28,8 +29,14 @@ import DSL.Example.SwapDau.Types
 --
 
 -- | Find replacement DAUs in the given inventory.
-findReplacement :: Int -> Rules -> Inventory -> Request -> IO (Metrics, Maybe Response)
-findReplacement size rules inv req = do
+findReplacement
+  :: Bool       -- ^ test mode? (if true, don't print status or write solution file)
+  -> Int        -- ^ maximum number of DAUs to include in response
+  -> Rules      -- ^ attribute rules
+  -> Inventory  -- ^ inventory of available DAUs
+  -> Request    -- ^ request we need to satisfy
+  -> IO (Metrics, Maybe Response)
+findReplacement isTest size rules inv req = do
     z3 <- initSolver
     let daus = toReplace req
     let invs = toSearch size daus inv
@@ -39,6 +46,8 @@ findReplacement size rules inv req = do
           let model = appModel rules (provisions i) daus
           let dims = boolDims model
           let m' = addExplored i dims m
+          let invStr = intercalate ", " (map (unpack . dauID) i)
+          unless isTest $ putStrLn ("Analyzing candidate sub-inventory: " ++ invStr)
           syms <- symEnvFresh z3 dims Set.empty
           model' <- runSat z3 (prepare syms model)
           (_,s) <- runEval z3 envEmpty (initEnv i) (loadModel model' [])
@@ -58,7 +67,7 @@ findReplacement size rules inv req = do
       Just (i, syms, renv, pass) -> runSat z3 $ do
         Just sol <- satModel (condSymOrFail pass)
         solStr <- modelToString sol
-        liftIO $ writeFile "outbox/swap-solution.txt" solStr
+        unless isTest $ liftIO $ writeFile "outbox/swap-solution.txt" solStr
         (cfg,_) <- satResult syms sol
         let replace = buildReplaceMap cfg
         -- putStrLn $ "Configuration: " ++ show (buildConfig r)
