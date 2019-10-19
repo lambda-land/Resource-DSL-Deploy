@@ -115,6 +115,9 @@ data Provision = MkProvision {
 -- | Associates port functionalities with port groups from provided DAUs.
 type Provisions = Env Name [Provision]
 
+-- | The number of ports providing each functionality within an inventory.
+type PortCount = Env Name Int
+
 
 --
 -- * Requests and Responses

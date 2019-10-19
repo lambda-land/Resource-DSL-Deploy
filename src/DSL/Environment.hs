@@ -37,6 +37,9 @@ envFromListAcc ((k,m):l) = envUnionWith mergeDup (envSingle k m) (envFromListAcc
 class MergeDup v where
   mergeDup :: v -> v -> v
 
+instance MergeDup Int where
+  mergeDup = (+)
+
 instance MergeDup [a] where
   mergeDup = (++)
 

@@ -118,7 +118,7 @@ addExplored inv dims m = m {
 -- * Constructing inventories
 
 -- | Extract the list of DAUs to replace from a request and group their ports.
-toReplace :: Request -> [Dau (PortGroups Constraint)]
+toReplace :: Request -> Inventory
 toReplace = map (groupPortsInDau . reqDau) . filter replace . reqDaus
 
 -- | Convert a list of ungrouped DAUs into a DAU inventory.
@@ -146,6 +146,12 @@ provisions = envFromListAcc . concatMap dau
     dau (MkDau n gs _) = map (grp n) (zip gs [1..])
     grp n (g,i) = (groupFunc g, [MkProvision n i g])
 
+-- | The port count map for a given inventory.
+portCount :: Inventory -> PortCount
+portCount = envFromListAcc . concatMap dau
+  where
+    dau (MkDau _ gs _) = [(groupFunc g, groupSize g) | g <- gs]
+
 
 -- ** Filtering and ordering inventories
 
@@ -153,11 +159,15 @@ provisions = envFromListAcc . concatMap dau
 --   DAUs to replace and an integer indicating the maximum size of each
 --   sub-inventory. A max size less than 1 indicates unbounded sub-inventory
 --   size (which will be slow for large inventories).
-toSearch :: Int -> [Dau (PortGroups Constraint)] -> Inventory -> [Inventory]
-toSearch size daus inv = map (free ++) $ sortInventories
-    ((if size > 0 then subsUpToLength size else subsequences) nonFree)
+toSearch :: Int -> Inventory -> Inventory -> [Inventory]
+toSearch size reqs provs
+    = filterSubInventories reqPC
+    $ map (free ++)
+    $ sortInventories
+    $ (if size > 0 then subsUpToLength size else subsequences) nonFree
   where
-    filtered = filterInventory (concatMap ports daus) inv
+    reqPC = portCount reqs
+    filtered = filterInventory reqPC provs
     (free,nonFree) = foldr splitFree ([],[]) filtered
     splitFree d (f,n)
       | monCost d <= 0 = (d:f, n)
@@ -171,13 +181,21 @@ toSearch size daus inv = map (free ++) $ sortInventories
 sortInventories :: [Inventory] -> [Inventory]
 sortInventories = sortBy (compare `on` inventoryCost)
 
--- | Filter inventory to include only DAUs that provide functionalities
---   relevant to the given port groups.
-filterInventory :: PortGroups a -> Inventory -> Inventory
-filterInventory gs ds = filter (any relevant . map groupFunc . ports) ds
+-- | Filter inventory of provided DAUs to include only those that provide
+--   functionalities relevant to the requirements.
+filterInventory :: PortCount -> Inventory -> Inventory
+filterInventory req prov = filter (any relevant . map groupFunc . ports) prov
   where
-    fns = Set.fromList (map groupFunc gs)
+    fns = Map.keysSet (envAsMap req)
     relevant fn = Set.member fn fns
+
+-- | Filter sub-inventories to include only those that have a compatible port
+--   count with the requirements.
+filterSubInventories :: PortCount -> [Inventory] -> [Inventory]
+filterSubInventories req = filter satisfies
+  where
+    satisfies inv = all (has (portCount inv)) (envToList req)
+    has prov (fn,n) = maybe False (>= n) (envLookup fn prov)
 
 -- | Monetary cost of a (sub-)inventory.
 inventoryCost :: Inventory -> Int
