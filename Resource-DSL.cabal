@@ -13,7 +13,6 @@ source-repository head
   location: https://github.com/lambda-land/Resource-DSL-Deploy
   branch:   master
 
--- NOTE: sbv also requires z3 executable on PATH!
 -- TODO: refactor and remove -Wno-orphans option
 library
   hs-source-dirs:   src
@@ -50,14 +49,12 @@ library
     , composition
     , containers
     , directory
-    , exceptions
     , filepath
     , megaparsec
     , mtl
     , optparse-applicative
     , parser-combinators
     , scientific
-    , split
     , text
     , vector
     , z3
