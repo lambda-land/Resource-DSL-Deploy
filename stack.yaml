@@ -10,3 +10,5 @@ extra-deps:
 extra-include-dirs:
   - /usr/include/z3/
   - ../z3-headers/
+extra-lib-dirs:
+  - /home/awellman/.immortals/z3/bin
