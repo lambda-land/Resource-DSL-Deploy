@@ -141,7 +141,7 @@ inVCtx new@(Cond _ (Just s)) (EvalM mx) = EvalM $ do
       c <- condAnd new old
       Z3.assert s
       -- TODO: Following seems like the right thing to do, i.e. don't execute
-      -- branches in contexts that are not viable variants. However, we never
+      -- branches in contexts that are not viable variants. However, we rarely
       -- trigger the aborted case and it approx. doubles execution time.
       --
       -- b <- checkSat
