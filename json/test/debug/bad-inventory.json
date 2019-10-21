@@ -1,0 +1,82 @@
+{
+  "daus": [
+    {
+      "BBNDauMonetaryCost": 45000,
+      "GloballyUniqueId": "I#25:8",
+      "Port": [
+        {
+          "BBNPortFunctionality": "Thermocouple",
+          "Excitation": [
+            false
+          ],
+          "GloballyUniqueId": "I#79:252",
+          "Measurement": [
+            {
+              "DataLength": 12,
+              "DataRate": "@SampleRate * @DataLength",
+              "SampleRate": 1000
+            },
+            {
+              "DataLength": 16,
+              "DataRate": "@SampleRate * @DataLength",
+              "SampleRate": 250
+            }
+          ],
+          "PortDirection": "Input",
+          "PortPolarity": "Unipolar",
+          "PortType": "Thermocouple"
+        },
+        {
+          "BBNPortFunctionality": "Thermocouple",
+          "Excitation": [
+            false
+          ],
+          "GloballyUniqueId": "I#79:257",
+          "Measurement": [
+            {
+              "DataLength": 12,
+              "DataRate": "@SampleRate * @DataLength",
+              "SampleRate": 1000
+            },
+            {
+              "DataLength": 16,
+              "DataRate": "@SampleRate * @DataLength",
+              "SampleRate": 250
+            }
+          ],
+          "PortDirection": "Input",
+          "PortPolarity": "Bipolar",
+          "PortType": "Thermocouple"
+        }
+      ]
+    },
+    {
+      "BBNDauMonetaryCost": 30000,
+      "GloballyUniqueId": "I#25:9",
+      "Port": [
+        {
+          "BBNPortFunctionality": "Thermocouple",
+          "Excitation": [
+            false
+          ],
+          "GloballyUniqueId": "I#79:267",
+          "Measurement": [
+            {
+              "DataLength": 12,
+              "DataRate": "@SampleRate * @DataLength",
+              "SampleRate": 1000
+            },
+            {
+              "DataLength": 16,
+              "DataRate": "@SampleRate * @DataLength",
+              "SampleRate": 250
+            }
+          ],
+          "PortDirection": "Input",
+          "PortPolarity": "Unipolar",
+          "PortType": "Thermocouple"
+        }
+      ]
+    }
+  ]
+}
