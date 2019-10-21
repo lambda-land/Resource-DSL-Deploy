@@ -56,5 +56,9 @@ testIf = testGroup "execStmt If"
       z3 <- initSolver
       syms <- symEnvFresh z3 (fromList ["A"]) empty
       s' <- runSat z3 (prepare syms s)
-      (_, sctx) <- runEval z3 envEmpty envEmpty (execStmt s')
+      (_, sctx) <- runEval z3 envEmpty envEmpty $ do
+        execStmt s'
+        renv <- getResEnv
+        m' <- mapM shrinkValue (envAsMap renv)
+        updateResEnv (const (Env m'))
       return (resEnv sctx)

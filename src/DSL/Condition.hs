@@ -75,6 +75,16 @@ condOp2 eOp sOp (Cond e1 (Just s1)) (Cond e2 (Just s2)) = do
 condOp2 _ _ c@(Cond _ Nothing) _ = errorUnprepped c
 condOp2 _ _ _ c@(Cond _ Nothing) = errorUnprepped c
 
+-- | A fast pointer equality check of conditions.
+condSame :: Cond -> Cond -> Bool
+condSame (Cond _ (Just s1)) (Cond _ (Just s2)) = s1 == s2
+condSame _ _ = False
+
+-- | Is this the trivial true condition?
+condIsTrue :: Cond -> Bool
+condIsTrue (Cond (BLit True) _) = True
+condIsTrue _ = False
+
 
 --
 -- * Boolean expressions
@@ -160,6 +170,7 @@ reduceIExpr m (OpII o l r) =
 
 -- | Apply some basic rules to shrink the size of a boolean expression. Does
 --   not attempt to shrink integer expressions within comparison operations.
+--   NOTE: This is an expensive operation. Call with care!
 shrinkBExpr :: BExpr -> BExpr
 shrinkBExpr (OpB Not e) = case shrinkBExpr e of
     BLit True  -> BLit False

@@ -10,7 +10,6 @@ import Control.Monad.Fail
 import Control.Monad.Reader
 import Control.Monad.State
 import Data.Composition ((.:))
-import Data.Maybe (fromMaybe)
 import Data.Set (Set)
 import qualified Z3.Monad as Z3
 
@@ -137,7 +136,8 @@ inVCtx :: Cond -> EvalM a -> EvalM a
 inVCtx (Cond (BLit True) _) mx = mx
 inVCtx new@(Cond _ (Just s)) (EvalM mx) = EvalM $ do
     old <- getVCtx
-    Z3.local $ do
+    if condSame new old then mx
+    else Z3.local $ do
       c <- condAnd new old
       Z3.assert s
       -- TODO: Following seems like the right thing to do, i.e. don't execute
@@ -341,7 +341,7 @@ selectValue d v = inVCtx d (shrinkValueInCtx v)
 shrinkValueInCtx :: Value -> EvalM Value
 shrinkValueInCtx (One a) = return (One a)
 shrinkValueInCtx (Chc c@(Cond e (Just s)) l r) =
-    case shrinkBExpr e of
+    case e of
       BLit True  -> shrinkValueInCtx l
       BLit False -> shrinkValueInCtx r
       OpB Not e' -> do
@@ -364,10 +364,11 @@ shrinkValueInCtx (Chc c _ _) = errorUnprepped c
 
 -- | Shrink a value independent of context and without the SAT solver by
 --   applying some basic restructuring rules.
+--   NOTE: This is a *very* expensive operation. Call with care!
 shrinkValue :: Value -> EvalM Value
 shrinkValue (One a) = return (One a)
 shrinkValue (Chc (Cond e (Just s)) l r) =
-    case shrinkBExpr e of
+    case e of
       BLit True  -> shrinkValue l
       BLit False -> shrinkValue r
       OpB Not e' -> do
@@ -481,8 +482,24 @@ updateRes :: ResID -> Value -> EvalM ()
 updateRes rID new = do
     ctx <- getVCtx
     env <- getResEnv
-    let old = fromMaybe (One Nothing) (envLookup rID env)
-    v <- shrinkValue (Chc ctx new old)
+    v <- case envLookup rID env of
+      Nothing -> return $
+        if condIsTrue ctx
+          then new
+          else Chc ctx new (One Nothing)
+      Just old ->
+        -- TODO: It would be nice to shrink this value before storing in the
+        -- environment, but we need to do it in the global (i.e. true/empty)
+        -- variation context. Unfortunately, there's no way to temporarily
+        -- ignore z3's assertion stack to do this efficiently... The function
+        -- 'shrinkValue' doesn't use the solver but is way too slow.
+        --
+        -- A possible solution might be to maintain two solvers and keep one
+        -- in the global context, but then every condition must maintain two
+        -- symbolic values corresponding to each solver, which is super annoying.
+        --
+        -- shrinkValue (Chc ctx new old)
+        return (Chc ctx new old)
     updateResEnv (envExtend rID v)
 
 -- | Execute the effect on the given resource environment.
