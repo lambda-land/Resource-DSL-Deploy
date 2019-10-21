@@ -58,7 +58,7 @@ findReplacement isTest size rules inv req = do
           pass <- runSat z3 (condNot (errCtx s))
           ok <- runSat z3 (isSat (condSymOrFail pass))
           if ok then return (m', Just (i, syms, resEnv s, pass)) else loop m' is
-    -- writeJSON "outbox/swap-model-debug.json" (appModel rules (provisions (invs !! 1)) daus)
+    -- writeJSON "outbox/swap-model-debug.json" (appModel rules (provisions (invs !! 0)) daus)
     -- putStrLn $ "To replace: " ++ show daus
     -- putStrLn $ "Inventory: " ++ show inv
     (metrics', result) <- loop metrics invs
