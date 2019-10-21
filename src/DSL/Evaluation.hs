@@ -133,13 +133,20 @@ instance Z3.MonadZ3 (StateT StateCtx (ReaderT ReaderCtx IO)) where
 -- ** Core operations
 
 -- | Execute a computation in an extended variation context.
-inVCtx :: MonadEval m => Cond -> m a -> m a
+inVCtx :: Cond -> EvalM a -> EvalM a
 inVCtx (Cond (BLit True) _) mx = mx
-inVCtx new@(Cond _ (Just s)) mx = do
+inVCtx new@(Cond _ (Just s)) (EvalM mx) = EvalM $ do
     old <- getVCtx
     Z3.local $ do
       c <- condAnd new old
       Z3.assert s
+      -- TODO: Following seems like the right thing to do, i.e. don't execute
+      -- branches in contexts that are not viable variants. However, we never
+      -- trigger the aborted case and it approx. doubles execution time.
+      --
+      -- b <- checkSat
+      -- if b then local (\r -> r { vCtx = c }) mx
+      -- else liftIO (putStrLn "aborted") >> return (One Nothing)
       local (\r -> r { vCtx = c }) mx
 inVCtx c _ = errorUnprepped c
 
@@ -154,7 +161,7 @@ mapV f va = EvalM $ do
     if b then return (One Nothing)
     else getVCtx >>= \c -> go c va
   where
-    go c (One a)     = inVCtx c (unEvalM (f a))
+    go c (One a)     = unEvalM (inVCtx c (f a))
     go c (Chc d l r) = do
       lc <- condAnd c d
       l' <- go lc l
@@ -174,7 +181,7 @@ mapVOpt f va = EvalM $ do
     else getVCtx >>= \c -> go c va
   where
     go _ (One Nothing)  = return (One Nothing)
-    go c (One (Just a)) = inVCtx c (unEvalM (f a))
+    go c (One (Just a)) = unEvalM (inVCtx c (f a))
     go c (Chc d l r)    = do
       lc <- condAnd c d
       l' <- go lc l

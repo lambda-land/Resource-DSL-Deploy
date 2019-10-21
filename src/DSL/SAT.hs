@@ -73,6 +73,13 @@ instance MonadZ3 (ReaderT SatCtx IO) where
 
 -- ** Sat checking
 
+-- | Is the context (i.e. set of assertions) satisfiable?
+checkSat :: MonadZ3 m => m Bool
+checkSat = solverCheck >>= \case
+    Sat   -> return True
+    Unsat -> return False
+    Undef -> errorUndefined
+
 -- | Is the symbolic condition satisfiable in the current context?
 isSat :: MonadZ3 m => AST -> m Bool
 isSat s = checkAssumptions [s] >>= \case
