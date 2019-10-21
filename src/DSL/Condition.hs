@@ -55,9 +55,10 @@ condOp1
   -> Cond              -- ^ condition to modify
   -> m Cond
 condOp1 eOp sOp (Cond e (Just s)) = do
+    let e' = shrinkBExpr (eOp e)
     s' <- sOp s
-    return (Cond (shrinkBExpr (eOp e)) (Just s'))
-condOp1 eOp _ (Cond e _) = return (Cond (eOp e) Nothing)
+    return (Cond e' (Just s'))
+condOp1 _ _ c = errorUnprepped c
 
 -- | Combine two conditions with a binary operator.
 condOp2
@@ -68,9 +69,11 @@ condOp2
   -> Cond                       -- ^ right condition
   -> m Cond
 condOp2 eOp sOp (Cond e1 (Just s1)) (Cond e2 (Just s2)) = do
+    let e' = shrinkBExpr (eOp e1 e2)
     s' <- sOp s1 s2
-    return (Cond (shrinkBExpr (eOp e1 e2)) (Just s'))
-condOp2 eOp _ (Cond e1 _) (Cond e2 _) = return (Cond (eOp e1 e2) Nothing)
+    return (Cond e' (Just s'))
+condOp2 _ _ c@(Cond _ Nothing) _ = errorUnprepped c
+condOp2 _ _ _ c@(Cond _ Nothing) = errorUnprepped c
 
 
 --
